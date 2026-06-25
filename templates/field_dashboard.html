@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Field — Apartment Portal</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', -apple-system, sans-serif; }
+    body { background:#f4f7fa; }
+
+    @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes badgePop { 0% { transform:scale(.8); opacity:0; } 100% { transform:scale(1); opacity:1; } }
+
+    .navbar-custom {
+      background:linear-gradient(135deg, #004d40, #00695c, #00838f);
+      padding:14px 0;
+      box-shadow:0 4px 24px rgba(0,77,64,.2);
+    }
+    .navbar-custom .navbar-brand { font-weight:800; letter-spacing:-.4px; font-size:1.15rem; }
+
+    .card { border-radius:16px; border:none; box-shadow:0 2px 12px rgba(0,0,0,.05); transition:all .3s; }
+    .card:hover { box-shadow:0 8px 30px rgba(0,0,0,.08); }
+
+    .status-badge {
+      font-size:.68rem; padding:5px 14px; border-radius:20px;
+      font-weight:600; animation:badgePop .3s ease-out;
+    }
+    .status-Pending { background:#fff8e1; color:#e65100; }
+    .status-Visited { background:#e0f2f1; color:#00695c; }
+
+    .apt-card {
+      background:white; border-radius:16px; padding:18px 20px;
+      margin-bottom:12px;
+      box-shadow:0 2px 10px rgba(0,0,0,.04);
+      transition:all .3s cubic-bezier(.16,1,.3,1);
+      border:1px solid transparent;
+      animation:fadeUp .45s ease-out both;
+    }
+    .apt-card:hover {
+      box-shadow:0 12px 40px rgba(0,0,0,.08);
+      border-color:#b2dfdb;
+      transform:translateY(-3px);
+    }
+    .apt-card h6 { font-weight:700; color:#1a2a3a; margin-bottom:4px; letter-spacing:-.2px; }
+    .apt-card .meta { font-size:.8rem; color:#788896; }
+    .apt-card .meta i { margin-right:4px; }
+
+    .form-control, .form-select {
+      border-radius:10px; padding:11px 14px;
+      border:2px solid #e8edf2;
+      font-size:.88rem; transition:all .2s; background:#fafbfc;
+    }
+    .form-control:focus, .form-select:focus {
+      border-color:#00838f; box-shadow:0 0 0 4px rgba(0,131,143,.1);
+      background:white;
+    }
+    .btn-success {
+      background:linear-gradient(135deg,#00695c,#00acc1);
+      border:none; border-radius:10px; padding:10px 18px;
+      font-weight:600; transition:all .25s;
+    }
+    .btn-success:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,105,92,.3); }
+    .btn-primary {
+      background:linear-gradient(135deg,#00695c,#00838f);
+      border:none; border-radius:10px; padding:10px 18px;
+      font-weight:600; transition:all .25s;
+    }
+    .btn-primary:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,105,92,.3); }
+    .btn-outline-success {
+      border:2px solid #b2dfdb; border-radius:10px;
+      color:#00695c; font-weight:600; transition:all .2s;
+    }
+    .btn-outline-success:hover { background:#00695c; color:white; border-color:#00695c; transform:translateY(-1px); }
+    .btn-outline-info {
+      border:2px solid #b2ebf2; border-radius:10px;
+      color:#00838f; font-weight:600; transition:all .2s;
+    }
+    .btn-outline-info:hover { background:#00838f; color:white; border-color:#00838f; transform:translateY(-1px); }
+    .btn-outline-light { border-radius:8px; border-color:rgba(255,255,255,.25); font-weight:500; }
+
+    .quick-date-link {
+      display:inline-block; padding:4px 14px;
+      background:#f0f3f6; border-radius:20px;
+      font-size:.75rem; color:#4a5a6a; font-weight:500;
+      text-decoration:none; transition:all .15s;
+      margin:2px 4px 2px 0;
+    }
+    .quick-date-link:hover { background:#00695c; color:white; }
+
+    .stat-box { background:white; border-radius:14px; padding:12px 16px; box-shadow:0 2px 8px rgba(0,0,0,.04); transition:all .25s; }
+    .stat-box:hover { transform:translateY(-2px); box-shadow:0 6px 20px rgba(0,0,0,.06); }
+    .stat-box .num { font-size:1.3rem; font-weight:800; color:#00695c; }
+    .stat-box .lbl { font-size:.72rem; color:#8899aa; font-weight:600; text-transform:uppercase; letter-spacing:.3px; }
+
+    .badge-count { background:#e8edf2; color:#4a5a6a; font-weight:600; border-radius:20px; padding:5px 14px; font-size:.75rem; }
+    .visited-label { display:inline-flex; align-items:center; gap:4px; font-size:.75rem; color:#00695c; font-weight:500; }
+
+    ::-webkit-scrollbar { width:5px; }
+    ::-webkit-scrollbar-track { background:transparent; }
+    ::-webkit-scrollbar-thumb { background:#c4d1d9; border-radius:4px; }
+
+    @media (max-width:768px) {
+      .container-fluid { padding:10px; }
+      .apt-card { padding:14px; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-dark navbar-custom">
+    <div class="container-fluid px-4">
+      <span class="navbar-brand mb-0">
+        <i class="bi bi-person-walking me-2"></i>Field Panel
+      </span>
+      <div class="d-flex align-items-center gap-3">
+        <span class="text-white-50 small"><i class="bi bi-person-circle me-1"></i>{{ session.name }}</span>
+        <a href="/logout" class="btn btn-outline-light btn-sm px-3">
+          <i class="bi bi-box-arrow-right me-1"></i>Logout
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container-fluid p-4" style="max-width:850px;">
+    {% with msgs = get_flashed_messages(with_categories=true) %}
+      {% if msgs %}
+        {% for cat, msg in msgs %}
+          <div class="alert alert-{{ cat }} alert-dismissible fade show py-2" role="alert" style="border-radius:14px; border:none; animation:fadeUp .3s;">
+            <i class="bi bi-{{ 'check-circle-fill' if cat=='success' else 'exclamation-circle-fill' }} me-1"></i>
+            {{ msg }}<button type="button" class="btn-close py-2" data-bs-dismiss="alert"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="card mb-4">
+      <div class="card-body py-3 px-4">
+        <form method="get" action="/field" class="row g-2 align-items-end">
+          <div class="col-md-5">
+            <label class="form-label small fw-semibold mb-1"><i class="bi bi-calendar3 me-1" style="color:#00695c;"></i>Select Date</label>
+            <input type="date" name="date" class="form-control" value="{{ selected_date }}" required
+                   min="{{ available_dates[0] if available_dates else '' }}">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-semibold mb-1">&nbsp;</label>
+            <button type="submit" class="btn btn-success w-100">
+              <i class="bi bi-search me-1"></i>View
+            </button>
+          </div>
+          <div class="col-md-4">
+            {% if available_dates %}
+              <label class="form-label small fw-semibold mb-1">Quick jump</label>
+              <div>
+                {% for d in available_dates[:5] %}
+                  <a href="/field?date={{ d }}" class="quick-date-link {% if d == selected_date %}text-white{% endif %}" style="{% if d == selected_date %}background:#00695c;color:white;{% endif %}">{{ d }}</a>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+    </div>
+
+    {% if selected_date %}
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0" style="font-weight:700; color:#1a2a3a; letter-spacing:-.3px;">
+          <i class="bi bi-calendar-check me-1" style="color:#00695c;"></i>{{ selected_date }}
+        </h5>
+        <span class="badge-count"><i class="bi bi-building me-1"></i>{{ apartments|length }} apartment{% if apartments|length != 1 %}s{% endif %}</span>
+      </div>
+
+      <div class="row g-2 mb-3">
+        <div class="col-6">
+          <div class="stat-box text-center">
+            <div class="num">{{ apartments|selectattr('Status','equalto','Pending')|list|length }}</div>
+            <div class="lbl">Pending</div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="stat-box text-center">
+            <div class="num">{{ apartments|selectattr('Status','equalto','Visited')|list|length }}</div>
+            <div class="lbl">Visited</div>
+          </div>
+        </div>
+      </div>
+
+      {% if not apartments %}
+        <div class="text-center text-muted py-5" style="animation:fadeUp .4s;">
+          <i class="bi bi-inbox" style="font-size:3rem; display:block; margin-bottom:12px; color:#ccd7e0;"></i>
+          <div style="font-size:1.05rem;">No apartments assigned for this date</div>
+        </div>
+      {% endif %}
+
+      {% for apt in apartments %}
+        <div class="apt-card" style="animation-delay:{{ loop.index * 0.05 }}s">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <h6>{{ apt['Apartment Name'] }}</h6>
+              <div class="meta">
+                <i class="bi bi-building"></i>{{ apt['Hub Name'] }}
+                {% if apt['Location Link'] %}
+                  &middot; <a href="{{ apt['Location Link'] }}" target="_blank" class="text-decoration-none" style="color:#00838f;">
+                    <i class="bi bi-geo-alt-fill"></i> Open Map
+                  </a>
+                {% endif %}
+              </div>
+            </div>
+            <span class="status-badge status-{{ apt['Status'] }}">{{ apt['Status'] }}</span>
+          </div>
+          <div class="mt-3 d-flex gap-2 flex-wrap">
+            {% if apt['Status'] == 'Visited' %}
+              <a href="/field/visit/{{ apt['Apartment ID'] }}" class="btn btn-outline-success btn-sm">
+                <i class="bi bi-pencil me-1"></i>Edit Visit
+              </a>
+              <a href="/visit/{{ apt['Apartment ID'] }}" class="btn btn-outline-info btn-sm">
+                <i class="bi bi-eye me-1"></i>View Details
+              </a>
+              <span class="visited-label align-self-center">
+                <i class="bi bi-check-circle-fill"></i> Recorded
+              </span>
+            {% else %}
+              <a href="/field/visit/{{ apt['Apartment ID'] }}" class="btn btn-primary btn-sm">
+                <i class="bi bi-clipboard-check me-1"></i>Visit & Update Details
+              </a>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="text-center text-muted py-5" style="animation:fadeUp .4s;">
+        <i class="bi bi-calendar3" style="font-size:3rem; display:block; margin-bottom:12px; color:#ccd7e0;"></i>
+        <div style="font-size:1.05rem;">Select a date to view your assigned apartments</div>
+      </div>
+    {% endif %}
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,87 @@
+{
+    "Apartments": [
+        {
+            "Apartment ID": 1,
+            "Apartment Name": "Vivanta Apartments",
+            "Hub Name": "North Hub",
+            "Location Link": "https://maps.google.com/?q=Vivanta+Apartments",
+            "Assigned To": "field1",
+            "Assigned Date": "2026-06-23",
+            "Status": "Pending",
+            "Created By": "marketing1",
+            "Created At": "2026-06-23 23:10:13"
+        },
+        {
+            "Apartment ID": 2,
+            "Apartment Name": "Green Wood Residency",
+            "Hub Name": "South Hub",
+            "Location Link": "https://maps.google.com/?q=Green+Wood+Residency",
+            "Assigned To": "field1",
+            "Assigned Date": "2026-06-24",
+            "Status": "Visited",
+            "Created By": "marketing1",
+            "Created At": "2026-06-23 23:10:13"
+        },
+        {
+            "Apartment ID": 3,
+            "Apartment Name": "demo 1",
+            "Hub Name": "Koramangala",
+            "Location Link": "https://maps.app.goo.gl/cHDrKuX6kw5zH1FJA",
+            "Assigned To": "field1",
+            "Assigned Date": "2026-06-26",
+            "Status": "Visited",
+            "Created By": "rohit",
+            "Created At": "2026-06-23 23:49:01"
+        },
+        {
+            "Apartment ID": 4,
+            "Apartment Name": "Mantri Classic",
+            "Hub Name": "Koramangala",
+            "Location Link": "https://unboxed-letter-giggling.ngrok-free.dev/login",
+            "Assigned To": "field1",
+            "Assigned Date": "2026-06-25",
+            "Status": "Pending",
+            "Created By": "rohit",
+            "Created At": "2026-06-24 14:20:12"
+        }
+    ],
+    "Visits": [
+        {
+            "Visit ID": 1,
+            "Apartment ID": 2,
+            "Apartment Name": "Green Wood Residency",
+            "Hub Name": "South Hub",
+            "Manager Name": "Rajesh",
+            "No of Units": 120,
+            "Manager Phone": "8926372234",
+            "Channels Data (JSON)": "[{\"channel\": \"WhatsApp Groups\", \"available\": true, \"amount\": 0, \"days\": 0}]",
+            "Visited By": "field1",
+            "Visited At": "2026-06-23 23:15:31"
+        },
+        {
+            "Visit ID": 2,
+            "Apartment ID": 2,
+            "Apartment Name": "Green Wood Residency",
+            "Hub Name": "South Hub",
+            "Manager Name": "Rajesh",
+            "No of Units": 120,
+            "Manager Phone": "8926372234",
+            "Channels Data (JSON)": "[{\"channel\": \"Standee\", \"available\": true, \"amount\": 1500, \"days\": 2}, {\"channel\": \"Lift Marketing\", \"available\": true, \"amount\": 5000, \"days\": 7}, {\"channel\": \"POST BOX\", \"available\": true, \"amount\": 700, \"days\": 1}]",
+            "Visited By": "field1",
+            "Visited At": "2026-06-23 23:34:34"
+        },
+        {
+            "Visit ID": 3,
+            "Apartment ID": 3,
+            "Apartment Name": "demo 1",
+            "Hub Name": "Koramangala",
+            "Manager Name": "asd",
+            "No of Units": 0,
+            "Manager Phone": "",
+            "Channels Data (JSON)": "[{\"channel\": \"Bill Boards\", \"available\": true, \"amount\": 0, \"days\": 1}, {\"channel\": \"Meta Ad\", \"available\": true, \"amount\": 0, \"days\": 1}]",
+            "Notes": "",
+            "Visited By": "field1",
+            "Visited At": "2026-06-24 14:21:14"
+        }
+    ]
+}
