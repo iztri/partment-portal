@@ -1,8 +1,13 @@
 """Supabase database layer for apartment portal."""
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from supabase import create_client
+
+IST = timezone(timedelta(hours=5, minutes=30))
+
+def _now_ist():
+    return datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
 from config import SUPABASE_URL, SUPABASE_KEY
 
 
@@ -56,7 +61,7 @@ class SheetsDB:
 
     # ── Apartments ──────────────────────────────────────────────────────
     def add_apartment(self, name, hub_name, location_link, created_by):
-        now = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S")
+        now = _now_ist()
         data = {
             "apartment_name": name,
             "hub_name": hub_name,
@@ -103,7 +108,7 @@ class SheetsDB:
     def record_visit(self, apartment_id, apartment_name, hub_name,
                      manager_name, no_of_units, manager_phone,
                      channels_data, notes, visited_by):
-        now = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S")
+        now = _now_ist()
         data = {
             "apartment_id": int(apartment_id),
             "apartment_name": apartment_name,
