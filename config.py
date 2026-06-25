@@ -12,13 +12,9 @@ SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 # ── User Authentication ───────────────────────────────────────────────────
 # Format: "username": {"password": "...", "role": "marketing" or "field", "name": "..."}
 USERS = {
-    "marketing1": {"password": "mark@123", "role": "marketing", "name": "Marketing Lead"},
-    "rohit":      {"password": "rohit@123", "role": "marketing", "name": "Rohit - Marketing"},
-    "field1":     {"password": "field@123", "role": "field", "name": "Rahul - Field"},
-    "field2":     {"password": "field@123", "role": "field", "name": "Suresh - Field"},
-    "field3":     {"password": "field@123", "role": "field", "name": "Amit - Field"},
-    "field4":     {"password": "field@123", "role": "field", "name": "Vijay - Field"},
-    "field5":     {"password": "field@123", "role": "field", "name": "Deepak - Field"},
+    "rohit":  {"password": "rohit@123",  "role": "marketing", "name": "Rohit - Marketing"},
+    "deva":   {"password": "deva@123",   "role": "marketing", "name": "Deva - Marketing"},
+    "akshay": {"password": "akshay@123", "role": "field",     "name": "Akshay - Field"},
 }
 
 # ── Marketing Channels (checkboxes in visit form) ─────────────────────────
