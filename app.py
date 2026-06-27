@@ -129,6 +129,38 @@ def bulk_upload():
     return redirect(url_for("marketing_dashboard"))
 
 
+@app.route("/marketing/delete/<int:apartment_id>", methods=["POST"])
+@login_required
+@role_required("marketing")
+def delete_apartment(apartment_id):
+    db.delete_apartment(apartment_id)
+    flash(f"Apartment #{apartment_id} moved to trash", "warning")
+    return redirect(url_for("marketing_dashboard"))
+
+
+@app.route("/marketing/trash")
+@login_required
+@role_required("marketing")
+def trash_view():
+    if session.get("user") != "gowtham":
+        flash("Only Gowtham can access trash", "danger")
+        return redirect(url_for("marketing_dashboard"))
+    deleted = db.get_deleted_apartments()
+    return render_template("trash.html", apartments=deleted)
+
+
+@app.route("/marketing/restore/<int:apartment_id>", methods=["POST"])
+@login_required
+@role_required("marketing")
+def restore_apartment(apartment_id):
+    if session.get("user") != "gowtham":
+        flash("Only Gowtham can restore apartments", "danger")
+        return redirect(url_for("marketing_dashboard"))
+    db.restore_apartment(apartment_id)
+    flash(f"Apartment #{apartment_id} restored", "success")
+    return redirect(url_for("trash_view"))
+
+
 @app.route("/marketing/assign", methods=["POST"])
 @login_required
 @role_required("marketing")

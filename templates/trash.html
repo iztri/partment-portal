@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trash — Apartment Portal</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', -apple-system, sans-serif; }
+    body { background:#f4f7fa; }
+    .navbar-custom { background:linear-gradient(135deg,#4a1a2e,#6b2a3e,#8a3a4e); padding:14px 0; box-shadow:0 4px 24px rgba(74,26,46,.2); }
+    .card { border-radius:18px; border:none; box-shadow:0 2px 16px rgba(0,0,0,.05); }
+    .table th { font-weight:600; color:#5a6a7a; font-size:.75rem; text-transform:uppercase; letter-spacing:.5px; border-bottom:2px solid #e8edf2; padding:16px 12px; background:#fafbfc; }
+    .table td { font-size:.88rem; vertical-align:middle; padding:14px 12px; border-bottom:1px solid #f0f3f6; }
+    .status-badge { font-size:.68rem; padding:5px 14px; border-radius:20px; font-weight:600; }
+    .status-Deleted { background:#fce4ec; color:#c62828; }
+    .alert { border-radius:14px; border:none; }
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-dark navbar-custom">
+    <div class="container-fluid px-4">
+      <span class="navbar-brand mb-0">
+        <i class="bi bi-trash me-2"></i>Deleted Apartments
+      </span>
+      <div class="d-flex align-items-center gap-3">
+        <span class="text-white-50 small"><i class="bi bi-person-circle me-1"></i>{{ session.name }}</span>
+        <a href="/marketing" class="btn btn-outline-light btn-sm px-3" style="border-radius:8px; border-color:rgba(255,255,255,.25);">
+          <i class="bi bi-arrow-left me-1"></i>Back
+        </a>
+      </div>
+    </div>
+  </nav>
+  <div class="container-fluid p-4" style="max-width:1000px;">
+    {% with msgs = get_flashed_messages(with_categories=true) %}
+      {% if msgs %}
+        {% for cat, msg in msgs %}
+          <div class="alert alert-{{ cat }} alert-dismissible fade show py-2" role="alert">
+            <i class="bi bi-{{ 'check-circle-fill' if cat=='success' else 'exclamation-circle-fill' }} me-1"></i>
+            {{ msg }}<button type="button" class="btn-close py-2" data-bs-dismiss="alert"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    <div class="card">
+      <div class="card-header bg-white py-3 px-4 d-flex justify-content-between align-items-center" style="border-radius:18px 18px 0 0; border-bottom:1px solid #eef2f5;">
+        <h5 class="mb-0" style="font-weight:700; color:#1a2a3a;"><i class="bi bi-archive me-2" style="color:#c62828;"></i>Trash ({{ apartments|length }})</h5>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Apartment</th>
+              <th>Hub</th>
+              <th>Deleted At</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for apt in apartments %}
+            <tr>
+              <td class="fw-semibold" style="color:#8899aa;">{{ apt['Apartment ID'] }}</td>
+              <td><strong style="color:#1a2a3a;">{{ apt['Apartment Name'] }}</strong></td>
+              <td><span class="status-badge" style="background:#f0f3f6; color:#4a5a6a;">{{ apt['Hub Name'] }}</span></td>
+              <td><span class="status-badge status-Deleted">{{ apt['Created At'][:10] if apt['Created At'] else '—' }}</span></td>
+              <td>
+                <form method="post" action="/marketing/restore/{{ apt['Apartment ID'] }}" style="display:inline;">
+                  <button type="submit" class="btn btn-success btn-sm px-3" style="border-radius:8px;">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>Restore
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-center text-muted py-5">
+              <i class="bi bi-check-circle" style="font-size:2rem; display:block; margin-bottom:8px; color:#ccd7e0;"></i>
+              Trash is empty
+            </td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

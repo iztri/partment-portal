@@ -78,7 +78,7 @@ class _SQLiteDB:
         return [self._apt_row(r) for r in self.conn.execute(sql, params).fetchall()]
 
     def get_all_apartments(self):
-        rows = self.conn.execute("SELECT * FROM apartments ORDER BY id DESC").fetchall()
+        rows = self.conn.execute("SELECT * FROM apartments WHERE status!='Deleted' ORDER BY id DESC").fetchall()
         return [self._apt_row(r) for r in rows]
 
     def assign_apartments(self, apartment_ids, assigned_to, assigned_date):
@@ -113,6 +113,18 @@ class _SQLiteDB:
                 f"UPDATE apartments SET {', '.join(cols)} WHERE id=?", vals
             )
             self.conn.commit()
+
+    def delete_apartment(self, apartment_id):
+        self.conn.execute("UPDATE apartments SET status='Deleted' WHERE id=?", (int(apartment_id),))
+        self.conn.commit()
+
+    def restore_apartment(self, apartment_id):
+        self.conn.execute("UPDATE apartments SET status='Pending' WHERE id=?", (int(apartment_id),))
+        self.conn.commit()
+
+    def get_deleted_apartments(self):
+        rows = self.conn.execute("SELECT * FROM apartments WHERE status='Deleted' ORDER BY id DESC").fetchall()
+        return [self._apt_row(r) for r in rows]
 
     def record_visit(self, apartment_id, apartment_name, hub_name,
                      manager_name, no_of_units, manager_phone,
@@ -222,7 +234,7 @@ class _SupabaseDB:
         return self._apt_rows(result.data)
 
     def get_all_apartments(self):
-        result = self.supabase.table("apartments").select("*").order("id", desc=True).execute()
+        result = self.supabase.table("apartments").select("*").neq("status", "Deleted").order("id", desc=True).execute()
         return self._apt_rows(result.data)
 
     def assign_apartments(self, apartment_ids, assigned_to, assigned_date):
@@ -245,6 +257,16 @@ class _SupabaseDB:
         updates = {mapping[k]: v for k, v in kwargs.items() if k in mapping}
         if updates:
             self.supabase.table("apartments").update(updates).eq("id", int(apartment_id)).execute()
+
+    def delete_apartment(self, apartment_id):
+        self.supabase.table("apartments").update({"status": "Deleted"}).eq("id", int(apartment_id)).execute()
+
+    def restore_apartment(self, apartment_id):
+        self.supabase.table("apartments").update({"status": "Pending"}).eq("id", int(apartment_id)).execute()
+
+    def get_deleted_apartments(self):
+        result = self.supabase.table("apartments").select("*").eq("status", "Deleted").order("id", desc=True).execute()
+        return self._apt_rows(result.data)
 
     def record_visit(self, apartment_id, apartment_name, hub_name,
                      manager_name, no_of_units, manager_phone,

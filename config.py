@@ -14,6 +14,7 @@ SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 USERS = {
     "rohit":  {"password": "rohit@123",  "role": "marketing", "name": "Rohit - Marketing"},
     "deva":   {"password": "deva@123",   "role": "marketing", "name": "Deva - Marketing"},
+    "gowtham": {"password": "iztri@123", "role": "marketing", "name": "Gowtham - Marketing"},
     "akshay": {"password": "akshay@123", "role": "field",     "name": "Akshay - Field"},
 }
 
