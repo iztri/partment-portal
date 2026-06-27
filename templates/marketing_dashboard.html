@@ -213,83 +213,125 @@
           </div>
         </div>
 
-        <div class="form-section">
-          <h5><i class="bi bi-plus-circle me-2"></i>Add Apartment</h5>
-          <form method="post" action="/marketing/add">
-            <div class="mb-2">
-              <input type="text" name="apartment_name" class="form-control" placeholder="Apartment name" required>
-            </div>
-            <div class="mb-2">
-              <select name="hub_name" class="form-select" required>
-                <option value="">— Select Hub —</option>
-                {% for h in hub_names %}
-                  <option value="{{ h }}">{{ h }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="mb-2">
-              <input type="url" name="location_link" class="form-control" placeholder="Google Maps link (optional)">
-            </div>
-            <button type="submit" class="btn btn-primary w-100">
-              <i class="bi bi-plus-lg me-1"></i>Add Apartment
+        <!-- Tabs -->
+        <ul class="nav nav-pills mb-3 gap-1" id="sideTabs" role="tablist" style="background:#f4f7fa; border-radius:14px; padding:4px;">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="add-tab" data-bs-toggle="pill" data-bs-target="#addPane" type="button" role="tab"
+                    style="border-radius:10px; font-size:.78rem; font-weight:600; padding:8px 14px;">
+              <i class="bi bi-plus-circle me-1"></i>Add
             </button>
-          </form>
-        </div>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="assign-tab" data-bs-toggle="pill" data-bs-target="#assignPane" type="button" role="tab"
+                    style="border-radius:10px; font-size:.78rem; font-weight:600; padding:8px 14px;">
+              <i class="bi bi-person-check me-1"></i>Assign
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="download-tab" data-bs-toggle="pill" data-bs-target="#downloadPane" type="button" role="tab"
+                    style="border-radius:10px; font-size:.78rem; font-weight:600; padding:8px 14px;">
+              <i class="bi bi-download me-1"></i>Download
+            </button>
+          </li>
+        </ul>
 
-        <div class="form-section">
-          <h5>
-            <i class="bi bi-upload me-2"></i>Bulk Upload
-            <button class="btn btn-sm btn-outline-secondary float-end py-0 px-2" type="button"
-                    data-bs-toggle="collapse" data-bs-target="#bulkSection" style="border-radius:8px;">
-              <i class="bi bi-chevron-down"></i>
-            </button>
-          </h5>
-          <div class="collapse" id="bulkSection">
-            <div class="small text-muted mb-2">
-              <i class="bi bi-info-circle me-1"></i>
-              Paste one apartment per line: <code>Name, Hub, Map Link</code>
-              <button class="btn btn-link btn-sm p-0 ms-1" style="font-size:.78rem;"
-                      onclick="document.getElementById('bulk_data').value='Prestige Sunrise Park, Arekere, https://maps.google.com\nSattva Misty Charm, Koramangala, https://maps.google.com'">
-                <i class="bi bi-file-text me-1"></i>Sample
-              </button>
+        <div class="tab-content">
+          <!-- ── ADD TAB ── -->
+          <div class="tab-pane fade show active" id="addPane" role="tabpanel">
+            <div class="form-section">
+              <h5><i class="bi bi-plus-circle me-2"></i>Add Apartment</h5>
+              <form method="post" action="/marketing/add">
+                <div class="mb-2">
+                  <input type="text" name="apartment_name" class="form-control" placeholder="Apartment name" required>
+                </div>
+                <div class="mb-2">
+                  <select name="hub_name" class="form-select" required>
+                    <option value="">— Select Hub —</option>
+                    {% for h in hub_names %}
+                      <option value="{{ h }}">{{ h }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="mb-2">
+                  <input type="url" name="location_link" class="form-control" placeholder="Google Maps link (optional)">
+                </div>
+                <button type="submit" class="btn btn-primary w-100"><i class="bi bi-plus-lg me-1"></i>Add</button>
+              </form>
             </div>
-            <form method="post" action="/marketing/bulk-upload">
-              <div class="mb-2">
-                <textarea name="bulk_data" id="bulk_data" class="form-control" rows="6"
-                          placeholder="Prestige Sunrise Park, Arekere, https://maps.google.com/...&#10;Sattva Misty Charm, Koramangala, https://maps.google.com/..."
-                          style="font-family:monospace; font-size:.82rem;"></textarea>
+            <div class="form-section">
+              <h5><i class="bi bi-upload me-2"></i>Bulk Upload</h5>
+              <div class="small text-muted mb-2">
+                <i class="bi bi-info-circle me-1"></i>One per line: <code>Name, Hub, Map Link</code>
+                <button class="btn btn-link btn-sm p-0 ms-1" style="font-size:.78rem;"
+                        onclick="document.getElementById('bulk_data').value='Prestige Sunrise Park, Arekere, https://maps.google.com\nSattva Misty Charm, Koramangala, https://maps.google.com'">
+                  <i class="bi bi-file-text me-1"></i>Sample
+                </button>
               </div>
-              <button type="submit" class="btn btn-primary w-100">
-                <i class="bi bi-cloud-upload me-1"></i>Upload Bulk
-              </button>
-            </form>
+              <form method="post" action="/marketing/bulk-upload">
+                <div class="mb-2">
+                  <textarea name="bulk_data" id="bulk_data" class="form-control" rows="4"
+                            placeholder="Prestige Sunrise Park, Arekere, https://maps.google.com/..."
+                            style="font-family:monospace; font-size:.82rem;"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary w-100"><i class="bi bi-cloud-upload me-1"></i>Upload</button>
+              </form>
+            </div>
           </div>
-        </div>
 
-        <div class="form-section">
-          <h5><i class="bi bi-person-check me-2"></i>Assign to Field</h5>
-          <form method="post" action="/marketing/assign" id="assignForm">
-            <div class="mb-2 text-muted small">
-              <i class="bi bi-info-circle me-1"></i>Select apartments from table first
+          <!-- ── ASSIGN TAB ── -->
+          <div class="tab-pane fade" id="assignPane" role="tabpanel">
+            <div class="form-section">
+              <h5><i class="bi bi-person-check me-2"></i>Assign to Field</h5>
+              <form method="post" action="/marketing/assign" id="assignForm">
+                <div class="mb-2 text-muted small">
+                  <i class="bi bi-info-circle me-1"></i>Select apartments from table first
+                </div>
+                <div class="mb-2">
+                  <select name="assigned_to" class="form-select" required>
+                    <option value="">— Select Field User —</option>
+                    {% for fu in field_users %}
+                      <option value="{{ fu.username }}">{{ fu.name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="mb-2">
+                  <input type="date" name="assigned_date" class="form-control" required>
+                </div>
+                <div id="selectedCount" class="small text-muted mb-2" style="background:#f4f7fa; border-radius:8px; padding:7px 12px;">
+                  <i class="bi bi-check2-square me-1"></i><span>0</span> apartments selected
+                </div>
+                <button type="submit" class="btn btn-success w-100"><i class="bi bi-send me-1"></i>Assign</button>
+              </form>
             </div>
-            <div class="mb-2">
-              <select name="assigned_to" class="form-select" required>
-                <option value="">— Select Field User —</option>
-                {% for fu in field_users %}
-                  <option value="{{ fu.username }}">{{ fu.name }}</option>
-                {% endfor %}
-              </select>
+          </div>
+
+          <!-- ── DOWNLOAD TAB ── -->
+          <div class="tab-pane fade" id="downloadPane" role="tabpanel">
+            <div class="form-section">
+              <h5><i class="bi bi-download me-2"></i>Download Data</h5>
+              <form method="get" action="/marketing/download" target="_blank">
+                <div class="mb-2">
+                  <label class="form-label small fw-semibold">Start Date</label>
+                  <input type="date" name="start_date" class="form-control">
+                </div>
+                <div class="mb-2">
+                  <label class="form-label small fw-semibold">End Date</label>
+                  <input type="date" name="end_date" class="form-control">
+                </div>
+                <div class="mb-2">
+                  <label class="form-label small fw-semibold">Status</label>
+                  <select name="status" class="form-select">
+                    <option value="">— All —</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Visited">Visited</option>
+                  </select>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">
+                  <i class="bi bi-file-earmark-excel me-1"></i>Download Excel
+                </button>
+              </form>
             </div>
-            <div class="mb-2">
-              <input type="date" name="assigned_date" class="form-control" required>
-            </div>
-            <div id="selectedCount" class="small text-muted mb-2" style="background:#f4f7fa; border-radius:8px; padding:7px 12px;">
-              <i class="bi bi-check2-square me-1"></i><span>0</span> apartments selected
-            </div>
-            <button type="submit" class="btn btn-success w-100">
-              <i class="bi bi-send me-1"></i>Assign
-            </button>
-          </form>
+          </div>
         </div>
       </div>
 

@@ -5,7 +5,8 @@ Then: Open http://<your-ip>:5000 on phone/laptop
 """
 
 import json
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from io import BytesIO
+from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file
 from auth import login_required, role_required, authenticate, logout
 from sheets_db import SheetsDB
 from config import USERS, MARKETING_CHANNELS, HUB_NAMES
@@ -159,6 +160,91 @@ def restore_apartment(apartment_id):
     db.restore_apartment(apartment_id)
     flash(f"Apartment #{apartment_id} restored", "success")
     return redirect(url_for("trash_view"))
+
+
+@app.route("/marketing/download")
+@login_required
+@role_required("marketing")
+def download_data():
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+    start_date = request.args.get("start_date", "").strip()
+    end_date = request.args.get("end_date", "").strip()
+    status_filter = request.args.get("status", "").strip()
+
+    all_apts = db.get_all_apartments()
+    if start_date:
+        all_apts = [a for a in all_apts if a.get("Created At", "")[:10] >= start_date]
+    if end_date:
+        all_apts = [a for a in all_apts if a.get("Created At", "")[:10] <= end_date]
+    if status_filter:
+        all_apts = [a for a in all_apts if a.get("Status", "") == status_filter]
+
+    all_visits = db.get_visits()
+    visit_map = {}
+    for v in all_visits:
+        aid = str(v.get("Apartment ID", ""))
+        if aid not in visit_map:
+            visit_map[aid] = v
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Apartments"
+
+    headers = [
+        "Apartment ID", "Apartment Name", "Hub Name", "Location Link",
+        "Assigned To", "Assigned Date", "Status", "Created By", "Created At",
+        "Visited At", "Visited By", "Manager Name", "Manager Phone", "No of Units", "Notes"
+    ]
+    ws.append(headers)
+
+    hfill = PatternFill("solid", fgColor="1a237e")
+    hfont = Font(bold=True, color="FFFFFF", size=10)
+    thin = Border(left=Side("thin","d0d0d0"), right=Side("thin","d0d0d0"),
+                  top=Side("thin","d0d0d0"), bottom=Side("thin","d0d0d0"))
+
+    for ci in range(1, len(headers) + 1):
+        c = ws.cell(row=1, column=ci)
+        c.font = hfont
+        c.fill = hfill
+        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        c.border = thin
+
+    for ri, apt in enumerate(all_apts, 2):
+        aid = str(apt.get("Apartment ID", ""))
+        v = visit_map.get(aid, {})
+        vals = [
+            apt.get("Apartment ID", ""), apt.get("Apartment Name", ""),
+            apt.get("Hub Name", ""), apt.get("Location Link", ""),
+            apt.get("Assigned To", ""), apt.get("Assigned Date", ""),
+            apt.get("Status", ""), apt.get("Created By", ""), apt.get("Created At", ""),
+            v.get("Visited At", "") if v else "",
+            v.get("Visited By", "") if v else "",
+            v.get("Manager Name", "") if v else "",
+            v.get("Manager Phone", "") if v else "",
+            v.get("No of Units", "") if v else "",
+            v.get("Notes", "") if v else "",
+        ]
+        ws.append(vals)
+        for ci in range(1, len(headers) + 1):
+            cell = ws.cell(row=ri, column=ci)
+            cell.border = thin
+
+    for ci in range(1, len(headers) + 1):
+        mx = len(headers[ci - 1])
+        for r in range(2, len(all_apts) + 2):
+            v = ws.cell(row=r, column=ci).value
+            if v:
+                mx = max(mx, len(str(v)))
+        from openpyxl.utils import get_column_letter
+        ws.column_dimensions[get_column_letter(ci)].width = min(mx + 3, 40)
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(buf, as_attachment=True, download_name="apartments.xlsx",
+                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
 @app.route("/marketing/assign", methods=["POST"])
