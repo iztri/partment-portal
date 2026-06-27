@@ -95,6 +95,40 @@ def add_apartment():
     return redirect(url_for("marketing_dashboard"))
 
 
+@app.route("/marketing/bulk-upload", methods=["POST"])
+@login_required
+@role_required("marketing")
+def bulk_upload():
+    data = request.form.get("bulk_data", "").strip()
+    if not data:
+        flash("No data provided", "danger")
+        return redirect(url_for("marketing_dashboard"))
+
+    lines = [l.strip() for l in data.split("\n") if l.strip()]
+    added = 0
+    errors = []
+    for i, line in enumerate(lines, 1):
+        parts = [p.strip() for p in line.split(",")]
+        if len(parts) < 2 or not parts[0] or not parts[1]:
+            errors.append(f"Row {i}: missing name or hub — '{line}'")
+            continue
+        name, hub = parts[0], parts[1]
+        link = parts[2] if len(parts) > 2 else ""
+        if hub not in HUB_NAMES:
+            errors.append(f"Row {i}: invalid hub '{hub}' — '{name}'")
+            continue
+        db.add_apartment(name, hub, link, session.get("user"))
+        added += 1
+
+    msg = f"✅ {added} apartment(s) added"
+    if errors:
+        msg += f" | ⚠ {len(errors)} skipped: " + "; ".join(errors[:3])
+        if len(errors) > 3:
+            msg += f" (+{len(errors) - 3} more)"
+    flash(msg, "success" if not errors else "warning")
+    return redirect(url_for("marketing_dashboard"))
+
+
 @app.route("/marketing/assign", methods=["POST"])
 @login_required
 @role_required("marketing")

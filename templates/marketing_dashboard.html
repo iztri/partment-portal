@@ -232,6 +232,36 @@
         </div>
 
         <div class="form-section">
+          <h5>
+            <i class="bi bi-upload me-2"></i>Bulk Upload
+            <button class="btn btn-sm btn-outline-secondary float-end py-0 px-2" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#bulkSection" style="border-radius:8px;">
+              <i class="bi bi-chevron-down"></i>
+            </button>
+          </h5>
+          <div class="collapse" id="bulkSection">
+            <div class="small text-muted mb-2">
+              <i class="bi bi-info-circle me-1"></i>
+              Paste one apartment per line: <code>Name, Hub, Map Link</code>
+              <button class="btn btn-link btn-sm p-0 ms-1" style="font-size:.78rem;"
+                      onclick="document.getElementById('bulk_data').value='Prestige Sunrise Park, Arekere, https://maps.google.com\nSattva Misty Charm, Koramangala, https://maps.google.com'">
+                <i class="bi bi-file-text me-1"></i>Sample
+              </button>
+            </div>
+            <form method="post" action="/marketing/bulk-upload">
+              <div class="mb-2">
+                <textarea name="bulk_data" id="bulk_data" class="form-control" rows="6"
+                          placeholder="Prestige Sunrise Park, Arekere, https://maps.google.com/...&#10;Sattva Misty Charm, Koramangala, https://maps.google.com/..."
+                          style="font-family:monospace; font-size:.82rem;"></textarea>
+              </div>
+              <button type="submit" class="btn btn-primary w-100">
+                <i class="bi bi-cloud-upload me-1"></i>Upload Bulk
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <div class="form-section">
           <h5><i class="bi bi-person-check me-2"></i>Assign to Field</h5>
           <form method="post" action="/marketing/assign" id="assignForm">
             <div class="mb-2 text-muted small">
