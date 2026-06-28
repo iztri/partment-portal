@@ -364,7 +364,7 @@ class _SQLiteDB:
                 "start_date": r["start_date"],
                 "end_date": r["end_date"],
                 "notes": r["notes"] or "",
-                "collection_location": r["collection_location"] if r.get("collection_location") else "",
+                "collection_location": r["collection_location"] if r["collection_location"] else "",
             })
         return out
 
