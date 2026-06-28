@@ -346,6 +346,11 @@ class _SQLiteDB:
         ).fetchall()
         out = []
         for r in rows:
+            # Skip fully completed tasks (removed, or already placed on start date)
+            if r["status"] == "Removed":
+                continue
+            if r["start_date"] == date and r["status"] == "Placed":
+                continue
             is_place = r["start_date"] == date and r["status"] != "Placed" and r["status"] != "Removed"
             is_remove = r["end_date"] == date and r["status"] == "Placed"
             task_type = "place" if is_place else ("remove" if is_remove else r["status"].lower())
@@ -699,16 +704,22 @@ class _SupabaseDB:
         ).order("id", desc=True).execute()
         out = []
         for r in result.data:
-            is_place = r["start_date"] == date and r.get("status") not in ("Placed", "Removed")
-            is_remove = r["end_date"] == date and r.get("status") == "Placed"
-            task_type = "place" if is_place else ("remove" if is_remove else r.get("status", "pending").lower())
+            status = r.get("status", "Pending")
+            # Skip fully completed tasks
+            if status == "Removed":
+                continue
+            if r["start_date"] == date and status == "Placed":
+                continue
+            is_place = r["start_date"] == date and status not in ("Placed", "Removed")
+            is_remove = r["end_date"] == date and status == "Placed"
+            task_type = "place" if is_place else ("remove" if is_remove else status.lower())
             out.append({
                 "id": r["id"],
                 "standee_name": r["standees"]["name"] if r.get("standees") else "",
                 "apartment_name": r["apartments"]["apartment_name"] if r.get("apartments") else "",
                 "quantity": r["quantity"],
                 "task_type": task_type,
-                "status": r.get("status", "Pending"),
+                "status": status,
                 "start_date": r["start_date"],
                 "end_date": r["end_date"],
                 "notes": r.get("notes", ""),
