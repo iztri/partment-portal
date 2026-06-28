@@ -241,6 +241,30 @@ def assign_standee():
     return redirect(url_for("marketing_standees"))
 
 
+@app.route("/marketing/standees/assignments/edit/<int:assignment_id>", methods=["POST"])
+@login_required
+@role_required("marketing")
+def edit_assignment(assignment_id):
+    standee_id = request.form.get("standee_id", "").strip()
+    apartment_id = request.form.get("apartment_id", "").strip()
+    assigned_to = request.form.get("assigned_to", "").strip()
+    start_date = request.form.get("start_date", "").strip()
+    end_date = request.form.get("end_date", "").strip()
+    quantity = request.form.get("quantity", "").strip()
+    notes = request.form.get("notes", "").strip()
+    kwargs = {}
+    if standee_id: kwargs["standee_id"] = int(standee_id)
+    if apartment_id: kwargs["apartment_id"] = int(apartment_id)
+    if assigned_to: kwargs["assigned_to"] = assigned_to
+    if start_date: kwargs["start_date"] = start_date
+    if end_date: kwargs["end_date"] = end_date
+    if quantity: kwargs["quantity"] = int(quantity)
+    kwargs["notes"] = notes
+    db.update_assignment(assignment_id, **kwargs)
+    flash("Assignment updated ✓", "success")
+    return redirect(url_for("marketing_standees"))
+
+
 @app.route("/field/standees")
 @login_required
 @role_required("field")

@@ -275,6 +275,18 @@ class _SQLiteDB:
                               (status, int(assignment_id)))
         self.conn.commit()
 
+    def update_assignment(self, assignment_id, **kwargs):
+        fields = []
+        vals = []
+        for k in ("standee_id", "apartment_id", "assigned_to", "start_date", "end_date", "quantity", "notes"):
+            if k in kwargs and kwargs[k] is not None:
+                fields.append(f"{k}=?")
+                vals.append(kwargs[k])
+        if fields:
+            vals.append(int(assignment_id))
+            self.conn.execute(f"UPDATE standee_assignments SET {', '.join(fields)} WHERE id=?", vals)
+            self.conn.commit()
+
     def get_standee_usage(self, standee_id):
         row = self.conn.execute(
             "SELECT COALESCE(SUM(quantity),0) FROM standee_assignments WHERE standee_id=?",
@@ -565,6 +577,14 @@ class _SupabaseDB:
         elif status == "Removed":
             updates["removed_at"] = now
         self.supabase.table("standee_assignments").update(updates).eq("id", int(assignment_id)).execute()
+
+    def update_assignment(self, assignment_id, **kwargs):
+        updates = {}
+        for k in ("standee_id", "apartment_id", "assigned_to", "start_date", "end_date", "quantity", "notes"):
+            if k in kwargs and kwargs[k] is not None:
+                updates[k] = kwargs[k]
+        if updates:
+            self.supabase.table("standee_assignments").update(updates).eq("id", int(assignment_id)).execute()
 
     def get_standee_usage(self, standee_id):
         result = self.supabase.table("standee_assignments").select("quantity").eq("standee_id", int(standee_id)).execute()

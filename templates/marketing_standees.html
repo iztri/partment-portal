@@ -175,7 +175,7 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
           <div class="card-body p-0" style="max-height:450px;overflow-y:auto;">
             <table class="table table-hover mb-0">
               <thead><tr>
-                <th>Apartment</th><th>Standee</th><th>Qty</th><th>Field User</th><th>Start</th><th>End</th><th>Status</th><th>Notes</th>
+                <th>Apartment</th><th>Standee</th><th>Qty</th><th>Field User</th><th>Start</th><th>End</th><th>Status</th><th>Notes</th><th style="width:50px;">Actions</th>
               </tr></thead>
               <tbody>
                 {% for a in assignments %}
@@ -188,9 +188,10 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
                   <td style="font-size:.75rem;">{{ a.end_date }}</td>
                   <td><span class="avail-badge {{ 'avail-yes' if a.status in ('Placed','Removed') else 'avail-no' }}" style="font-size:.65rem;">{{ a.status }}</span></td>
                   <td style="font-size:.72rem;color:#5a6a7a;">{{ a.notes or '—' }}</td>
+                  <td><button class="btn btn-sm btn-outline-primary py-1 px-2" style="border-radius:8px;font-size:.7rem;" data-bs-toggle="modal" data-bs-target="#editAssign{{ a.id }}"><i class="bi bi-pencil"></i></button></td>
                 </tr>
                 {% else %}
-                <tr><td colspan="8" class="text-center text-muted py-4">No assignments yet</td></tr>
+                <tr><td colspan="9" class="text-center text-muted py-4">No assignments yet</td></tr>
                 {% endfor %}
               </tbody>
             </table>
@@ -215,6 +216,54 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
           <div class="mb-2"><label class="form-label small fw-semibold">Name</label><input type="text" name="name" class="form-control" value="{{ s.name }}"></div>
           <div class="mb-2"><label class="form-label small fw-semibold">Total Units</label><input type="number" name="total_units" class="form-control" value="{{ s.total_units }}" min="0"></div>
           <div class="mb-2"><label class="form-label small fw-semibold">Storage Location</label><input type="text" name="storage_location" class="form-control" value="{{ s.storage_location }}"></div>
+        </div>
+        <div class="modal-footer" style="border-top:1px solid #eef2f5;">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal" style="border-radius:8px;">Cancel</button>
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+{# Edit Assignment Modals #}
+{% for a in assignments %}
+<div class="modal fade" id="editAssign{{ a.id }}" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:18px;">
+      <form method="post" action="/marketing/standees/assignments/edit/{{ a.id }}">
+        <div class="modal-header" style="border-bottom:1px solid #eef2f5;">
+          <h6 class="modal-title fw-bold"><i class="bi bi-pencil me-1" style="color:#1565c0;"></i>Edit Assignment</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Apartment</label>
+            <select name="apartment_id" class="form-select">
+              {% for apt in apartments %}<option value="{{ apt['Apartment ID'] }}" {{ 'selected' if apt['Apartment ID']|string==a.apartment_id|string }}>{{ apt['Apartment Name'] }} ({{ apt['Hub Name'] }})</option>{% endfor %}
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Standee</label>
+            <select name="standee_id" class="form-select">
+              {% for s in standees %}<option value="{{ s.id }}" {{ 'selected' if s.id==a.standee_id }}>{{ s.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Assign To (Field)</label>
+            <select name="assigned_to" class="form-select">
+              {% for fu in field_users %}<option value="{{ fu.username }}" {{ 'selected' if fu.username==a.assigned_to }}>{{ fu.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-6"><label class="form-label small fw-semibold">Start Date</label><input type="date" name="start_date" class="form-control" value="{{ a.start_date }}"></div>
+            <div class="col-6"><label class="form-label small fw-semibold">End Date</label><input type="date" name="end_date" class="form-control" value="{{ a.end_date }}"></div>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-6"><label class="form-label small fw-semibold">Quantity</label><input type="number" name="quantity" class="form-control" value="{{ a.quantity }}" min="0"></div>
+            <div class="col-6"><label class="form-label small fw-semibold">Notes</label><input type="text" name="notes" class="form-control" value="{{ a.notes }}"></div>
+          </div>
         </div>
         <div class="modal-footer" style="border-top:1px solid #eef2f5;">
           <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal" style="border-radius:8px;">Cancel</button>
