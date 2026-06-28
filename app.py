@@ -616,6 +616,7 @@ def field_dashboard():
         standee_dates=standee_dates,
         selected_date=selected_date,
         marketing_channels=MARKETING_CHANNELS,
+        hub_names=HUB_NAMES,
         active='dashboard',
     )
 

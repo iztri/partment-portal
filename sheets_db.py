@@ -364,6 +364,7 @@ class _SQLiteDB:
                 "start_date": r["start_date"],
                 "end_date": r["end_date"],
                 "notes": r["notes"] or "",
+                "collection_location": r["collection_location"] if r.get("collection_location") else "",
             })
         return out
 
@@ -737,6 +738,7 @@ class _SupabaseDB:
                 "start_date": r["start_date"],
                 "end_date": r["end_date"],
                 "notes": r.get("notes", ""),
+                "collection_location": r.get("collection_location", "") or "",
             })
         return out
 

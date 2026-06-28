@@ -301,7 +301,7 @@
     <div class="row g-3">
       {% for task in standee_tasks %}
       <div class="col-12 col-md-6 col-xl-4">
-        <div class="standee-task-card" style="
+        <div class="standee-task-card" style="cursor:pointer;
           background:#fff; border-radius:16px; padding:0; overflow:hidden;
           box-shadow:0 2px 12px rgba(0,0,0,.06); transition:all .3s cubic-bezier(.16,1,.3,1);
           border:1px solid rgba(0,0,0,.04);
@@ -314,7 +314,7 @@
           {% else %}
             border-left:4px solid #bdbdbd;
           {% endif %}
-        ">
+        " onclick="openStandeeAction('{{ task.task_type }}',{{ task.id }},'{{ task.standee_name|e }}','{{ task.apartment_name|e }}',{{ task.quantity }},'{{ task.collection_location|e }}','{{ task.notes|e }}')">
           <div class="p-3">
             <div class="d-flex justify-content-between align-items-start mb-2">
               <div style="min-width:0;">
@@ -341,39 +341,18 @@
               <i class="bi bi-building" style="color:#b0bec5;font-size:.7rem;"></i>
               <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ task.apartment_name }}</span>
             </div>
+            {% if task.collection_location and task.task_type == 'place' %}
+            <div style="font-size:.72rem;color:#2e7d32;background:#e8f5e9;border-radius:8px;padding:5px 10px;margin-bottom:10px;display:flex;align-items:flex-start;gap:4px;border-left:3px solid #43a047;">
+              <i class="bi bi-geo-alt" style="font-size:.6rem;margin-top:2px;flex-shrink:0;"></i>
+              <span><strong>Pickup:</strong> {{ task.collection_location }}</span>
+            </div>
+            {% endif %}
             {% if task.notes %}
             <div style="font-size:.72rem;color:#6d4c00;background:#fff8e1;border-radius:8px;padding:5px 10px;margin-bottom:10px;display:flex;align-items:flex-start;gap:4px;border-left:3px solid #f9a825;">
               <i class="bi bi-chat-quote" style="font-size:.6rem;margin-top:2px;flex-shrink:0;"></i>
               <span>{{ task.notes }}</span>
             </div>
             {% endif %}
-            <div class="d-flex gap-2">
-              {% if task.task_type == 'place' %}
-              <form action="/field/standees/update-status/{{ task.id }}/Placed" method="POST" style="flex:1;">
-                <button type="submit" style="
-                  width:100%; padding:9px 14px; border:none; border-radius:10px;
-                  background:linear-gradient(135deg,#1565c0,#1e88e5); color:#fff;
-                  font-weight:600; font-size:.78rem; transition:all .25s;
-                  display:flex; align-items:center; justify-content:center; gap:6px;
-                  box-shadow:0 4px 14px rgba(21,101,192,.25); cursor:pointer;
-                " onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 24px rgba(21,101,192,.35)'" onmouseout="this.style.transform='';this.style.boxShadow='0 4px 14px rgba(21,101,192,.25)'">
-                  <i class="bi bi-check-lg"></i> Mark Placed
-                </button>
-              </form>
-              {% elif task.task_type == 'remove' %}
-              <form action="/field/standees/update-status/{{ task.id }}/Removed" method="POST" style="flex:1;">
-                <button type="submit" style="
-                  width:100%; padding:9px 14px; border:none; border-radius:10px;
-                  background:linear-gradient(135deg,#c62828,#e53935); color:#fff;
-                  font-weight:600; font-size:.78rem; transition:all .25s;
-                  display:flex; align-items:center; justify-content:center; gap:6px;
-                  box-shadow:0 4px 14px rgba(198,40,40,.25); cursor:pointer;
-                " onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 24px rgba(198,40,40,.35)'" onmouseout="this.style.transform='';this.style.boxShadow='0 4px 14px rgba(198,40,40,.25)'">
-                  <i class="bi bi-x-lg"></i> Mark Removed
-                </button>
-              </form>
-              {% endif %}
-            </div>
           </div>
         </div>
       </div>
@@ -396,5 +375,151 @@
         });
       }
     </script>
+
+<script>
+let pendingStandee = null;
+
+function openStandeeAction(action, id, name, apartment, qty, colLoc, notes){
+  pendingStandee = { action, id };
+  document.getElementById('sActionTitle').textContent = action === 'place' ? 'Place Standee' : 'Remove Standee';
+  document.getElementById('sStandeeName').textContent = name;
+  document.getElementById('sApartment').textContent = apartment;
+  document.getElementById('sQty').textContent = qty + ' units';
+
+  const collWrap = document.getElementById('sCollSection');
+  const retWrap = document.getElementById('sRetSection');
+  const collInfo = document.getElementById('sCollInfo');
+  const notesEl = document.getElementById('sNotes');
+  const submitBtn = document.getElementById('sSubmitBtn');
+
+  notesEl.style.display = notes ? 'flex' : 'none';
+  notesEl.querySelector('span').textContent = notes || '';
+
+  if(action === 'place'){
+    collWrap.style.display = 'block';
+    retWrap.style.display = 'none';
+    if(colLoc){
+      collInfo.style.display = 'block';
+      collInfo.textContent = 'Pickup: ' + colLoc;
+    } else {
+      collInfo.style.display = 'none';
+    }
+    submitBtn.className = 'btn btn-primary';
+    submitBtn.innerHTML = '<i class="bi bi-check-lg"></i> Mark Placed';
+    document.getElementById('sDamageWrap').style.display = 'block';
+  } else {
+    collWrap.style.display = 'none';
+    retWrap.style.display = 'block';
+    submitBtn.className = 'btn btn-danger';
+    submitBtn.innerHTML = '<i class="bi bi-trash"></i> Mark Removed';
+    document.getElementById('sDamageWrap').style.display = 'block';
+  }
+
+  document.getElementById('sRetHub').value = '';
+  document.getElementById('sRetDetail').value = '';
+  document.querySelector('#sActionModal [name="damage_reported"]').value = '0';
+  document.querySelector('#sActionModal [name="damage_details"]').value = '';
+
+  new bootstrap.Modal(document.getElementById('sActionModal')).show();
+}
+
+document.getElementById('sActionForm').addEventListener('submit', function(e){
+  e.preventDefault();
+  if(!pendingStandee) return;
+
+  const action = pendingStandee.action;
+  let retLoc = '';
+
+  if(action !== 'place'){
+    const hub = document.getElementById('sRetHub').value;
+    const detail = document.getElementById('sRetDetail').value.trim();
+    if(hub === '__custom__'){
+      retLoc = detail || '';
+    } else if(hub){
+      retLoc = hub + (detail ? ', ' + detail : '');
+    } else {
+      retLoc = detail || '';
+    }
+  }
+
+  document.getElementById('sReturnLocationHidden').value = retLoc;
+
+  const form = document.getElementById('sActionForm');
+  form.action = '/field/standees/update-status/' + pendingStandee.id + '/' + (action === 'place' ? 'Placed' : 'Removed');
+  form.submit();
+});
+</script>
+
+{# ── Standee Action Modal ── #}
+<div class="modal fade" id="sActionModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:18px;overflow:hidden;">
+      <form method="post" id="sActionForm">
+        <div class="modal-header" style="border-bottom:1px solid #eef2f5;background:linear-gradient(135deg,#f4fcfb,#f0f7fa);">
+          <h5 class="modal-title fw-bold" id="sActionTitle" style="font-size:.95rem;"></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div style="background:#f8fafb;border-radius:12px;padding:12px 16px;margin-bottom:16px;">
+            <div style="font-weight:700;font-size:.88rem;color:#1a2a3a;" id="sStandeeName"></div>
+            <div style="font-size:.78rem;color:#5a6a7a;"><i class="bi bi-building me-1"></i><span id="sApartment"></span> &middot; <span id="sQty"></span></div>
+          </div>
+
+          <div id="sNotes" style="display:none;background:#fff8e1;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:.78rem;color:#6d4c00;border-left:3px solid #f9a825;align-items:flex-start;gap:4px;">
+            <i class="bi bi-chat-quote" style="font-size:.65rem;margin-top:1px;flex-shrink:0;"></i>
+            <span></span>
+          </div>
+
+          {# ── Collection Location (read-only info) ── #}
+          <div id="sCollSection" class="mb-3">
+            <label class="form-label small fw-semibold">Collection / Pickup Location</label>
+            <div id="sCollInfo" style="display:none;padding:8px 12px;background:#e8f5e9;border-radius:8px;font-size:.8rem;color:#2e7d32;border-left:3px solid #43a047;">
+              <i class="bi bi-geo-alt me-1"></i><span></span>
+            </div>
+            <div class="text-muted small" style="margin-top:6px;">Collect the standee and confirm placement below.</div>
+          </div>
+
+          {# ── Return / Drop Location ── #}
+          <div id="sRetSection" class="mb-3" style="display:none;">
+            <label class="form-label small fw-semibold">Drop Location <span class="text-muted" style="font-weight:400;">(where you returned it)</span></label>
+            <div class="row g-2">
+              <div class="col-md-6">
+                <select id="sRetHub" class="form-select" style="border-radius:10px;padding:9px 12px;border:2px solid #e8edf2;font-size:.82rem;">
+                  <option value="">— Select Hub —</option>
+                  {% for h in hub_names %}
+                  <option value="{{ h }}">{{ h }}</option>
+                  {% endfor %}
+                  <option value="__custom__">Other (type below)</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <input type="text" id="sRetDetail" class="form-control" placeholder="Floor, block, room no..." style="border-radius:10px;padding:9px 12px;border:2px solid #e8edf2;font-size:.82rem;">
+              </div>
+            </div>
+          </div>
+
+          {# ── Damage Reporting ── #}
+          <div class="mb-3" id="sDamageWrap">
+            <label class="form-label small fw-semibold">Damage Reported <span class="text-muted" style="font-weight:400;">(if any)</span></label>
+            <div class="row g-2">
+              <div class="col-4">
+                <input type="number" name="damage_reported" class="form-control" min="0" value="0" placeholder="0" style="border-radius:10px;padding:9px 12px;border:2px solid #e8edf2;font-size:.82rem;">
+              </div>
+              <div class="col-8">
+                <input type="text" name="damage_details" class="form-control" placeholder="Describe damage..." style="border-radius:10px;padding:9px 12px;border:2px solid #e8edf2;font-size:.82rem;">
+              </div>
+            </div>
+          </div>
+
+          <input type="hidden" name="return_location" id="sReturnLocationHidden" value="">
+        </div>
+        <div class="modal-footer" style="border-top:1px solid #eef2f5;">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal" style="border-radius:10px;padding:8px 18px;">Cancel</button>
+          <button type="submit" class="btn btn-primary btn-sm" id="sSubmitBtn" style="border-radius:10px;padding:8px 18px;font-weight:600;">Confirm</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 </body>
 </html>
