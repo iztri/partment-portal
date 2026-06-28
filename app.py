@@ -366,7 +366,7 @@ def trash_view():
         flash("Only Gowtham can access trash", "danger")
         return redirect(url_for("marketing_dashboard"))
     deleted = db.get_deleted_apartments()
-    return render_template("trash.html", apartments=deleted)
+    return render_template("trash.html", apartments=deleted, active='trash')
 
 
 @app.route("/marketing/restore/<int:apartment_id>", methods=["POST"])

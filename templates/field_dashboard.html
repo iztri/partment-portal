@@ -125,6 +125,15 @@
     @media (max-width:768px) {
       .container-fluid { padding:10px; }
       .apt-card { padding:14px; }
+      .stat-box .num { font-size:1.1rem; }
+      .stat-box .lbl { font-size:.65rem; }
+      .quick-date-link { font-size:.7rem; padding:3px 10px; }
+      .filter-btn { font-size:.7rem; padding:5px 12px; }
+      .action-btn { font-size:.75rem; padding:8px 14px; }
+      .action-btn i { font-size:.85rem; }
+      .card-body .row .col-md-5,
+      .card-body .row .col-md-3,
+      .card-body .row .col-md-4 { width:100%; }
     }
   </style>
 </head>
@@ -160,8 +169,8 @@
           </div>
           <div class="col-md-4">
             {% if available_dates %}
-              <label class="form-label small fw-semibold mb-1">Quick jump</label>
-              <div>
+              <label class="form-label small fw-semibold">Quick jump</label>
+              <div style="overflow-x:auto;white-space:nowrap;padding-bottom:4px;">
                 {% for d in available_dates[:5] %}
                   <a href="/field?date={{ d }}" class="quick-date-link {% if d == selected_date %}text-white{% endif %}" style="{% if d == selected_date %}background:#00695c;color:white;{% endif %}">{{ d }}</a>
                 {% endfor %}

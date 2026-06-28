@@ -39,6 +39,14 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
 .today-banner{background:linear-gradient(135deg,#fff8e1,#fff3e0);border-radius:14px;padding:16px 20px;margin-bottom:16px;border-left:5px solid #f9a825;}
 .today-banner h6{font-weight:700;color:#e65100;margin-bottom:4px;}
 .today-banner .item{font-size:.82rem;color:#4a3a1a;padding:4px 0;}
+@media(max-width:768px){.table th,.table td{font-size:.7rem;padding:6px 4px;white-space:nowrap;}
+  .cal-day{min-height:60px;padding:3px;font-size:.65rem;}
+  .cal-header div{padding:8px 2px;font-size:.65rem;}
+  .cal-event{font-size:.5rem;padding:1px 3px;}
+  .today-banner{padding:12px 14px;}
+  .today-banner .item{font-size:.75rem;}
+}
+
 </style>
 </head><body>
 {% include 'field_sidebar.html' %}
@@ -134,39 +142,41 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
       </h5>
     </div>
     <div class="card-body p-0">
-      <table class="table table-hover mb-0">
-        <thead><tr>
-          <th>Standee</th><th>Apartment</th><th>Qty</th><th>Start</th><th>End</th><th>Status</th><th>Notes</th><th>Actions</th>
-        </tr></thead>
-        <tbody>
-          {% for a in assignments %}
-          <tr>
-            <td><strong style="color:#1a2a3a;">{{ a.standee_name }}</strong></td>
-            <td>{{ a.apartment_name }}</td>
-            <td class="fw-bold">{{ a.quantity }}</td>
-            <td style="font-size:.75rem;">{{ a.start_date }}</td>
-            <td style="font-size:.75rem;">{{ a.end_date }}</td>
-            <td><span class="status-badge status-{{ a.status }}">{{ a.status }}</span></td>
-            <td style="font-size:.72rem;color:#5a6a7a;">{{ a.notes or '—' }}</td>
-            <td>
-              {% if a.status == 'Pending' %}
-              <form method="post" action="/field/standees/update-status/{{ a.id }}/Placed" style="display:inline;">
-                <button class="action-btn place"><i class="bi bi-check-lg"></i>Mark Placed</button>
-              </form>
-              {% elif a.status == 'Placed' %}
-              <form method="post" action="/field/standees/update-status/{{ a.id }}/Removed" style="display:inline;">
-                <button class="action-btn remove"><i class="bi bi-trash"></i>Mark Removed</button>
-              </form>
-              {% else %}
-              <span class="action-btn done"><i class="bi bi-check-circle"></i>Done</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% else %}
-          <tr><td colspan="8" class="text-center text-muted py-4">No standee assignments</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead><tr>
+            <th>Standee</th><th>Apartment</th><th>Qty</th><th>Start</th><th>End</th><th>Status</th><th>Notes</th><th>Actions</th>
+          </tr></thead>
+          <tbody>
+            {% for a in assignments %}
+            <tr>
+              <td><strong style="color:#1a2a3a;">{{ a.standee_name }}</strong></td>
+              <td>{{ a.apartment_name }}</td>
+              <td class="fw-bold">{{ a.quantity }}</td>
+              <td style="font-size:.75rem;">{{ a.start_date }}</td>
+              <td style="font-size:.75rem;">{{ a.end_date }}</td>
+              <td><span class="status-badge status-{{ a.status }}">{{ a.status }}</span></td>
+              <td style="font-size:.72rem;color:#5a6a7a;">{{ a.notes or '—' }}</td>
+              <td>
+                {% if a.status == 'Pending' %}
+                <form method="post" action="/field/standees/update-status/{{ a.id }}/Placed" style="display:inline;">
+                  <button class="action-btn place"><i class="bi bi-check-lg"></i>Mark Placed</button>
+                </form>
+                {% elif a.status == 'Placed' %}
+                <form method="post" action="/field/standees/update-status/{{ a.id }}/Removed" style="display:inline;">
+                  <button class="action-btn remove"><i class="bi bi-trash"></i>Mark Removed</button>
+                </form>
+                {% else %}
+                <span class="action-btn done"><i class="bi bi-check-circle"></i>Done</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="8" class="text-center text-muted py-4">No standee assignments</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>

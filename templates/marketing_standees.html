@@ -38,6 +38,11 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
 .avail-badge{font-size:.72rem;padding:3px 10px;border-radius:20px;font-weight:600;}
 .avail-yes{background:#e8f5e9;color:#2e7d32;}
 .avail-no{background:#ffebee;color:#c62828;}
+@media(max-width:768px){.table th,.table td{font-size:.7rem;padding:8px 5px;white-space:nowrap;}
+  .tab-card{padding:10px 14px;gap:8px;}
+  .tab-card .tab-icon{width:32px;height:32px;font-size:.9rem;}
+  .tab-card .tab-label{font-size:.82rem;}
+}
 </style>
 </head><body>
 {% include 'marketing_sidebar.html' %}
@@ -85,30 +90,32 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
             <h5 class="mb-0" style="font-weight:700;font-size:.9rem;color:#1a2a3a;"><i class="bi bi-list me-2" style="color:#2e7d32;"></i>Standee Inventory</h5>
           </div>
           <div class="card-body p-0">
-            <table class="table table-hover mb-0">
-              <thead><tr>
-                <th>Name</th><th>Total</th><th>Used</th><th>Available</th><th>Location</th><th style="width:80px;">Actions</th>
-              </tr></thead>
-              <tbody>
-                {% for s in standees %}
-                {% set used = usage.get(s.id, 0) %}
-                {% set avail = s.total_units - used %}
-                <tr>
-                  <td><strong style="color:#1a2a3a;">{{ s.name }}</strong></td>
-                  <td class="fw-bold">{{ s.total_units }}</td>
-                  <td style="color:#1565c0;">{{ used }}</td>
-                  <td><span class="avail-badge {{ 'avail-yes' if avail>0 else 'avail-no' }}">{{ avail }}</span></td>
-                  <td style="font-size:.78rem;color:#5a6a7a;">{{ s.storage_location or '—' }}</td>
-                  <td>
-                    <button class="btn btn-sm btn-outline-primary py-1 px-2" style="border-radius:8px;font-size:.7rem;" data-bs-toggle="modal" data-bs-target="#editStandee{{ s.id }}"><i class="bi bi-pencil"></i></button>
-                    <form method="post" action="/marketing/standees/delete/{{ s.id }}" style="display:inline;" onsubmit="return confirm('Delete {{ s.name }}? This will also remove all assignments.')">
-                      <button class="btn btn-sm btn-outline-danger py-1 px-2" style="border-radius:8px;font-size:.7rem;"><i class="bi bi-trash"></i></button>
-                    </form>
-                  </td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
+            <div class="table-responsive">
+              <table class="table table-hover mb-0">
+                <thead><tr>
+                  <th>Name</th><th>Total</th><th>Used</th><th>Available</th><th>Location</th><th style="width:80px;">Actions</th>
+                </tr></thead>
+                <tbody>
+                  {% for s in standees %}
+                  {% set used = usage.get(s.id, 0) %}
+                  {% set avail = s.total_units - used %}
+                  <tr>
+                    <td><strong style="color:#1a2a3a;">{{ s.name }}</strong></td>
+                    <td class="fw-bold">{{ s.total_units }}</td>
+                    <td style="color:#1565c0;">{{ used }}</td>
+                    <td><span class="avail-badge {{ 'avail-yes' if avail>0 else 'avail-no' }}">{{ avail }}</span></td>
+                    <td style="font-size:.78rem;color:#5a6a7a;">{{ s.storage_location or '—' }}</td>
+                    <td>
+                      <button class="btn btn-sm btn-outline-primary py-1 px-2" style="border-radius:8px;font-size:.7rem;" data-bs-toggle="modal" data-bs-target="#editStandee{{ s.id }}"><i class="bi bi-pencil"></i></button>
+                      <form method="post" action="/marketing/standees/delete/{{ s.id }}" style="display:inline;" onsubmit="return confirm('Delete {{ s.name }}? This will also remove all assignments.')">
+                        <button class="btn btn-sm btn-outline-danger py-1 px-2" style="border-radius:8px;font-size:.7rem;"><i class="bi bi-trash"></i></button>
+                      </form>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
@@ -173,28 +180,30 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
             <h5 class="mb-0" style="font-weight:700;font-size:.9rem;color:#1a2a3a;"><i class="bi bi-table me-2" style="color:#1565c0;"></i>Current Assignments</h5>
           </div>
           <div class="card-body p-0" style="max-height:450px;overflow-y:auto;">
-            <table class="table table-hover mb-0">
-              <thead><tr>
-                <th>Apartment</th><th>Standee</th><th>Qty</th><th>Field User</th><th>Start</th><th>End</th><th>Status</th><th>Notes</th><th style="width:50px;">Actions</th>
-              </tr></thead>
-              <tbody>
-                {% for a in assignments %}
-                <tr>
-                  <td><strong style="color:#1a2a3a;font-size:.78rem;">{{ a.apartment_name }}</strong></td>
-                  <td><span style="font-size:.78rem;">{{ a.standee_name }}</span></td>
-                  <td class="fw-bold">{{ a.quantity }}</td>
-                  <td style="font-size:.75rem;">{{ a.assigned_to }}</td>
-                  <td style="font-size:.75rem;">{{ a.start_date }}</td>
-                  <td style="font-size:.75rem;">{{ a.end_date }}</td>
-                  <td><span class="avail-badge {{ 'avail-yes' if a.status in ('Placed','Removed') else 'avail-no' }}" style="font-size:.65rem;">{{ a.status }}</span></td>
-                  <td style="font-size:.72rem;color:#5a6a7a;">{{ a.notes or '—' }}</td>
-                  <td><button class="btn btn-sm btn-outline-primary py-1 px-2" style="border-radius:8px;font-size:.7rem;" data-bs-toggle="modal" data-bs-target="#editAssign{{ a.id }}"><i class="bi bi-pencil"></i></button></td>
-                </tr>
-                {% else %}
-                <tr><td colspan="9" class="text-center text-muted py-4">No assignments yet</td></tr>
-                {% endfor %}
-              </tbody>
-            </table>
+            <div class="table-responsive">
+              <table class="table table-hover mb-0">
+                <thead><tr>
+                  <th>Apartment</th><th>Standee</th><th>Qty</th><th>Field User</th><th>Start</th><th>End</th><th>Status</th><th>Notes</th><th style="width:50px;">Actions</th>
+                </tr></thead>
+                <tbody>
+                  {% for a in assignments %}
+                  <tr>
+                    <td><strong style="color:#1a2a3a;font-size:.78rem;">{{ a.apartment_name }}</strong></td>
+                    <td><span style="font-size:.78rem;">{{ a.standee_name }}</span></td>
+                    <td class="fw-bold">{{ a.quantity }}</td>
+                    <td style="font-size:.75rem;">{{ a.assigned_to }}</td>
+                    <td style="font-size:.75rem;">{{ a.start_date }}</td>
+                    <td style="font-size:.75rem;">{{ a.end_date }}</td>
+                    <td><span class="avail-badge {{ 'avail-yes' if a.status in ('Placed','Removed') else 'avail-no' }}" style="font-size:.65rem;">{{ a.status }}</span></td>
+                    <td style="font-size:.72rem;color:#5a6a7a;">{{ a.notes or '—' }}</td>
+                    <td><button class="btn btn-sm btn-outline-primary py-1 px-2" style="border-radius:8px;font-size:.7rem;" data-bs-toggle="modal" data-bs-target="#editAssign{{ a.id }}"><i class="bi bi-pencil"></i></button></td>
+                  </tr>
+                  {% else %}
+                  <tr><td colspan="9" class="text-center text-muted py-4">No assignments yet</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>

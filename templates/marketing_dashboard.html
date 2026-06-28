@@ -35,7 +35,12 @@
     .modal-content{border-radius:20px;border:none;overflow:hidden;}
     .modal-header{background:linear-gradient(135deg,#f4fcfb,#f0f7fa);border-bottom:1px solid #eef2f5;}
     .modal-footer{border-top:1px solid #eef2f5;}
-    @media(max-width:768px){.table-container{max-height:none;}}
+    @media(max-width:768px){.table-container{max-height:none;}
+      .search-wrap input{width:140px;}
+      .stat-box{padding:10px 12px;}
+      .stat-box .num{font-size:1.1rem;}
+      .table th,.table td{font-size:.75rem;padding:10px 6px;white-space:nowrap;}
+    }
   </style>
 </head>
 <body>
@@ -67,37 +72,38 @@
       </div>
       <div class="card-body p-0">
         <div class="table-container">
-          <table class="table table-hover mb-0" id="aptTable">
-            <thead><tr>
-              <th>#</th><th>Apartment</th><th>Hub</th><th>Assigned To</th><th>Date</th><th>Visited</th><th>Status</th><th style="width:110px;">Actions</th>
-            </tr></thead>
-            <tbody>
-              {% for apt in apartments %}
-              <tr data-name="{{ apt['Apartment Name']|lower }}" style="animation-delay:{{ loop.index * 0.025 }}s">
-                <td class="fw-semibold" style="color:#8899aa;">{{ apt['Apartment ID'] }}</td>
-                <td>
-                  <strong style="color:#1a2a3a;">{{ apt['Apartment Name'] }}</strong>
-                  {% if apt['Location Link'] %}<br><a href="{{ apt['Location Link'] }}" target="_blank" class="small text-decoration-none" style="color:#00838f;"><i class="bi bi-geo-alt-fill"></i> Map</a>{% endif %}
-                </td>
-                <td><span class="assign-chip"><i class="bi bi-building"></i>{{ apt['Hub Name'] }}</span></td>
-                <td>{% if apt['Assigned To'] %}<span class="assign-chip"><i class="bi bi-person"></i>{{ apt['Assigned To'] }}</span>{% else %}<span class="text-muted" style="font-size:.78rem;">—</span>{% endif %}</td>
-                <td>{% if apt['Assigned Date'] %}<span class="assign-chip"><i class="bi bi-calendar3"></i>{{ apt['Assigned Date'] }}</span>{% else %}<span class="text-muted" style="font-size:.78rem;">—</span>{% endif %}</td>
-                <td>{% if apt._visited_at %}<span class="assign-chip"><i class="bi bi-clock-history"></i>{{ apt._visited_at[:10] }}</span>{% else %}<span class="text-muted" style="font-size:.78rem;">—</span>{% endif %}</td>
-                <td><span class="status-badge status-{{ apt['Status'] }}">{{ apt['Status'] }}</span></td>
-                <td>
-                  <div class="d-flex gap-1">
-                    <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editModal{{ apt['Apartment ID'] }}" title="Edit"><i class="bi bi-pencil"></i></button>
-                    <button class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ apt['Apartment ID'] }}" title="Delete"><i class="bi bi-trash"></i></button>
-                    {% if apt['Status'] == 'Visited' %}<a href="/visit/{{ apt['Apartment ID'] }}" class="btn btn-outline-info" title="View Visit"><i class="bi bi-eye"></i></a>{% endif %}
-                  </div>
-                </td>
-              </tr>
-              {% else %}
-              <tr><td colspan="8" class="text-center text-muted py-5"><i class="bi bi-inbox" style="font-size:2rem;display:block;margin-bottom:8px;color:#ccd7e0;"></i>No apartments added yet</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+          <div class="table-responsive">
+            <table class="table table-hover mb-0" id="aptTable">
+              <thead><tr>
+                <th>#</th><th>Apartment</th><th>Hub</th><th>Assigned To</th><th>Date</th><th>Visited</th><th>Status</th><th style="width:110px;">Actions</th>
+              </tr></thead>
+              <tbody>
+                {% for apt in apartments %}
+                <tr data-name="{{ apt['Apartment Name']|lower }}" style="animation-delay:{{ loop.index * 0.025 }}s">
+                  <td class="fw-semibold" style="color:#8899aa;">{{ apt['Apartment ID'] }}</td>
+                  <td>
+                    <strong style="color:#1a2a3a;">{{ apt['Apartment Name'] }}</strong>
+                    {% if apt['Location Link'] %}<br><a href="{{ apt['Location Link'] }}" target="_blank" class="small text-decoration-none" style="color:#00838f;"><i class="bi bi-geo-alt-fill"></i> Map</a>{% endif %}
+                  </td>
+                  <td><span class="assign-chip"><i class="bi bi-building"></i>{{ apt['Hub Name'] }}</span></td>
+                  <td>{% if apt['Assigned To'] %}<span class="assign-chip"><i class="bi bi-person"></i>{{ apt['Assigned To'] }}</span>{% else %}<span class="text-muted" style="font-size:.78rem;">—</span>{% endif %}</td>
+                  <td>{% if apt['Assigned Date'] %}<span class="assign-chip"><i class="bi bi-calendar3"></i>{{ apt['Assigned Date'] }}</span>{% else %}<span class="text-muted" style="font-size:.78rem;">—</span>{% endif %}</td>
+                  <td>{% if apt._visited_at %}<span class="assign-chip"><i class="bi bi-clock-history"></i>{{ apt._visited_at[:10] }}</span>{% else %}<span class="text-muted" style="font-size:.78rem;">—</span>{% endif %}</td>
+                  <td><span class="status-badge status-{{ apt['Status'] }}">{{ apt['Status'] }}</span></td>
+                  <td>
+                    <div class="d-flex gap-1">
+                      <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#editModal{{ apt['Apartment ID'] }}" title="Edit"><i class="bi bi-pencil"></i></button>
+                      <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteModal{{ apt['Apartment ID'] }}" title="Delete"><i class="bi bi-trash"></i></button>
+                      {% if apt['Status'] == 'Visited' %}<a href="/visit/{{ apt['Apartment ID'] }}" class="btn btn-outline-info btn-sm" title="View Visit"><i class="bi bi-eye"></i></a>{% endif %}
+                    </div>
+                  </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="8" class="text-center text-muted py-5"><i class="bi bi-inbox" style="font-size:2rem;display:block;margin-bottom:8px;color:#ccd7e0;"></i>No apartments added yet</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
       </div>
     </div>
   </div>

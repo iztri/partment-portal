@@ -39,6 +39,11 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
 .status-Pending{background:#fff8e1;color:#e65100;}
 .status-Visited{background:#e0f2f1;color:#00695c;}
 .assign-chip{display:inline-flex;align-items:center;gap:4px;background:#f0f3f6;border-radius:8px;padding:3px 8px;font-size:.75rem;color:#4a5a6a;}
+@media(max-width:768px){.tab-card{padding:12px 14px;gap:8px;}
+  .tab-card .tab-icon{width:34px;height:34px;font-size:1rem;}
+  .tab-card .tab-label{font-size:.82rem;}
+  .table th,.table td{font-size:.75rem;padding:8px 6px;white-space:nowrap;}
+}
 </style>
 </head><body>
 {% include 'marketing_sidebar.html' %}
@@ -79,25 +84,27 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
             <h5 class="mb-0" style="font-weight:700;color:#1a2a3a;font-size:.95rem;"><i class="bi bi-table me-2" style="color:#00838f;"></i>Unassigned Apartments</h5>
           </div>
           <div class="card-body p-0" style="max-height:500px;overflow-y:auto;">
-            <table class="table table-hover mb-0">
-              <thead><tr>
-                <th style="width:32px;"><input type="checkbox" id="selectAll1" class="form-check-input"></th>
-                <th>#</th><th>Apartment</th><th>Hub</th><th>Created</th>
-              </tr></thead>
-              <tbody>
-                {% for apt in unassigned %}
-                <tr>
-                  <td><input type="checkbox" name="apartment_ids[]" class="apt-check-1 form-check-input" value="{{ apt['Apartment ID'] }}" form="form1"></td>
-                  <td class="fw-semibold" style="color:#8899aa;">{{ apt['Apartment ID'] }}</td>
-                  <td><strong style="color:#1a2a3a;">{{ apt['Apartment Name'] }}</strong></td>
-                  <td><span class="assign-chip"><i class="bi bi-building"></i>{{ apt['Hub Name'] }}</span></td>
-                  <td style="font-size:.8rem;color:#8899aa;">{{ (apt['Created At'] or '')[:10] }}</td>
-                </tr>
-                {% else %}
-                <tr><td colspan="5" class="text-center text-muted py-4">No unassigned apartments</td></tr>
-                {% endfor %}
-              </tbody>
-            </table>
+            <div class="table-responsive">
+              <table class="table table-hover mb-0">
+                <thead><tr>
+                  <th style="width:32px;"><input type="checkbox" id="selectAll1" class="form-check-input"></th>
+                  <th>#</th><th>Apartment</th><th>Hub</th><th>Created</th>
+                </tr></thead>
+                <tbody>
+                  {% for apt in unassigned %}
+                  <tr>
+                    <td><input type="checkbox" name="apartment_ids[]" class="apt-check-1 form-check-input" value="{{ apt['Apartment ID'] }}" form="form1"></td>
+                    <td class="fw-semibold" style="color:#8899aa;">{{ apt['Apartment ID'] }}</td>
+                    <td><strong style="color:#1a2a3a;">{{ apt['Apartment Name'] }}</strong></td>
+                    <td><span class="assign-chip"><i class="bi bi-building"></i>{{ apt['Hub Name'] }}</span></td>
+                    <td style="font-size:.8rem;color:#8899aa;">{{ (apt['Created At'] or '')[:10] }}</td>
+                  </tr>
+                  {% else %}
+                  <tr><td colspan="5" class="text-center text-muted py-4">No unassigned apartments</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
@@ -131,27 +138,29 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
             <h5 class="mb-0" style="font-weight:700;color:#1a2a3a;font-size:.95rem;"><i class="bi bi-arrow-repeat me-2" style="color:#00838f;"></i>Assigned Apartments — Select to Reassign</h5>
           </div>
           <div class="card-body p-0" style="max-height:500px;overflow-y:auto;">
-            <table class="table table-hover mb-0">
-              <thead><tr>
-                <th style="width:32px;"><input type="checkbox" id="selectAll2" class="form-check-input"></th>
-                <th>#</th><th>Apartment</th><th>Hub</th><th>Assigned To</th><th>Date</th><th>Status</th>
-              </tr></thead>
-              <tbody>
-                {% for apt in assigned %}
-                <tr>
-                  <td><input type="checkbox" name="reassign_ids[]" class="apt-check-2 form-check-input" value="{{ apt['Apartment ID'] }}" form="form2"></td>
-                  <td class="fw-semibold" style="color:#8899aa;">{{ apt['Apartment ID'] }}</td>
-                  <td><strong style="color:#1a2a3a;">{{ apt['Apartment Name'] }}</strong></td>
-                  <td><span class="assign-chip"><i class="bi bi-building"></i>{{ apt['Hub Name'] }}</span></td>
-                  <td><span class="assign-chip"><i class="bi bi-person"></i>{{ apt['Assigned To'] }}</span></td>
-                  <td style="font-size:.8rem;">{{ (apt['Assigned Date'] or '')[:10] }}</td>
-                  <td><span class="status-badge status-{{ apt['Status'] }}">{{ apt['Status'] }}</span></td>
-                </tr>
-                {% else %}
-                <tr><td colspan="7" class="text-center text-muted py-4">No assigned apartments</td></tr>
-                {% endfor %}
-              </tbody>
-            </table>
+            <div class="table-responsive">
+              <table class="table table-hover mb-0">
+                <thead><tr>
+                  <th style="width:32px;"><input type="checkbox" id="selectAll2" class="form-check-input"></th>
+                  <th>#</th><th>Apartment</th><th>Hub</th><th>Assigned To</th><th>Date</th><th>Status</th>
+                </tr></thead>
+                <tbody>
+                  {% for apt in assigned %}
+                  <tr>
+                    <td><input type="checkbox" name="reassign_ids[]" class="apt-check-2 form-check-input" value="{{ apt['Apartment ID'] }}" form="form2"></td>
+                    <td class="fw-semibold" style="color:#8899aa;">{{ apt['Apartment ID'] }}</td>
+                    <td><strong style="color:#1a2a3a;">{{ apt['Apartment Name'] }}</strong></td>
+                    <td><span class="assign-chip"><i class="bi bi-building"></i>{{ apt['Hub Name'] }}</span></td>
+                    <td><span class="assign-chip"><i class="bi bi-person"></i>{{ apt['Assigned To'] }}</span></td>
+                    <td style="font-size:.8rem;">{{ (apt['Assigned Date'] or '')[:10] }}</td>
+                    <td><span class="status-badge status-{{ apt['Status'] }}">{{ apt['Status'] }}</span></td>
+                  </tr>
+                  {% else %}
+                  <tr><td colspan="7" class="text-center text-muted py-4">No assigned apartments</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
