@@ -275,46 +275,91 @@
   </div>
 
   {% if standee_tasks %}
-  <hr class="my-4" style="border-color:#dee2e6;">
-  <h5 class="mb-3" style="font-weight:600;color:#37474f;">
-    <i class="bi bi-signpost-2 me-2" style="color:#00838f;"></i>Standee Tasks
-  </h5>
-  <div class="row g-3">
-    {% for task in standee_tasks %}
-    <div class="col-12 col-md-6 col-lg-4">
-      <div class="card border-0 shadow-sm" style="border-radius:14px;border-left:4px solid {{ '#0d47a1' if task.task_type=='place' else '#b71c1c' }};">
-        <div class="card-body p-3">
-          <div class="d-flex justify-content-between align-items-start mb-2">
-            <div>
-              <strong style="font-size:.95rem;">{{ task.standee_name }}</strong>
-              <span class="badge ms-2" style="background:{{ '#1565c0' if task.task_type=='place' else '#c62828' }};">{{ 'Place' if task.task_type=='place' else 'Remove' }}</span>
+  <div style="margin-top:28px;padding-top:24px;border-top:2px solid #e8edf2;">
+    <div class="d-flex align-items-center gap-2 mb-4">
+      <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#004d40,#00838f);display:flex;align-items:center;justify-content:center;color:#fff;font-size:1rem;box-shadow:0 4px 12px rgba(0,77,64,.25);">
+        <i class="bi bi-signpost-2"></i>
+      </div>
+      <div>
+        <h5 class="mb-0" style="font-weight:700;color:#1a2a3a;letter-spacing:-.3px;font-size:1rem;">Standee Tasks</h5>
+        <span style="font-size:.72rem;color:#8899aa;font-weight:500;">{{ standee_tasks|length }} task{% if standee_tasks|length > 1 %}s{% endif %} for today</span>
+      </div>
+    </div>
+    <div class="row g-3">
+      {% for task in standee_tasks %}
+      <div class="col-12 col-md-6 col-xl-4">
+        <div class="standee-task-card" style="
+          background:#fff; border-radius:16px; padding:0; overflow:hidden;
+          box-shadow:0 2px 12px rgba(0,0,0,.06); transition:all .3s cubic-bezier(.16,1,.3,1);
+          border:1px solid rgba(0,0,0,.04);
+          {% if task.task_type == 'place' %}
+            background:linear-gradient(135deg,#fff 60%,#eef6ff);
+            border-left:4px solid #1565c0;
+          {% elif task.task_type == 'remove' %}
+            background:linear-gradient(135deg,#fff 60%,#fff5f5);
+            border-left:4px solid #c62828;
+          {% else %}
+            border-left:4px solid #bdbdbd;
+          {% endif %}
+        ">
+          <div class="p-3">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <div style="min-width:0;">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  {% if task.task_type == 'place' %}
+                  <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:6px;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px;background:#e3f2fd;color:#1565c0;">
+                    <i class="bi bi-box-seam" style="font-size:.7rem;"></i>Place
+                  </span>
+                  {% elif task.task_type == 'remove' %}
+                  <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:6px;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px;background:#ffebee;color:#c62828;">
+                    <i class="bi bi-trash" style="font-size:.7rem;"></i>Remove
+                  </span>
+                  {% else %}
+                  <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:6px;font-size:.65rem;font-weight:600;background:#f5f5f5;color:#757575;">
+                    <i class="bi bi-check-circle" style="font-size:.7rem;"></i>{{ task.status }}
+                  </span>
+                  {% endif %}
+                  <span style="font-size:.7rem;font-weight:600;color:{{ '#1565c0' if task.task_type=='place' else '#c62828' }};background:{{ '#e3f2fd' if task.task_type=='place' else '#ffebee' }};padding:2px 8px;border-radius:4px;">{{ task.quantity }} unit{% if task.quantity > 1 %}s{% endif %}</span>
+                </div>
+                <div style="font-weight:700;font-size:.9rem;color:#1a2a3a;letter-spacing:-.2px;">{{ task.standee_name }}</div>
+              </div>
             </div>
-            <span class="text-muted small">{{ task.quantity }} unit{% if task.quantity > 1 %}s{% endif %}</span>
-          </div>
-          <div class="small text-muted mb-2">
-            <i class="bi bi-building me-1"></i>{{ task.apartment_name }}
-          </div>
-          <div class="d-flex gap-2">
-            {% if task.task_type == 'place' %}
-            <form action="/field/standees/update-status/{{ task.id }}/Placed" method="POST" style="display:inline;">
-              <button type="submit" class="btn btn-sm" style="background:#1565c0;color:#fff;border-radius:8px;">
-                <i class="bi bi-check-lg"></i> Mark Placed
-              </button>
-            </form>
-            {% elif task.task_type == 'remove' %}
-            <form action="/field/standees/update-status/{{ task.id }}/Removed" method="POST" style="display:inline;">
-              <button type="submit" class="btn btn-sm" style="background:#c62828;color:#fff;border-radius:8px;">
-                <i class="bi bi-x-lg"></i> Mark Removed
-              </button>
-            </form>
-            {% else %}
-            <span class="badge" style="background:#e0e0e0;color:#555;">{{ task.status }}</span>
-            {% endif %}
+            <div style="font-size:.78rem;color:#5a6a7a;display:flex;align-items:center;gap:4px;margin-bottom:12px;">
+              <i class="bi bi-building" style="color:#b0bec5;font-size:.7rem;"></i>
+              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ task.apartment_name }}</span>
+            </div>
+            <div class="d-flex gap-2">
+              {% if task.task_type == 'place' %}
+              <form action="/field/standees/update-status/{{ task.id }}/Placed" method="POST" style="flex:1;">
+                <button type="submit" style="
+                  width:100%; padding:9px 14px; border:none; border-radius:10px;
+                  background:linear-gradient(135deg,#1565c0,#1e88e5); color:#fff;
+                  font-weight:600; font-size:.78rem; transition:all .25s;
+                  display:flex; align-items:center; justify-content:center; gap:6px;
+                  box-shadow:0 4px 14px rgba(21,101,192,.25); cursor:pointer;
+                " onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 24px rgba(21,101,192,.35)'" onmouseout="this.style.transform='';this.style.boxShadow='0 4px 14px rgba(21,101,192,.25)'">
+                  <i class="bi bi-check-lg"></i> Mark Placed
+                </button>
+              </form>
+              {% elif task.task_type == 'remove' %}
+              <form action="/field/standees/update-status/{{ task.id }}/Removed" method="POST" style="flex:1;">
+                <button type="submit" style="
+                  width:100%; padding:9px 14px; border:none; border-radius:10px;
+                  background:linear-gradient(135deg,#c62828,#e53935); color:#fff;
+                  font-weight:600; font-size:.78rem; transition:all .25s;
+                  display:flex; align-items:center; justify-content:center; gap:6px;
+                  box-shadow:0 4px 14px rgba(198,40,40,.25); cursor:pointer;
+                " onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 24px rgba(198,40,40,.35)'" onmouseout="this.style.transform='';this.style.boxShadow='0 4px 14px rgba(198,40,40,.25)'">
+                  <i class="bi bi-x-lg"></i> Mark Removed
+                </button>
+              </form>
+              {% endif %}
+            </div>
           </div>
         </div>
       </div>
+      {% endfor %}
     </div>
-    {% endfor %}
   </div>
   {% endif %}
 
