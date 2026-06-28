@@ -324,10 +324,16 @@
                 <div style="font-weight:700;font-size:.9rem;color:#1a2a3a;letter-spacing:-.2px;">{{ task.standee_name }}</div>
               </div>
             </div>
-            <div style="font-size:.78rem;color:#5a6a7a;display:flex;align-items:center;gap:4px;margin-bottom:12px;">
+            <div style="font-size:.78rem;color:#5a6a7a;display:flex;align-items:center;gap:4px;margin-bottom:4px;">
               <i class="bi bi-building" style="color:#b0bec5;font-size:.7rem;"></i>
               <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ task.apartment_name }}</span>
             </div>
+            {% if task.notes %}
+            <div style="font-size:.72rem;color:#6d4c00;background:#fff8e1;border-radius:8px;padding:5px 10px;margin-bottom:10px;display:flex;align-items:flex-start;gap:4px;border-left:3px solid #f9a825;">
+              <i class="bi bi-chat-quote" style="font-size:.6rem;margin-top:2px;flex-shrink:0;"></i>
+              <span>{{ task.notes }}</span>
+            </div>
+            {% endif %}
             <div class="d-flex gap-2">
               {% if task.task_type == 'place' %}
               <form action="/field/standees/update-status/{{ task.id }}/Placed" method="POST" style="flex:1;">

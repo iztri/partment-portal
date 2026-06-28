@@ -108,6 +108,67 @@
     </div>
   </div>
 
+  {% if standee_activity %}
+  <div class="card mt-4">
+    <div class="card-header bg-white py-3 px-4 d-flex justify-content-between align-items-center" style="border-radius:18px 18px 0 0;border-bottom:1px solid #eef2f5;">
+      <h5 class="mb-0" style="font-weight:700;color:#1a2a3a;font-size:.92rem;">
+        <i class="bi bi-signpost-2 me-2" style="color:#00838f;"></i>Standee Activity Log
+      </h5>
+      <div class="d-flex gap-2">
+        <span class="badge-count" style="background:#e8f5e9;color:#2e7d32;">{{ standee_stats.placed }} Placed</span>
+        <span class="badge-count" style="background:#ffebee;color:#c62828;">{{ standee_stats.removed }} Removed</span>
+        <span class="badge-count" style="background:#fff8e1;color:#e65100;">{{ standee_stats.pending }} Pending</span>
+      </div>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead><tr>
+            <th>Standee</th><th>Apartment</th><th>Field User</th><th>Action</th><th>Time</th>
+          </tr></thead>
+          <tbody>
+            {% for a in standee_activity %}
+            <tr>
+              <td><strong style="color:#1a2a3a;">{{ a.standee_name }}</strong></td>
+              <td style="font-size:.82rem;">{{ a.apartment_name }}</td>
+              <td><span class="assign-chip"><i class="bi bi-person"></i>{{ a.assigned_to }}</span></td>
+              <td>
+                {% if a.status == 'Placed' %}
+                <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:6px;font-size:.68rem;font-weight:600;background:#e8f5e9;color:#2e7d32;">
+                  <i class="bi bi-box-seam"></i> Placed
+                </span>
+                {% elif a.status == 'Removed' %}
+                <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:6px;font-size:.68rem;font-weight:600;background:#ffebee;color:#c62828;">
+                  <i class="bi bi-trash"></i> Removed
+                </span>
+                {% else %}
+                <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:6px;font-size:.68rem;font-weight:600;background:#fff8e1;color:#e65100;">
+                  <i class="bi bi-clock"></i> Pending
+                </span>
+                {% endif %}
+              </td>
+              <td style="font-size:.75rem;color:#5a6a7a;">
+                {% if a.status == 'Placed' and a.placed_at %}
+                  <i class="bi bi-check-circle me-1" style="color:#2e7d32;"></i>{{ a.placed_at[:16] }}
+                {% elif a.status == 'Removed' and a.removed_at %}
+                  <i class="bi bi-x-circle me-1" style="color:#c62828;"></i>{{ a.removed_at[:16] }}
+                {% elif a.placed_at %}
+                  <i class="bi bi-check-circle me-1" style="color:#2e7d32;"></i>{{ a.placed_at[:16] }}
+                {% elif a.removed_at %}
+                  <i class="bi bi-x-circle me-1" style="color:#c62828;"></i>{{ a.removed_at[:16] }}
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Edit Modals -->
   {% for apt in apartments %}
   <div class="modal fade" id="editModal{{ apt['Apartment ID'] }}" tabindex="-1">

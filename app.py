@@ -72,6 +72,17 @@ def marketing_dashboard():
         {"username": u, "name": info["name"]}
         for u, info in USERS.items() if info["role"] == "field"
     ]
+    # Standee activity log
+    all_assignments = db.get_assignments()
+    standee_activity = [
+        a for a in all_assignments
+        if a.get("placed_at") or a.get("removed_at")
+    ][:15]  # latest 15 with timestamps
+    # Stats
+    total_assignments = len(all_assignments)
+    placed_count = sum(1 for a in all_assignments if a.get("status") == "Placed")
+    removed_count = sum(1 for a in all_assignments if a.get("status") == "Removed")
+    pending_count = sum(1 for a in all_assignments if a.get("status") == "Pending")
     return render_template(
         "marketing_dashboard.html",
         apartments=apartments,
@@ -79,6 +90,8 @@ def marketing_dashboard():
         marketing_channels=MARKETING_CHANNELS,
         hub_names=HUB_NAMES,
         active="dashboard",
+        standee_activity=standee_activity,
+        standee_stats={"total": total_assignments, "placed": placed_count, "removed": removed_count, "pending": pending_count},
     )
 
 
@@ -164,9 +177,19 @@ def field_analysis():
 @role_required("marketing")
 def marketing_standees():
     standees = db.get_standees()
-    assignments = db.get_assignments()
+    all_assignments = db.get_assignments()
     apartments = db.get_all_apartments()
     usage = {s["id"]: db.get_standee_usage(s["id"]) for s in standees}
+    # Activity log with timestamps
+    standee_activity = [
+        a for a in all_assignments
+        if a.get("placed_at") or a.get("removed_at")
+    ][:20]
+    # Stats
+    total_assignments = len(all_assignments)
+    placed_count = sum(1 for a in all_assignments if a.get("status") == "Placed")
+    removed_count = sum(1 for a in all_assignments if a.get("status") == "Removed")
+    pending_count = sum(1 for a in all_assignments if a.get("status") == "Pending")
     field_users = [
         {"username": u, "name": info["name"]}
         for u, info in USERS.items() if info["role"] == "field"
@@ -174,11 +197,13 @@ def marketing_standees():
     return render_template(
         "marketing_standees.html",
         standees=standees,
-        assignments=assignments,
+        assignments=all_assignments,
         apartments=apartments,
         usage=usage,
         field_users=field_users,
         active="standees",
+        standee_activity=standee_activity,
+        standee_stats={"total": total_assignments, "placed": placed_count, "removed": removed_count, "pending": pending_count},
     )
 
 

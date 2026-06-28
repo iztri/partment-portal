@@ -311,6 +311,7 @@ class _SQLiteDB:
                 "status": r["status"],
                 "start_date": r["start_date"],
                 "end_date": r["end_date"],
+                "notes": r["notes"] or "",
             })
         return out
 
@@ -616,6 +617,7 @@ class _SupabaseDB:
                 "status": r.get("status", "Pending"),
                 "start_date": r["start_date"],
                 "end_date": r["end_date"],
+                "notes": r.get("notes", ""),
             })
         return out
 

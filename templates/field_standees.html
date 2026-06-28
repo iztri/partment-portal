@@ -88,6 +88,11 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
       <div>
         <strong style="color:#4e342e;">{{ a.standee_name }}</strong>
         <span style="color:#8d6e63;font-size:.78rem;"> at {{ a.apartment_name }} &middot; {{ a.quantity }} units</span>
+        {% if a.notes %}
+        <div style="font-size:.72rem;color:#6d4c00;background:#fff8e1;border-radius:6px;padding:3px 8px;margin-top:4px;display:inline-flex;align-items:center;gap:4px;">
+          <i class="bi bi-chat-quote" style="font-size:.6rem;"></i>{{ a.notes }}
+        </div>
+        {% endif %}
       </div>
       {% if a.status != 'Removed' %}
       <form method="post" action="/field/standees/update-status/{{ a.id }}/Removed" style="display:inline;">
@@ -160,7 +165,7 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
       <div class="table-responsive">
         <table class="table table-hover mb-0">
           <thead><tr>
-            <th>Standee</th><th>Apartment</th><th>Qty</th><th>Start</th><th>End</th><th>Status</th><th>Notes</th><th>Actions</th>
+            <th>Standee</th><th>Apartment</th><th>Qty</th><th>Start</th><th>End</th><th>Status</th><th style="min-width:140px;">Placement Notes</th><th>Actions</th>
           </tr></thead>
           <tbody>
             {% for a in assignments %}
@@ -171,7 +176,16 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
               <td style="font-size:.75rem;">{{ a.start_date }}</td>
               <td style="font-size:.75rem;">{{ a.end_date }}</td>
               <td><span class="status-badge status-{{ a.status }}">{{ a.status }}</span></td>
-              <td style="font-size:.72rem;color:#5a6a7a;">{{ a.notes or '—' }}</td>
+              <td>
+                {% if a.notes %}
+                <span style="display:inline-flex;align-items:flex-start;gap:4px;padding:4px 10px;background:#fff8e1;border-radius:8px;font-size:.72rem;color:#6d4c00;border-left:3px solid #f9a825;max-width:180px;">
+                  <i class="bi bi-chat-quote" style="font-size:.65rem;margin-top:1px;flex-shrink:0;"></i>
+                  <span>{{ a.notes }}</span>
+                </span>
+                {% else %}
+                <span class="text-muted" style="font-size:.72rem;">—</span>
+                {% endif %}
+              </td>
               <td>
                 {% if a.status == 'Pending' %}
                 <form method="post" action="/field/standees/update-status/{{ a.id }}/Placed" style="display:inline;">
