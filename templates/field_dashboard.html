@@ -444,9 +444,9 @@ document.getElementById('sActionForm').addEventListener('submit', function(e){
 
   document.getElementById('sReturnLocationHidden').value = retLoc;
 
-  const form = document.getElementById('sActionForm');
+  const form = e.target;
   form.action = '/field/standees/update-status/' + pendingStandee.id + '/' + (action === 'place' ? 'Placed' : 'Removed');
-  form.submit();
+  HTMLFormElement.prototype.submit.call(form);
 });
 </script>
 
@@ -454,7 +454,7 @@ document.getElementById('sActionForm').addEventListener('submit', function(e){
 <div class="modal fade" id="sActionModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content" style="border-radius:18px;overflow:hidden;">
-      <form method="post" id="sActionForm">
+      <form method="post" id="sActionForm" action="/field">
         <div class="modal-header" style="border-bottom:1px solid #eef2f5;background:linear-gradient(135deg,#f4fcfb,#f0f7fa);">
           <h5 class="modal-title fw-bold" id="sActionTitle" style="font-size:.95rem;"></h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
