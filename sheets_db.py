@@ -686,22 +686,27 @@ class _SupabaseDB:
 
     def get_active_placements(self):
         """Return apartments where standees are currently Placed (for pickup source)."""
-        result = self.supabase.table("standee_assignments").select(
-            "apartment_id, standee_id, quantity, apartments!inner(apartment_name, hub_name), standees!inner(name)"
-        ).eq("status", "Placed").execute()
+        try:
+            result = self.supabase.table("standee_assignments").select(
+                "*, apartments!inner(apartment_name, hub_name), standees!inner(name)"
+            ).eq("status", "Placed").execute()
+        except Exception:
+            return []
         seen = {}
         out = []
-        for r in result.data:
-            aid = r["apartment_id"]
-            if aid not in seen:
+        for r in (result.data or []):
+            aid = r.get("apartment_id")
+            if aid and aid not in seen:
                 seen[aid] = True
+                apt = r.get("apartments") or {}
+                std = r.get("standees") or {}
                 out.append({
                     "apartment_id": aid,
-                    "apartment_name": r["apartments"]["apartment_name"],
-                    "hub_name": r["apartments"]["hub_name"],
-                    "standee_id": r["standee_id"],
-                    "standee_name": r["standees"]["name"],
-                    "quantity": r["quantity"],
+                    "apartment_name": apt.get("apartment_name", ""),
+                    "hub_name": apt.get("hub_name", ""),
+                    "standee_id": r.get("standee_id"),
+                    "standee_name": std.get("name", ""),
+                    "quantity": r.get("quantity", 0),
                 })
         out.sort(key=lambda x: x["apartment_name"])
         return out
@@ -719,8 +724,17 @@ class _SupabaseDB:
             "status": "Pending",
             "created_at": _now_ist(),
         }
-        result = self.supabase.table("standee_assignments").insert(data).execute()
-        return result.data[0]["id"] if result.data else None
+        try:
+            result = self.supabase.table("standee_assignments").insert(data).execute()
+            return result.data[0]["id"] if result.data else None
+        except Exception:
+            # retry without status/collection_location/notes if columns don't exist yet
+            minimal = {k: v for k, v in data.items() if k in ("standee_id", "apartment_id", "assigned_to", "start_date", "end_date", "quantity", "created_at")}
+            try:
+                result = self.supabase.table("standee_assignments").insert(minimal).execute()
+                return result.data[0]["id"] if result.data else None
+            except Exception:
+                return None
 
     def get_assignments(self, apartment_id=None, assigned_to=None):
         query = self.supabase.table("standee_assignments").select(
@@ -797,7 +811,16 @@ class _SupabaseDB:
             updates["collection_location"] = kwargs["collection_location"]
         if kwargs.get("return_location"):
             updates["return_location"] = kwargs["return_location"]
-        self.supabase.table("standee_assignments").update(updates).eq("id", int(assignment_id)).execute()
+        try:
+            self.supabase.table("standee_assignments").update(updates).eq("id", int(assignment_id)).execute()
+        except Exception:
+            # fallback: skip columns that might not exist yet
+            minimal = {k: v for k, v in updates.items() if k in ("placed_at", "removed_at")}
+            if minimal:
+                try:
+                    self.supabase.table("standee_assignments").update(minimal).eq("id", int(assignment_id)).execute()
+                except Exception:
+                    pass
 
     def update_assignment(self, assignment_id, **kwargs):
         updates = {}
@@ -808,13 +831,19 @@ class _SupabaseDB:
             self.supabase.table("standee_assignments").update(updates).eq("id", int(assignment_id)).execute()
 
     def get_standee_usage(self, standee_id):
-        result = self.supabase.table("standee_assignments").select("quantity").eq("standee_id", int(standee_id)).eq("status", "Placed").execute()
+        try:
+            result = self.supabase.table("standee_assignments").select("quantity").eq("standee_id", int(standee_id)).eq("status", "Placed").execute()
+        except Exception:
+            return 0
         return sum(r.get("quantity", 0) or 0 for r in result.data)
 
     def get_standee_available_dates_for_user(self, username):
         """Return dates where user has pending standee tasks (sorted, unique)."""
-        r_start = self.supabase.table("standee_assignments").select("start_date").eq("assigned_to", username).neq("status", "Placed").neq("status", "Removed").neq("start_date", "").execute()
-        r_end = self.supabase.table("standee_assignments").select("end_date").eq("assigned_to", username).eq("status", "Placed").neq("end_date", "").execute()
+        try:
+            r_start = self.supabase.table("standee_assignments").select("start_date").eq("assigned_to", username).neq("status", "Placed").neq("status", "Removed").neq("start_date", "").execute()
+            r_end = self.supabase.table("standee_assignments").select("end_date").eq("assigned_to", username).eq("status", "Placed").neq("end_date", "").execute()
+        except Exception:
+            return []
         seen = set()
         out = []
         for r in r_start.data:
