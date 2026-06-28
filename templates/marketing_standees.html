@@ -133,6 +133,10 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
       <div class="tab-icon"><i class="bi bi-signpost-split"></i></div>
       <div><div class="tab-label">Assign</div><div class="tab-sub">{{ assignments|length }} assigned</div></div>
     </div>
+    <div class="tab-card assign" data-tab="analysis" onclick="switchTab(this)" style="border-color:#6a1b9a;background:#f3e5f5;">
+      <div class="tab-icon" style="background:#ce93d8;color:#4a148c;"><i class="bi bi-graph-up-arrow"></i></div>
+      <div><div class="tab-label">Analysis</div><div class="tab-sub">Full data view</div></div>
+    </div>
   </div>
 
   {# ── TAB 1: INVENTORY ── #}
@@ -319,6 +323,151 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
 </div>
 {% endfor %}
 
+{# ── TAB 3: ANALYSIS ── #}
+<div class="tab-pane" id="tab-analysis">
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div style="background:#fff;border-radius:16px;padding:16px 18px;box-shadow:0 2px 12px rgba(0,0,0,.04);border-left:4px solid #00838f;">
+        <div style="font-size:.68rem;color:#8899aa;font-weight:600;text-transform:uppercase;letter-spacing:.3px;">Total Assignments</div>
+        <div style="font-size:1.5rem;font-weight:800;color:#00838f;letter-spacing:-.5px;margin-top:4px;">{{ standee_stats.total }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div style="background:#fff;border-radius:16px;padding:16px 18px;box-shadow:0 2px 12px rgba(0,0,0,.04);border-left:4px solid #e65100;">
+        <div style="font-size:.68rem;color:#8899aa;font-weight:600;text-transform:uppercase;letter-spacing:.3px;">Pending</div>
+        <div style="font-size:1.5rem;font-weight:800;color:#e65100;letter-spacing:-.5px;margin-top:4px;">{{ standee_stats.pending }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div style="background:#fff;border-radius:16px;padding:16px 18px;box-shadow:0 2px 12px rgba(0,0,0,.04);border-left:4px solid #2e7d32;">
+        <div style="font-size:.68rem;color:#8899aa;font-weight:600;text-transform:uppercase;letter-spacing:.3px;">Placed</div>
+        <div style="font-size:1.5rem;font-weight:800;color:#2e7d32;letter-spacing:-.5px;margin-top:4px;">{{ standee_stats.placed }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div style="background:#fff;border-radius:16px;padding:16px 18px;box-shadow:0 2px 12px rgba(0,0,0,.04);border-left:4px solid #6a1b9a;">
+        <div style="font-size:.68rem;color:#8899aa;font-weight:600;text-transform:uppercase;letter-spacing:.3px;">With Damage</div>
+        <div style="font-size:1.5rem;font-weight:800;color:#6a1b9a;letter-spacing:-.5px;margin-top:4px;">{{ assignments|selectattr('damage_reported','gt',0)|list|length }}</div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Field User Breakdown ── #}
+  <div class="row g-3 mb-4">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header bg-white py-3 px-4" style="border-radius:18px 18px 0 0;border-bottom:1px solid #eef2f5;">
+          <h5 class="mb-0" style="font-weight:700;font-size:.85rem;color:#1a2a3a;"><i class="bi bi-people me-2" style="color:#00838f;"></i>Field User Performance</h5>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead><tr><th>User</th><th>Total</th><th>Placed</th><th>Removed</th><th>Pending</th><th>Damage Reported</th></tr></thead>
+              <tbody>
+                {% set user_stats = {} %}
+                {% for a in assignments %}
+                  {% set _ = user_stats.__setitem__(a.assigned_to, user_stats.get(a.assigned_to, {'total':0,'placed':0,'removed':0,'pending':0,'damage':0})) %}
+                  {% set _ = user_stats[a.assigned_to].__setitem__('total', user_stats[a.assigned_to]['total'] + 1) %}
+                  {% if a.status == 'Placed' %}{% set _ = user_stats[a.assigned_to].__setitem__('placed', user_stats[a.assigned_to]['placed'] + 1) %}{% endif %}
+                  {% if a.status == 'Removed' %}{% set _ = user_stats[a.assigned_to].__setitem__('removed', user_stats[a.assigned_to]['removed'] + 1) %}{% endif %}
+                  {% if a.status == 'Pending' %}{% set _ = user_stats[a.assigned_to].__setitem__('pending', user_stats[a.assigned_to]['pending'] + 1) %}{% endif %}
+                  {% if a.damage_reported > 0 %}{% set _ = user_stats[a.assigned_to].__setitem__('damage', user_stats[a.assigned_to]['damage'] + a.damage_reported) %}{% endif %}
+                {% endfor %}
+                {% for u, s in user_stats.items()|sort %}
+                <tr>
+                  <td><strong style="color:#1a2a3a;">{{ u }}</strong></td>
+                  <td>{{ s.total }}</td>
+                  <td style="color:#2e7d32;">{{ s.placed }}</td>
+                  <td style="color:#c62828;">{{ s.removed }}</td>
+                  <td style="color:#e65100;">{{ s.pending }}</td>
+                  <td style="color:#6a1b9a;">{{ s.damage }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header bg-white py-3 px-4" style="border-radius:18px 18px 0 0;border-bottom:1px solid #eef2f5;">
+          <h5 class="mb-0" style="font-weight:700;font-size:.85rem;color:#1a2a3a;"><i class="bi bi-geo-alt me-2" style="color:#00838f;"></i>Location Summary</h5>
+        </div>
+        <div class="card-body p-0" style="max-height:260px;overflow-y:auto;">
+          {% set locs = [] %}
+          {% for a in assignments %}
+            {% if a.collection_location and a.collection_location not in locs %}{% set _ = locs.append(a.collection_location) %}{% endif %}
+            {% if a.return_location and a.return_location not in locs %}{% set _ = locs.append(a.return_location) %}{% endif %}
+          {% endfor %}
+          {% if locs %}
+          <div style="padding:10px 16px;">
+            {% for l in locs[:10] %}
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f5f7f9;">
+              <i class="bi bi-geo-alt-fill" style="color:#00838f;font-size:.7rem;"></i>
+              <span style="font-size:.78rem;color:#1a2a3a;">{{ l }}</span>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="text-center text-muted py-4" style="font-size:.8rem;">No location data yet</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Full Data Table ── #}
+  <div class="card">
+    <div class="card-header bg-white py-3 px-4" style="border-radius:18px 18px 0 0;border-bottom:1px solid #eef2f5;">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <h5 class="mb-0" style="font-weight:700;font-size:.85rem;color:#1a2a3a;"><i class="bi bi-table me-2" style="color:#6a1b9a;"></i>All Assignments — Full View</h5>
+        <div class="d-flex gap-2 align-items-center">
+          <select id="analysisFilterStatus" class="form-select" style="width:auto;padding:5px 10px;font-size:.75rem;border-radius:8px;" onchange="filterAnalysisTable()">
+            <option value="">All Status</option>
+            <option value="Pending">Pending</option>
+            <option value="Placed">Placed</option>
+            <option value="Removed">Removed</option>
+          </select>
+          <select id="analysisFilterUser" class="form-select" style="width:auto;padding:5px 10px;font-size:.75rem;border-radius:8px;" onchange="filterAnalysisTable()">
+            <option value="">All Users</option>
+            {% for fu in field_users %}<option value="{{ fu.username }}">{{ fu.name }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0" id="analysisTable">
+          <thead><tr>
+            <th>#</th><th>Standee</th><th>Apartment</th><th>Field User</th><th>Start</th><th>End</th><th>Qty</th><th>Status</th><th>Collection</th><th>Return</th><th>Damage</th><th>Notes</th>
+          </tr></thead>
+          <tbody>
+            {% for a in assignments %}
+            <tr class="analysis-row" data-status="{{ a.status }}" data-user="{{ a.assigned_to }}">
+              <td style="color:#8899aa;font-size:.7rem;">{{ a.id }}</td>
+              <td><strong style="color:#1a2a3a;font-size:.78rem;">{{ a.standee_name }}</strong></td>
+              <td style="font-size:.78rem;">{{ a.apartment_name }}</td>
+              <td style="font-size:.78rem;">{{ a.assigned_to }}</td>
+              <td style="font-size:.72rem;">{{ a.start_date }}</td>
+              <td style="font-size:.72rem;">{{ a.end_date }}</td>
+              <td class="fw-bold">{{ a.quantity }}</td>
+              <td><span class="avail-badge {{ 'avail-yes' if a.status in ('Placed','Removed') else 'avail-no' }}" style="font-size:.65rem;">{{ a.status }}</span></td>
+              <td style="font-size:.72rem;color:#2e7d32;">{{ a.collection_location or '—' }}</td>
+              <td style="font-size:.72rem;color:#6a1b9a;">{{ a.return_location or '—' }}</td>
+              <td style="font-size:.72rem;">{% if a.damage_reported > 0 %}<span style="color:#c62828;font-weight:600;">{{ a.damage_reported }}</span>{% else %}—{% endif %}</td>
+              <td style="font-size:.72rem;color:#5a6a7a;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ a.notes or '—' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="12" class="text-center text-muted py-4">No assignments yet</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
 {# Edit Assignment Modals #}
 {% for a in assignments %}
 <div class="modal fade" id="editAssign{{ a.id }}" tabindex="-1">
@@ -390,6 +539,18 @@ function switchTab(el){
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
   el.classList.add('active');
   document.getElementById('tab-'+el.dataset.tab).classList.add('active');
+}
+
+function filterAnalysisTable(){
+  const status = document.getElementById('analysisFilterStatus').value;
+  const user = document.getElementById('analysisFilterUser').value;
+  document.querySelectorAll('.analysis-row').forEach(r => {
+    const s = r.dataset.status;
+    const u = r.dataset.user;
+    const showStatus = !status || s === status;
+    const showUser = !user || u === user;
+    r.style.display = showStatus && showUser ? '' : 'none';
+  });
 }
 </script>
 
