@@ -85,44 +85,6 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
     </div>
   </div>
 
-  {# ── Activity Feed ── #}
-  {% if standee_activity %}
-  <div class="card mb-4">
-    <div class="card-header bg-white py-3 px-4" style="border-radius:18px 18px 0 0;border-bottom:1px solid #eef2f5;">
-      <h5 class="mb-0" style="font-weight:700;font-size:.88rem;color:#1a2a3a;letter-spacing:-.2px;">
-        <i class="bi bi-activity me-2" style="color:#00838f;"></i>Recent Activity
-      </h5>
-    </div>
-    <div class="card-body p-0" style="max-height:280px;overflow-y:auto;">
-      <div style="padding:4px 16px;">
-        {% for a in standee_activity %}
-        <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f0f3f6;">
-          <div style="width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;
-            {% if a.status == 'Placed' %}background:#e8f5e9;color:#2e7d32;
-            {% elif a.status == 'Removed' %}background:#ffebee;color:#c62828;
-            {% else %}background:#fff8e1;color:#e65100;{% endif %}">
-            <i class="bi {% if a.status == 'Placed' %}bi-box-seam{% elif a.status == 'Removed' %}bi-trash{% else %}bi-clock{% endif %}"></i>
-          </div>
-          <div style="flex:1;min-width:0;">
-            <div style="font-weight:600;font-size:.82rem;color:#1a2a3a;">{{ a.standee_name }}</div>
-            <div style="font-size:.72rem;color:#5a6a7a;">
-              {{ a.apartment_name }} &middot; <strong>{{ a.assigned_to }}</strong>
-            </div>
-          </div>
-          <div style="text-align:right;flex-shrink:0;">
-            <div style="font-size:.68rem;font-weight:600;{% if a.status == 'Placed' %}color:#2e7d32;{% elif a.status == 'Removed' %}color:#c62828;{% else %}color:#e65100;{% endif %}">
-              {{ a.status }}
-            </div>
-            <div style="font-size:.65rem;color:#8899aa;">
-              {{ (a.placed_at or a.removed_at or '')[:16] }}
-            </div>
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-  </div>
-  {% endif %}
 
   <div class="tab-boxes">
     <div class="tab-card inventory active" data-tab="inventory" onclick="switchTab(this)">
