@@ -331,10 +331,26 @@ def field_standees():
     )
 
 
+@app.route("/field/standees/update-status", methods=["POST"])
+@login_required
+@role_required("field")
+def update_standee_status_form():
+    assignment_id = request.form.get("assignment_id", "").strip()
+    status = request.form.get("action_type", "").strip()
+    if not assignment_id or not status:
+        flash("Missing data", "danger")
+        return redirect(url_for("field_dashboard"))
+    return _do_update_standee_status(int(assignment_id), status)
+
+
 @app.route("/field/standees/update-status/<int:assignment_id>/<status>", methods=["POST"])
 @login_required
 @role_required("field")
 def update_standee_status(assignment_id, status):
+    return _do_update_standee_status(assignment_id, status)
+
+
+def _do_update_standee_status(assignment_id, status):
     if status not in ("Placed", "Removed"):
         flash("Invalid status", "danger")
         return redirect(url_for("field_standees"))
@@ -356,6 +372,9 @@ def update_standee_status(assignment_id, status):
             kwargs["return_location"] = ret_loc
     db.update_assignment_status(assignment_id, status, **kwargs)
     flash(f"Standee marked as {status} ✓", "success")
+    # Form submits used from dashboard go back to dashboard
+    if request.form.get("assignment_id"):
+        return redirect(url_for("field_dashboard"))
     return redirect(url_for("field_standees"))
 
 

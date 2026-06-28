@@ -424,29 +424,23 @@ function openStandeeAction(action, id, name, apartment, qty, colLoc, notes){
 }
 
 document.getElementById('sActionForm').addEventListener('submit', function(e){
+  if(!pendingStandee){ e.preventDefault(); return; }
   e.preventDefault();
-  if(!pendingStandee) return;
-
   const action = pendingStandee.action;
-  let retLoc = '';
 
   if(action !== 'place'){
     const hub = document.getElementById('sRetHub').value;
     const detail = document.getElementById('sRetDetail').value.trim();
-    if(hub === '__custom__'){
-      retLoc = detail || '';
-    } else if(hub){
-      retLoc = hub + (detail ? ', ' + detail : '');
-    } else {
-      retLoc = detail || '';
-    }
+    document.getElementById('sReturnLocationHidden').value =
+      hub === '__custom__' ? detail :
+      hub ? hub + (detail ? ', ' + detail : '') :
+      detail || '';
   }
 
-  document.getElementById('sReturnLocationHidden').value = retLoc;
-
-  const form = e.target;
-  form.action = '/field/standees/update-status/' + pendingStandee.id + '/' + (action === 'place' ? 'Placed' : 'Removed');
-  HTMLFormElement.prototype.submit.call(form);
+  document.getElementById('sAssignId').value = pendingStandee.id;
+  document.getElementById('sActionType').value = action === 'place' ? 'Placed' : 'Removed';
+  pendingStandee = null;
+  this.submit();
 });
 </script>
 
@@ -454,7 +448,9 @@ document.getElementById('sActionForm').addEventListener('submit', function(e){
 <div class="modal fade" id="sActionModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content" style="border-radius:18px;overflow:hidden;">
-      <form method="post" id="sActionForm" action="/field">
+      <form method="post" id="sActionForm" action="/field/standees/update-status">
+        <input type="hidden" name="assignment_id" id="sAssignId" value="">
+        <input type="hidden" name="action_type" id="sActionType" value="">
         <div class="modal-header" style="border-bottom:1px solid #eef2f5;background:linear-gradient(135deg,#f4fcfb,#f0f7fa);">
           <h5 class="modal-title fw-bold" id="sActionTitle" style="font-size:.95rem;"></h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
