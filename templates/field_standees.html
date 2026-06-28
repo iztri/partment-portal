@@ -95,9 +95,7 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
         {% endif %}
       </div>
       {% if a.status != 'Removed' %}
-      <form method="post" action="/field/standees/update-status/{{ a.id }}/Removed" style="display:inline;">
-        <button class="action-btn remove" style="padding:6px 14px;font-size:.7rem;"><i class="bi bi-trash"></i>Mark Removed</button>
-      </form>
+      <button class="action-btn remove" style="padding:6px 14px;font-size:.7rem;" onclick="openActionModal('remove',{{ a.id }},'{{ a.standee_name|e }}','{{ a.apartment_name|e }}',{{ a.quantity }})"><i class="bi bi-trash"></i>Mark Removed</button>
       {% else %}
       <span class="action-btn done" style="padding:6px 14px;font-size:.7rem;"><i class="bi bi-check-circle"></i>Done</span>
       {% endif %}
@@ -188,13 +186,9 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
               </td>
               <td>
                 {% if a.status == 'Pending' %}
-                <form method="post" action="/field/standees/update-status/{{ a.id }}/Placed" style="display:inline;">
-                  <button class="action-btn place" style="padding:6px 14px;font-size:.7rem;"><i class="bi bi-check-lg"></i>Place</button>
-                </form>
+                <button class="action-btn place" style="padding:6px 14px;font-size:.7rem;" onclick="openActionModal('place',{{ a.id }},'{{ a.standee_name|e }}','{{ a.apartment_name|e }}',{{ a.quantity }})"><i class="bi bi-check-lg"></i>Place</button>
                 {% elif a.status == 'Placed' %}
-                <form method="post" action="/field/standees/update-status/{{ a.id }}/Removed" style="display:inline;">
-                  <button class="action-btn remove" style="padding:6px 14px;font-size:.7rem;"><i class="bi bi-trash"></i>Remove</button>
-                </form>
+                <button class="action-btn remove" style="padding:6px 14px;font-size:.7rem;" onclick="openActionModal('remove',{{ a.id }},'{{ a.standee_name|e }}','{{ a.apartment_name|e }}',{{ a.quantity }})"><i class="bi bi-trash"></i>Remove</button>
                 {% else %}
                 <span class="action-btn done" style="padding:6px 14px;font-size:.7rem;"><i class="bi bi-check-circle"></i>Done</span>
                 {% endif %}
@@ -209,5 +203,134 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
     </div>
   </div>
 </div>
+
+{# ── Action Modal (Place / Remove) ── #}
+<div class="modal fade" id="actionModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:18px;overflow:hidden;">
+      <form method="post" id="actionForm">
+        <div class="modal-header" style="border-bottom:1px solid #eef2f5;background:linear-gradient(135deg,#f4fcfb,#f0f7fa);">
+          <h5 class="modal-title fw-bold" id="actionModalTitle" style="font-size:.95rem;"><span></span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div style="background:#f8fafb;border-radius:12px;padding:12px 16px;margin-bottom:16px;">
+            <div style="font-weight:700;font-size:.88rem;color:#1a2a3a;" id="actionStandeeName"></div>
+            <div style="font-size:.78rem;color:#5a6a7a;"><i class="bi bi-building me-1"></i><span id="actionApartment"></span> &middot; <span id="actionQty"></span> units</div>
+          </div>
+
+          {% if active_assignments %}
+          {# Only show location fields on the standalone page where we have access to standees #}
+          {% endif %}
+
+          {# ── Collection / Return Location ── #}
+          <div id="locationSection" class="mb-3">
+            <label class="form-label small fw-semibold" id="locationLabel">Collection Location <span class="text-muted" style="font-weight:400;">(where to collect from)</span></label>
+            <div class="row g-2">
+              <div class="col-md-6">
+                <select name="location_hub" class="form-select" id="locationHub" style="border-radius:10px;padding:9px 12px;border:2px solid #e8edf2;font-size:.82rem;">
+                  <option value="">— Select Hub —</option>
+                  {% for h in hub_names %}
+                  <option value="{{ h }}">{{ h }}</option>
+                  {% endfor %}
+                  <option value="__custom__">Other (type below)</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <input type="text" name="location_detail" id="locationDetail" class="form-control" placeholder="Floor, block, room no..." style="border-radius:10px;padding:9px 12px;border:2px solid #e8edf2;font-size:.82rem;">
+              </div>
+            </div>
+            <input type="hidden" name="collection_location" id="collectionLocationHidden" value="">
+            <input type="hidden" name="return_location" id="returnLocationHidden" value="">
+          </div>
+
+          {# ── Damage Reporting ── #}
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Damage Reported <span class="text-muted" style="font-weight:400;">(if any)</span></label>
+            <div class="row g-2">
+              <div class="col-4">
+                <input type="number" name="damage_reported" class="form-control" min="0" value="0" placeholder="0" style="border-radius:10px;padding:9px 12px;border:2px solid #e8edf2;font-size:.82rem;">
+              </div>
+              <div class="col-8">
+                <input type="text" name="damage_details" class="form-control" placeholder="Describe damage..." style="border-radius:10px;padding:9px 12px;border:2px solid #e8edf2;font-size:.82rem;">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" style="border-top:1px solid #eef2f5;">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal" style="border-radius:10px;padding:8px 18px;">Cancel</button>
+          <button type="submit" class="btn btn-primary btn-sm" style="border-radius:10px;padding:8px 18px;font-weight:600;" id="actionSubmitBtn">Confirm</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+const hubNames = {{ hub_names | tojson | safe }};
+
+let pendingAction = null;
+
+function openActionModal(action, id, name, apartment, qty){
+  pendingAction = { action, id };
+  const modal = new bootstrap.Modal(document.getElementById('actionModal'));
+  document.querySelector('#actionModalTitle span').textContent = action === 'place' ? 'Place Standee' : 'Remove Standee';
+  document.getElementById('actionStandeeName').textContent = name;
+  document.getElementById('actionApartment').textContent = apartment;
+  document.getElementById('actionQty').textContent = qty;
+
+  const locSection = document.getElementById('locationSection');
+  const locLabel = document.getElementById('locationLabel');
+  const submitBtn = document.getElementById('actionSubmitBtn');
+
+  if(action === 'place'){
+    locSection.style.display = 'block';
+    locLabel.innerHTML = 'Collection Location <span class="text-muted" style="font-weight:400;">(where to collect from)</span>';
+    submitBtn.innerHTML = '<i class="bi bi-check-lg"></i> Mark Placed';
+    submitBtn.className = 'btn btn-primary btn-sm';
+  } else {
+    locSection.style.display = 'block';
+    locLabel.innerHTML = 'Return Location <span class="text-muted" style="font-weight:400;">(where you kept it back)</span>';
+    submitBtn.innerHTML = '<i class="bi bi-trash"></i> Mark Removed';
+    submitBtn.className = 'btn btn-danger btn-sm';
+  }
+
+  document.getElementById('locationHub').value = '';
+  document.getElementById('locationDetail').value = '';
+  document.querySelector('[name="damage_reported"]').value = '0';
+  document.querySelector('[name="damage_details"]').value = '';
+
+  modal.show();
+}
+
+document.getElementById('actionForm').addEventListener('submit', function(e){
+  e.preventDefault();
+  if(!pendingAction) return;
+
+  const hub = document.getElementById('locationHub').value;
+  const detail = document.getElementById('locationDetail').value.trim();
+  let locationStr = '';
+  if(hub === '__custom__'){
+    locationStr = detail || '';
+  } else if(hub){
+    locationStr = hub + (detail ? ', ' + detail : '');
+  } else {
+    locationStr = detail || '';
+  }
+
+  const action = pendingAction.action;
+  if(action === 'place'){
+    document.getElementById('collectionLocationHidden').value = locationStr;
+    document.getElementById('returnLocationHidden').value = '';
+  } else {
+    document.getElementById('returnLocationHidden').value = locationStr;
+    document.getElementById('collectionLocationHidden').value = '';
+  }
+
+  const form = document.getElementById('actionForm');
+  form.action = '/field/standees/update-status/' + pendingAction.id + '/' + (action === 'place' ? 'Placed' : 'Removed');
+  form.submit();
+});
+</script>
 </body></html>

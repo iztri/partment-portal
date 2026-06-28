@@ -70,7 +70,11 @@ class _SQLiteDB:
                 status TEXT DEFAULT 'Pending',
                 placed_at TEXT DEFAULT '',
                 removed_at TEXT DEFAULT '',
-                created_at TEXT DEFAULT ''
+                created_at TEXT DEFAULT '',
+                damage_reported INTEGER DEFAULT 0,
+                damage_details TEXT DEFAULT '',
+                return_location TEXT DEFAULT '',
+                collection_location TEXT DEFAULT ''
             );
         """)
         self.conn.commit()
@@ -84,6 +88,22 @@ class _SQLiteDB:
             self.conn.execute("ALTER TABLE standee_assignments ADD COLUMN status TEXT DEFAULT 'Pending'")
             self.conn.execute("ALTER TABLE standee_assignments ADD COLUMN placed_at TEXT DEFAULT ''")
             self.conn.execute("ALTER TABLE standee_assignments ADD COLUMN removed_at TEXT DEFAULT ''")
+        except:
+            pass
+        try:
+            self.conn.execute("ALTER TABLE standee_assignments ADD COLUMN damage_reported INTEGER DEFAULT 0")
+        except:
+            pass
+        try:
+            self.conn.execute("ALTER TABLE standee_assignments ADD COLUMN damage_details TEXT DEFAULT ''")
+        except:
+            pass
+        try:
+            self.conn.execute("ALTER TABLE standee_assignments ADD COLUMN return_location TEXT DEFAULT ''")
+        except:
+            pass
+        try:
+            self.conn.execute("ALTER TABLE standee_assignments ADD COLUMN collection_location TEXT DEFAULT ''")
         except:
             pass
 
@@ -260,19 +280,40 @@ class _SQLiteDB:
             "status": r["status"], "placed_at": r["placed_at"], "removed_at": r["removed_at"],
             "standee_name": r["standee_name"], "apartment_name": r["apartment_name"],
             "created_at": r["created_at"],
+            "damage_reported": r.get("damage_reported", 0) or 0,
+            "damage_details": r.get("damage_details", "") or "",
+            "return_location": r.get("return_location", "") or "",
+            "collection_location": r.get("collection_location", "") or "",
         } for r in rows]
 
-    def update_assignment_status(self, assignment_id, status):
+    def update_assignment_status(self, assignment_id, status, **kwargs):
         now = _now_ist()
+        extra = ""
+        vals = []
+        if kwargs.get("damage_reported"):
+            extra += ", damage_reported=?, damage_details=?"
+            vals += [int(kwargs["damage_reported"]), kwargs.get("damage_details", "")]
+        if kwargs.get("collection_location"):
+            extra += ", collection_location=?"
+            vals.append(kwargs["collection_location"])
+        if kwargs.get("return_location"):
+            extra += ", return_location=?"
+            vals.append(kwargs["return_location"])
         if status == "Placed":
-            self.conn.execute("UPDATE standee_assignments SET status=?, placed_at=? WHERE id=?",
-                              (status, now, int(assignment_id)))
+            self.conn.execute(
+                f"UPDATE standee_assignments SET status=?, placed_at=?{extra} WHERE id=?",
+                [status, now] + vals + [int(assignment_id)],
+            )
         elif status == "Removed":
-            self.conn.execute("UPDATE standee_assignments SET status=?, removed_at=? WHERE id=?",
-                              (status, now, int(assignment_id)))
+            self.conn.execute(
+                f"UPDATE standee_assignments SET status=?, removed_at=?{extra} WHERE id=?",
+                [status, now] + vals + [int(assignment_id)],
+            )
         else:
-            self.conn.execute("UPDATE standee_assignments SET status=? WHERE id=?",
-                              (status, int(assignment_id)))
+            self.conn.execute(
+                f"UPDATE standee_assignments SET status=?{extra} WHERE id=?",
+                [status] + vals + [int(assignment_id)],
+            )
         self.conn.commit()
 
     def update_assignment(self, assignment_id, **kwargs):
@@ -317,10 +358,47 @@ class _SQLiteDB:
 
     def get_standee_usage(self, standee_id):
         row = self.conn.execute(
-            "SELECT COALESCE(SUM(quantity),0) FROM standee_assignments WHERE standee_id=?",
+            "SELECT COALESCE(SUM(quantity),0) FROM standee_assignments WHERE standee_id=? AND status='Placed'",
             (int(standee_id),),
         ).fetchone()
         return row[0] if row else 0
+
+    def get_standee_detail(self, standee_id):
+        """Return standee info + all assignment history + current active location."""
+        s = self.conn.execute("SELECT * FROM standees WHERE id=?", (int(standee_id),)).fetchone()
+        if not s:
+            return None
+        assignments = self.conn.execute(
+            """SELECT sa.*, a.apartment_name
+               FROM standee_assignments sa
+               LEFT JOIN apartments a ON a.id=sa.apartment_id
+               WHERE sa.standee_id=?
+               ORDER BY sa.id DESC""",
+            (int(standee_id),),
+        ).fetchall()
+        active = [a for a in assignments if a["status"] == "Placed"]
+        current_location = active[0]["apartment_name"] if active else None
+        current_assignment = dict(active[0]) if active else None
+        return {
+            "id": s["id"],
+            "name": s["name"],
+            "total_units": s["total_units"],
+            "storage_location": s.get("storage_location", ""),
+            "usage": self.get_standee_usage(standee_id),
+            "available": s["total_units"] - self.get_standee_usage(standee_id),
+            "current_location": current_location,
+            "current_assignment": current_assignment,
+            "history": [{
+                "id": a["id"], "apartment_name": a["apartment_name"],
+                "assigned_to": a["assigned_to"], "status": a["status"],
+                "placed_at": a["placed_at"], "removed_at": a["removed_at"],
+                "start_date": a["start_date"], "end_date": a["end_date"],
+                "quantity": a["quantity"], "notes": a["notes"],
+                "damage_reported": a.get("damage_reported", 0) or 0,
+                "damage_details": a.get("damage_details", "") or "",
+                "return_location": a.get("return_location", "") or "",
+            } for a in assignments],
+        }
 
     def get_assigned_for_user(self, username, date=None):
         sql = "SELECT * FROM apartments WHERE assigned_to=?"
@@ -594,6 +672,10 @@ class _SupabaseDB:
                 "standee_name": r["standees"]["name"] if r.get("standees") else "",
                 "apartment_name": r["apartments"]["apartment_name"] if r.get("apartments") else "",
                 "created_at": r.get("created_at", ""),
+                "damage_reported": r.get("damage_reported", 0) or 0,
+                "damage_details": r.get("damage_details", "") or "",
+                "return_location": r.get("return_location", "") or "",
+                "collection_location": r.get("collection_location", "") or "",
             })
         return rows
 
@@ -621,13 +703,20 @@ class _SupabaseDB:
             })
         return out
 
-    def update_assignment_status(self, assignment_id, status):
+    def update_assignment_status(self, assignment_id, status, **kwargs):
         now = _now_ist()
         updates = {"status": status}
         if status == "Placed":
             updates["placed_at"] = now
         elif status == "Removed":
             updates["removed_at"] = now
+        if kwargs.get("damage_reported"):
+            updates["damage_reported"] = int(kwargs["damage_reported"])
+            updates["damage_details"] = kwargs.get("damage_details", "")
+        if kwargs.get("collection_location"):
+            updates["collection_location"] = kwargs["collection_location"]
+        if kwargs.get("return_location"):
+            updates["return_location"] = kwargs["return_location"]
         self.supabase.table("standee_assignments").update(updates).eq("id", int(assignment_id)).execute()
 
     def update_assignment(self, assignment_id, **kwargs):
@@ -639,8 +728,44 @@ class _SupabaseDB:
             self.supabase.table("standee_assignments").update(updates).eq("id", int(assignment_id)).execute()
 
     def get_standee_usage(self, standee_id):
-        result = self.supabase.table("standee_assignments").select("quantity").eq("standee_id", int(standee_id)).execute()
+        result = self.supabase.table("standee_assignments").select("quantity").eq("standee_id", int(standee_id)).eq("status", "Placed").execute()
         return sum(r.get("quantity", 0) or 0 for r in result.data)
+
+    def get_standee_detail(self, standee_id):
+        s_data = self.supabase.table("standees").select("*").eq("id", int(standee_id)).single().execute()
+        s = s_data.data
+        if not s:
+            return None
+        a_data = self.supabase.table("standee_assignments").select(
+            "*, apartments!inner(apartment_name)"
+        ).eq("standee_id", int(standee_id)).order("id", desc=True).execute()
+        assignments = []
+        active = []
+        for r in a_data.data:
+            row = {
+                "id": r["id"], "apartment_name": r["apartments"]["apartment_name"],
+                "assigned_to": r.get("assigned_to", ""), "status": r.get("status", ""),
+                "placed_at": r.get("placed_at", ""), "removed_at": r.get("removed_at", ""),
+                "start_date": r["start_date"], "end_date": r["end_date"],
+                "quantity": r["quantity"], "notes": r.get("notes", ""),
+                "damage_reported": r.get("damage_reported", 0) or 0,
+                "damage_details": r.get("damage_details", "") or "",
+                "return_location": r.get("return_location", "") or "",
+            }
+            assignments.append(row)
+            if r.get("status") == "Placed":
+                active.append(row)
+        usage = self.get_standee_usage(standee_id)
+        return {
+            "id": s["id"], "name": s["name"],
+            "total_units": s["total_units"],
+            "storage_location": s.get("storage_location", ""),
+            "usage": usage,
+            "available": s["total_units"] - usage,
+            "current_location": active[0]["apartment_name"] if active else None,
+            "current_assignment": active[0] if active else None,
+            "history": assignments,
+        }
 
     def _apt_rows(self, data):
         return [{

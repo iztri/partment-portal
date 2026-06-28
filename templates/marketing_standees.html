@@ -165,7 +165,7 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
                   {% set used = usage.get(s.id, 0) %}
                   {% set avail = s.total_units - used %}
                   <tr>
-                    <td><strong style="color:#1a2a3a;">{{ s.name }}</strong></td>
+                    <td><a href="javascript:void(0)" onclick="openStandeeDetail({{ s.id }})" style="color:#1a2a3a;font-weight:700;text-decoration:none;cursor:pointer;">{{ s.name }}</a></td>
                     <td class="fw-bold">{{ s.total_units }}</td>
                     <td style="color:#1565c0;">{{ used }}</td>
                     <td><span class="avail-badge {{ 'avail-yes' if avail>0 else 'avail-no' }}">{{ avail }}</span></td>
@@ -358,4 +358,111 @@ function switchTab(el){
   document.getElementById('tab-'+el.dataset.tab).classList.add('active');
 }
 </script>
+
+{# ── Standee Detail Modal ── #}
+<div class="modal fade" id="standeeDetailModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content" style="border-radius:18px;border:none;overflow:hidden;">
+      <div class="modal-header" style="border-bottom:1px solid #eef2f5;background:linear-gradient(135deg,#f4fcfb,#f0f7fa);">
+        <h5 class="modal-title fw-bold" id="detailModalTitle" style="color:#1a2a3a;"><i class="bi bi-box-seam me-2" style="color:#00838f;"></i><span></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div id="detailLoading" class="text-center py-5"><div class="spinner-border text-secondary" role="status"></div><div class="mt-2 text-muted small">Loading...</div></div>
+        <div id="detailContent" style="display:none;">
+          <div class="p-4" style="background:linear-gradient(135deg,#f8fafb,#fff);border-bottom:1px solid #eef2f5;">
+            <div class="row g-3">
+              <div class="col-6 col-md-3">
+                <div style="font-size:.68rem;color:#8899aa;font-weight:600;text-transform:uppercase;letter-spacing:.3px;">Total Units</div>
+                <div id="dTotal" style="font-size:1.3rem;font-weight:800;color:#00838f;"></div>
+              </div>
+              <div class="col-6 col-md-3">
+                <div style="font-size:.68rem;color:#8899aa;font-weight:600;text-transform:uppercase;letter-spacing:.3px;">Currently Used</div>
+                <div id="dUsage" style="font-size:1.3rem;font-weight:800;color:#1565c0;"></div>
+              </div>
+              <div class="col-6 col-md-3">
+                <div style="font-size:.68rem;color:#8899aa;font-weight:600;text-transform:uppercase;letter-spacing:.3px;">Available</div>
+                <div id="dAvail" style="font-size:1.3rem;font-weight:800;color:#2e7d32;"></div>
+              </div>
+              <div class="col-6 col-md-3">
+                <div style="font-size:.68rem;color:#8899aa;font-weight:600;text-transform:uppercase;letter-spacing:.3px;">Storage Location</div>
+                <div id="dStorage" style="font-size:.85rem;font-weight:600;color:#1a2a3a;"></div>
+              </div>
+            </div>
+            <div class="mt-3" id="dCurrentLocationWrap" style="display:none;">
+              <div style="font-size:.68rem;color:#8899aa;font-weight:600;text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px;">Current Active Location</div>
+              <div id="dCurrentLocation" style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:#e8f5e9;border-radius:10px;font-size:.82rem;font-weight:600;color:#2e7d32;">
+                <i class="bi bi-geo-alt-fill"></i> <span></span>
+              </div>
+            </div>
+          </div>
+          <div style="padding:16px 20px;border-bottom:1px solid #eef2f5;">
+            <h6 style="font-weight:700;font-size:.82rem;color:#1a2a3a;margin-bottom:0;"><i class="bi bi-clock-history me-1" style="color:#00838f;"></i>Assignment History</h6>
+          </div>
+          <div style="max-height:350px;overflow-y:auto;" id="detailHistory">
+            <div class="text-center text-muted py-4">No history available</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function openStandeeDetail(id){
+  const modal = new bootstrap.Modal(document.getElementById('standeeDetailModal'));
+  document.getElementById('detailLoading').style.display='block';
+  document.getElementById('detailContent').style.display='none';
+  modal.show();
+  fetch('/marketing/standees/detail/' + id)
+    .then(r=>r.json())
+    .then(d=>{
+      document.getElementById('detailLoading').style.display='none';
+      document.getElementById('detailContent').style.display='block';
+      document.querySelector('#detailModalTitle span').textContent = d.name;
+      document.getElementById('dTotal').textContent = d.total_units;
+      document.getElementById('dUsage').textContent = d.usage;
+      document.getElementById('dAvail').textContent = d.available;
+      document.getElementById('dStorage').textContent = d.storage_location || '\u2014';
+      const locWrap = document.getElementById('dCurrentLocationWrap');
+      const locEl = document.querySelector('#dCurrentLocation span');
+      if(d.current_location){
+        locWrap.style.display='block';
+        locEl.textContent = d.current_location;
+      } else {
+        locWrap.style.display='none';
+      }
+      const hist = document.getElementById('detailHistory');
+      if(d.history && d.history.length){
+        hist.innerHTML = d.history.map(h => `
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 20px;border-bottom:1px solid #f0f3f6;">
+            <div style="width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.75rem;
+              ${h.status==='Placed'?'background:#e8f5e9;color:#2e7d32;':h.status==='Removed'?'background:#ffebee;color:#c62828;':'background:#fff8e1;color:#e65100;'}">
+              <i class="bi ${h.status==='Placed'?'bi-box-seam':h.status==='Removed'?'bi-trash':'bi-clock'}"></i>
+            </div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:600;font-size:.8rem;color:#1a2a3a;">${h.apartment_name}</div>
+              <div style="font-size:.7rem;color:#5a6a7a;">
+                ${h.assigned_to ? '<strong>'+h.assigned_to+'</strong> &middot; ' : ''}
+                ${h.start_date} \u2192 ${h.end_date}
+                ${h.damage_reported > 0 ? ' &middot; <span style="color:#c62828;">\u26a0 '+h.damage_reported+' damaged</span>' : ''}
+                ${h.return_location ? ' &middot; Returned: '+h.return_location : ''}
+              </div>
+            </div>
+            <div style="text-align:right;flex-shrink:0;">
+              <div style="font-size:.68rem;font-weight:600;${h.status==='Placed'?'color:#2e7d32;':h.status==='Removed'?'color:#c62828;':'color:#e65100;'}">${h.status}</div>
+              <div style="font-size:.62rem;color:#8899aa;">${(h.placed_at || h.removed_at || '').slice(0,16)}</div>
+            </div>
+          </div>
+        `).join('');
+      } else {
+        hist.innerHTML = '<div class="text-center text-muted py-4">No history available</div>';
+      }
+    })
+    .catch(()=>{
+      document.getElementById('detailLoading').innerHTML = '<div class="text-center text-muted py-4">Failed to load detail</div>';
+    });
+}
+</script>
+
 </body></html>

@@ -204,7 +204,18 @@ def marketing_standees():
         active="standees",
         standee_activity=standee_activity,
         standee_stats={"total": total_assignments, "placed": placed_count, "removed": removed_count, "pending": pending_count},
+        hub_names=HUB_NAMES,
     )
+
+
+@app.route("/marketing/standees/detail/<int:standee_id>")
+@login_required
+@role_required("marketing")
+def standee_detail(standee_id):
+    data = db.get_standee_detail(standee_id)
+    if not data:
+        return {"error": "Not found"}, 404
+    return data
 
 
 @app.route("/marketing/standees/add", methods=["POST"])
@@ -303,6 +314,7 @@ def field_standees():
         assignments=assignments,
         today=today,
         active='standees',
+        hub_names=HUB_NAMES,
     )
 
 
@@ -313,7 +325,23 @@ def update_standee_status(assignment_id, status):
     if status not in ("Placed", "Removed"):
         flash("Invalid status", "danger")
         return redirect(url_for("field_standees"))
-    db.update_assignment_status(assignment_id, status)
+    kwargs = {}
+    damage_str = request.form.get("damage_reported", "").strip()
+    if damage_str:
+        try:
+            kwargs["damage_reported"] = int(damage_str)
+            kwargs["damage_details"] = request.form.get("damage_details", "").strip()
+        except ValueError:
+            pass
+    if status == "Placed":
+        col_loc = request.form.get("collection_location", "").strip()
+        if col_loc:
+            kwargs["collection_location"] = col_loc
+    elif status == "Removed":
+        ret_loc = request.form.get("return_location", "").strip()
+        if ret_loc:
+            kwargs["return_location"] = ret_loc
+    db.update_assignment_status(assignment_id, status, **kwargs)
     flash(f"Standee marked as {status} ✓", "success")
     return redirect(url_for("field_standees"))
 
