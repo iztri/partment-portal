@@ -163,7 +163,7 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
       <div class="table-responsive">
         <table class="table table-hover mb-0">
           <thead><tr>
-            <th>Standee</th><th>Apartment</th><th>Qty</th><th>Start</th><th>End</th><th>Status</th><th style="min-width:140px;">Placement Notes</th><th>Actions</th>
+            <th>Standee</th><th>Apartment</th><th>Qty</th><th>Start</th><th>End</th><th>Status</th><th style="min-width:140px;">Placement Notes</th><th>Pickup / Drop</th><th>Actions</th>
           </tr></thead>
           <tbody>
             {% for a in assignments %}
@@ -182,6 +182,15 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
                 </span>
                 {% else %}
                 <span class="text-muted" style="font-size:.72rem;">—</span>
+                {% endif %}
+              </td>
+              <td style="font-size:.72rem;">
+                {% if a.status == 'Placed' and a.collection_location %}
+                <span style="color:#00695c;"><i class="bi bi-geo-alt me-1"></i>{{ a.collection_location }}</span>
+                {% elif a.status == 'Removed' and a.return_location %}
+                <span style="color:#6a1b9a;"><i class="bi bi-geo-alt me-1"></i>{{ a.return_location }}</span>
+                {% else %}
+                <span class="text-muted">—</span>
                 {% endif %}
               </td>
               <td>
