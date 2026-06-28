@@ -272,18 +272,24 @@ class _SQLiteDB:
             sql += " WHERE " + " AND ".join(where)
         sql += " ORDER BY sa.id DESC"
         rows = self.conn.execute(sql, params).fetchall()
+        def _g(row, key, default=""):
+            try:
+                v = row[key]
+                return v if v is not None else default
+            except (KeyError, IndexError):
+                return default
         return [{
             "id": r["id"], "standee_id": r["standee_id"], "apartment_id": r["apartment_id"],
             "assigned_to": r["assigned_to"],
             "start_date": r["start_date"], "end_date": r["end_date"],
-            "quantity": r["quantity"], "notes": r["notes"],
-            "status": r["status"], "placed_at": r["placed_at"], "removed_at": r["removed_at"],
+            "quantity": r["quantity"], "notes": _g(r, "notes", ""),
+            "status": r["status"], "placed_at": _g(r, "placed_at", ""), "removed_at": _g(r, "removed_at", ""),
             "standee_name": r["standee_name"], "apartment_name": r["apartment_name"],
-            "created_at": r["created_at"],
-            "damage_reported": r.get("damage_reported", 0) or 0,
-            "damage_details": r.get("damage_details", "") or "",
-            "return_location": r.get("return_location", "") or "",
-            "collection_location": r.get("collection_location", "") or "",
+            "created_at": _g(r, "created_at", ""),
+            "damage_reported": int(_g(r, "damage_reported", 0)),
+            "damage_details": _g(r, "damage_details", ""),
+            "return_location": _g(r, "return_location", ""),
+            "collection_location": _g(r, "collection_location", ""),
         } for r in rows]
 
     def update_assignment_status(self, assignment_id, status, **kwargs):
@@ -368,6 +374,12 @@ class _SQLiteDB:
         s = self.conn.execute("SELECT * FROM standees WHERE id=?", (int(standee_id),)).fetchone()
         if not s:
             return None
+        def _g(row, key, default=""):
+            try:
+                v = row[key]
+                return v if v is not None else default
+            except (KeyError, IndexError):
+                return default
         assignments = self.conn.execute(
             """SELECT sa.*, a.apartment_name
                FROM standee_assignments sa
@@ -383,7 +395,7 @@ class _SQLiteDB:
             "id": s["id"],
             "name": s["name"],
             "total_units": s["total_units"],
-            "storage_location": s.get("storage_location", ""),
+            "storage_location": _g(s, "storage_location", ""),
             "usage": self.get_standee_usage(standee_id),
             "available": s["total_units"] - self.get_standee_usage(standee_id),
             "current_location": current_location,
@@ -394,9 +406,9 @@ class _SQLiteDB:
                 "placed_at": a["placed_at"], "removed_at": a["removed_at"],
                 "start_date": a["start_date"], "end_date": a["end_date"],
                 "quantity": a["quantity"], "notes": a["notes"],
-                "damage_reported": a.get("damage_reported", 0) or 0,
-                "damage_details": a.get("damage_details", "") or "",
-                "return_location": a.get("return_location", "") or "",
+                "damage_reported": int(_g(a, "damage_reported", 0)),
+                "damage_details": _g(a, "damage_details", ""),
+                "return_location": _g(a, "return_location", ""),
             } for a in assignments],
         }
 
