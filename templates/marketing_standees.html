@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Standees — Apartment Portal</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+*{font-family:'Inter',-apple-system,sans-serif;}
+body{background:#f4f7fa;margin-left:230px;padding:24px;}
+@media(max-width:768px){body{margin-left:56px;padding:12px;}}
+.card{border-radius:18px;border:none;box-shadow:0 2px 16px rgba(0,0,0,.05);}
+.table th{font-weight:600;color:#5a6a7a;font-size:.72rem;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid #e8edf2;padding:14px 10px;background:#fafbfc;}
+.table td{font-size:.82rem;vertical-align:middle;padding:12px 10px;border-bottom:1px solid #f0f3f6;}
+.tab-boxes{display:flex;gap:16px;margin-bottom:20px;}
+.tab-card{flex:1;padding:16px 20px;border-radius:16px;cursor:pointer;transition:all .25s;border:2.5px solid transparent;display:flex;align-items:center;gap:14px;}
+.tab-card .tab-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;}
+.tab-card .tab-label{font-weight:700;font-size:.95rem;}
+.tab-card .tab-sub{font-size:.78rem;opacity:.75;margin-top:2px;}
+.tab-card.inventory{background:#e8f5e9;border-color:#a5d6a7;color:#1b5e20;}
+.tab-card.inventory .tab-icon{background:#c8e6c9;color:#1b5e20;}
+.tab-card.inventory.active{background:#2e7d32;border-color:#2e7d32;color:#fff;box-shadow:0 8px 24px rgba(46,125,50,.25);}
+.tab-card.inventory.active .tab-icon{background:rgba(255,255,255,.2);color:#fff;}
+.tab-card.assign{background:#e3f2fd;border-color:#90caf9;color:#0d47a1;}
+.tab-card.assign .tab-icon{background:#bbdefb;color:#0d47a1;}
+.tab-card.assign.active{background:#1565c0;border-color:#1565c0;color:#fff;box-shadow:0 8px 24px rgba(21,101,192,.25);}
+.tab-card.assign.active .tab-icon{background:rgba(255,255,255,.2);color:#fff;}
+.tab-pane{display:none;}
+.tab-pane.active{display:block;animation:fadeUp .3s ease-out;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.form-section{background:white;border-radius:18px;padding:20px;box-shadow:0 2px 16px rgba(0,0,0,.05);}
+.form-control,.form-select{border-radius:10px;padding:10px 12px;border:2px solid #e8edf2;font-size:.85rem;}
+.form-control:focus,.form-select:focus{border-color:#00838f;box-shadow:0 0 0 4px rgba(0,131,143,.1);}
+.btn-primary{background:linear-gradient(135deg,#00695c,#00838f);border:none;border-radius:10px;padding:10px 18px;font-weight:600;}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,105,92,.3);}
+.alert{border-radius:14px;border:none;}
+.avail-badge{font-size:.72rem;padding:3px 10px;border-radius:20px;font-weight:600;}
+.avail-yes{background:#e8f5e9;color:#2e7d32;}
+.avail-no{background:#ffebee;color:#c62828;}
+</style>
+</head><body>
+{% include 'marketing_sidebar.html' %}
+<div class="container-fluid p-0">
+  <h4 style="font-weight:700;color:#1a2a3a;margin-bottom:16px;">
+    <i class="bi bi-signpost-2 me-2" style="color:#00838f;"></i>Standee Tracking
+  </h4>
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% if msgs %}{% for cat,msg in msgs %}
+    <div class="alert alert-{{ cat }} alert-dismissible fade show py-2" role="alert">
+      <i class="bi bi-{{ 'check-circle-fill' if cat=='success' else 'exclamation-circle-fill' }} me-1"></i>{{ msg }}
+      <button type="button" class="btn-close py-2" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}{% endif %}
+  {% endwith %}
+
+  <div class="tab-boxes">
+    <div class="tab-card inventory active" data-tab="inventory" onclick="switchTab(this)">
+      <div class="tab-icon"><i class="bi bi-box-seam"></i></div>
+      <div><div class="tab-label">Inventory</div><div class="tab-sub">{{ standees|length }} standees</div></div>
+    </div>
+    <div class="tab-card assign" data-tab="assign" onclick="switchTab(this)">
+      <div class="tab-icon"><i class="bi bi-signpost-split"></i></div>
+      <div><div class="tab-label">Assign</div><div class="tab-sub">{{ assignments|length }} assigned</div></div>
+    </div>
+  </div>
+
+  {# ── TAB 1: INVENTORY ── #}
+  <div class="tab-pane active" id="tab-inventory">
+    <div class="row g-4">
+      <div class="col-lg-4">
+        <div class="form-section">
+          <h6 style="font-weight:700;font-size:.9rem;color:#1a2a3a;margin-bottom:14px;"><i class="bi bi-plus-circle me-1" style="color:#2e7d32;"></i>Add Standee</h6>
+          <form method="post" action="/marketing/standees/add">
+            <div class="mb-2"><input type="text" name="name" class="form-control" placeholder="Standee name" required></div>
+            <div class="mb-2"><input type="number" name="total_units" class="form-control" min="0" placeholder="Total units" required></div>
+            <div class="mb-2"><input type="text" name="storage_location" class="form-control" placeholder="Storage location (optional)"></div>
+            <button type="submit" class="btn btn-primary w-100"><i class="bi bi-plus-lg me-1"></i>Add Standee</button>
+          </form>
+        </div>
+      </div>
+      <div class="col-lg-8">
+        <div class="card">
+          <div class="card-header bg-white py-3 px-4" style="border-radius:18px 18px 0 0;border-bottom:1px solid #eef2f5;">
+            <h5 class="mb-0" style="font-weight:700;font-size:.9rem;color:#1a2a3a;"><i class="bi bi-list me-2" style="color:#2e7d32;"></i>Standee Inventory</h5>
+          </div>
+          <div class="card-body p-0">
+            <table class="table table-hover mb-0">
+              <thead><tr>
+                <th>Name</th><th>Total</th><th>Used</th><th>Available</th><th>Location</th><th style="width:80px;">Actions</th>
+              </tr></thead>
+              <tbody>
+                {% for s in standees %}
+                {% set used = usage.get(s.id, 0) %}
+                {% set avail = s.total_units - used %}
+                <tr>
+                  <td><strong style="color:#1a2a3a;">{{ s.name }}</strong></td>
+                  <td class="fw-bold">{{ s.total_units }}</td>
+                  <td style="color:#1565c0;">{{ used }}</td>
+                  <td><span class="avail-badge {{ 'avail-yes' if avail>0 else 'avail-no' }}">{{ avail }}</span></td>
+                  <td style="font-size:.78rem;color:#5a6a7a;">{{ s.storage_location or '—' }}</td>
+                  <td>
+                    <button class="btn btn-sm btn-outline-primary py-1 px-2" style="border-radius:8px;font-size:.7rem;" data-bs-toggle="modal" data-bs-target="#editStandee{{ s.id }}"><i class="bi bi-pencil"></i></button>
+                    <form method="post" action="/marketing/standees/delete/{{ s.id }}" style="display:inline;" onsubmit="return confirm('Delete {{ s.name }}? This will also remove all assignments.')">
+                      <button class="btn btn-sm btn-outline-danger py-1 px-2" style="border-radius:8px;font-size:.7rem;"><i class="bi bi-trash"></i></button>
+                    </form>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── TAB 2: ASSIGN ── #}
+  <div class="tab-pane" id="tab-assign">
+    <div class="row g-4">
+      <div class="col-lg-5">
+        <div class="form-section">
+          <h6 style="font-weight:700;font-size:.9rem;color:#1a2a3a;margin-bottom:14px;"><i class="bi bi-signpost-split me-1" style="color:#1565c0;"></i>Assign Standee</h6>
+          <form method="post" action="/marketing/standees/assign">
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Apartment</label>
+              <select name="apartment_id" class="form-select" required>
+                <option value="">— Select Apartment —</option>
+                {% for a in apartments %}<option value="{{ a['Apartment ID'] }}">{{ a['Apartment Name'] }} ({{ a['Hub Name'] }})</option>{% endfor %}
+              </select>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Standee</label>
+              <select name="standee_id" class="form-select" required>
+                <option value="">— Select Standee —</option>
+                {% for s in standees %}<option value="{{ s.id }}">{{ s.name }} ({{ s.total_units - usage.get(s.id, 0) }} avail)</option>{% endfor %}
+              </select>
+            </div>
+            <div class="row g-2 mb-2">
+              <div class="col-6">
+                <label class="form-label small fw-semibold">Start Date</label>
+                <input type="date" name="start_date" class="form-control" required>
+              </div>
+              <div class="col-6">
+                <label class="form-label small fw-semibold">End Date</label>
+                <input type="date" name="end_date" class="form-control" required>
+              </div>
+            </div>
+            <div class="row g-2 mb-2">
+              <div class="col-6">
+                <label class="form-label small fw-semibold">Quantity</label>
+                <input type="number" name="quantity" class="form-control" min="1" required>
+              </div>
+              <div class="col-6">
+                <label class="form-label small fw-semibold">Notes (optional)</label>
+                <input type="text" name="notes" class="form-control" placeholder="e.g. Main entrance">
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary w-100"><i class="bi bi-send me-1"></i>Assign</button>
+          </form>
+        </div>
+      </div>
+      <div class="col-lg-7">
+        <div class="card">
+          <div class="card-header bg-white py-3 px-4" style="border-radius:18px 18px 0 0;border-bottom:1px solid #eef2f5;">
+            <h5 class="mb-0" style="font-weight:700;font-size:.9rem;color:#1a2a3a;"><i class="bi bi-table me-2" style="color:#1565c0;"></i>Current Assignments</h5>
+          </div>
+          <div class="card-body p-0" style="max-height:450px;overflow-y:auto;">
+            <table class="table table-hover mb-0">
+              <thead><tr>
+                <th>Apartment</th><th>Standee</th><th>Qty</th><th>Start</th><th>End</th><th>Notes</th>
+              </tr></thead>
+              <tbody>
+                {% for a in assignments %}
+                <tr>
+                  <td><strong style="color:#1a2a3a;font-size:.78rem;">{{ a.apartment_name }}</strong></td>
+                  <td><span style="font-size:.78rem;">{{ a.standee_name }}</span></td>
+                  <td class="fw-bold">{{ a.quantity }}</td>
+                  <td style="font-size:.75rem;">{{ a.start_date }}</td>
+                  <td style="font-size:.75rem;">{{ a.end_date }}</td>
+                  <td style="font-size:.72rem;color:#5a6a7a;">{{ a.notes or '—' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="text-center text-muted py-4">No assignments yet</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Edit Standee Modals #}
+{% for s in standees %}
+<div class="modal fade" id="editStandee{{ s.id }}" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content" style="border-radius:18px;">
+      <form method="post" action="/marketing/standees/edit/{{ s.id }}">
+        <div class="modal-header" style="border-bottom:1px solid #eef2f5;">
+          <h6 class="modal-title fw-bold"><i class="bi bi-pencil me-1" style="color:#2e7d32;"></i>Edit Standee</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2"><label class="form-label small fw-semibold">Name</label><input type="text" name="name" class="form-control" value="{{ s.name }}"></div>
+          <div class="mb-2"><label class="form-label small fw-semibold">Total Units</label><input type="number" name="total_units" class="form-control" value="{{ s.total_units }}" min="0"></div>
+          <div class="mb-2"><label class="form-label small fw-semibold">Storage Location</label><input type="text" name="storage_location" class="form-control" value="{{ s.storage_location }}"></div>
+        </div>
+        <div class="modal-footer" style="border-top:1px solid #eef2f5;">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal" style="border-radius:8px;">Cancel</button>
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function switchTab(el){
+  document.querySelectorAll('.tab-card').forEach(c=>c.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-'+el.dataset.tab).classList.add('active');
+}
+</script>
+</body></html>

@@ -51,6 +51,23 @@ class _SQLiteDB:
                 visited_by TEXT DEFAULT '',
                 visited_at TEXT DEFAULT ''
             );
+            CREATE TABLE IF NOT EXISTS standees (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                total_units INTEGER DEFAULT 0,
+                storage_location TEXT DEFAULT '',
+                created_at TEXT DEFAULT ''
+            );
+            CREATE TABLE IF NOT EXISTS standee_assignments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                standee_id INTEGER REFERENCES standees(id),
+                apartment_id INTEGER REFERENCES apartments(id),
+                start_date TEXT DEFAULT '',
+                end_date TEXT DEFAULT '',
+                quantity INTEGER DEFAULT 0,
+                notes TEXT DEFAULT '',
+                created_at TEXT DEFAULT ''
+            );
         """)
         self.conn.commit()
         # migrate existing tables if column missing
@@ -159,6 +176,78 @@ class _SQLiteDB:
         else:
             rows = self.conn.execute("SELECT * FROM visits ORDER BY id DESC").fetchall()
         return [self._visit_row(r) for r in rows]
+
+    # ── Standees ──
+    def add_standee(self, name, total_units, storage_location):
+        now = _now_ist()
+        try:
+            cur = self.conn.execute(
+                "INSERT INTO standees (name, total_units, storage_location, created_at) VALUES (?, ?, ?, ?)",
+                (name.strip(), int(total_units) if total_units else 0, storage_location.strip(), now),
+            )
+            self.conn.commit()
+            return cur.lastrowid
+        except:
+            return None
+
+    def get_standees(self):
+        rows = self.conn.execute("SELECT * FROM standees ORDER BY id DESC").fetchall()
+        return [{
+            "id": r["id"], "name": r["name"], "total_units": r["total_units"],
+            "storage_location": r["storage_location"], "created_at": r["created_at"],
+        } for r in rows]
+
+    def update_standee(self, standee_id, **kwargs):
+        fields = []
+        vals = []
+        if "name" in kwargs: fields.append("name=?"); vals.append(kwargs["name"])
+        if "total_units" in kwargs: fields.append("total_units=?"); vals.append(int(kwargs["total_units"]))
+        if "storage_location" in kwargs: fields.append("storage_location=?"); vals.append(kwargs["storage_location"])
+        if fields:
+            vals.append(int(standee_id))
+            self.conn.execute(f"UPDATE standees SET {', '.join(fields)} WHERE id=?", vals)
+            self.conn.commit()
+
+    def delete_standee(self, standee_id):
+        self.conn.execute("DELETE FROM standee_assignments WHERE standee_id=?", (int(standee_id),))
+        self.conn.execute("DELETE FROM standees WHERE id=?", (int(standee_id),))
+        self.conn.commit()
+
+    def assign_standee(self, standee_id, apartment_id, start_date, end_date, quantity, notes=""):
+        now = _now_ist()
+        cur = self.conn.execute(
+            "INSERT INTO standee_assignments (standee_id, apartment_id, start_date, end_date, quantity, notes, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (int(standee_id), int(apartment_id), start_date, end_date, int(quantity) if quantity else 0, notes or "", now),
+        )
+        self.conn.commit()
+        return cur.lastrowid
+
+    def get_assignments(self, apartment_id=None):
+        sql = """SELECT sa.*, s.name as standee_name, a.apartment_name
+                 FROM standee_assignments sa
+                 JOIN standees s ON sa.standee_id = s.id
+                 JOIN apartments a ON sa.apartment_id = a.id"""
+        params = []
+        if apartment_id:
+            sql += " WHERE sa.apartment_id=?"
+            params.append(int(apartment_id))
+        sql += " ORDER BY sa.id DESC"
+        rows = self.conn.execute(sql, params).fetchall()
+        return [{
+            "id": r["id"], "standee_id": r["standee_id"], "apartment_id": r["apartment_id"],
+            "start_date": r["start_date"], "end_date": r["end_date"],
+            "quantity": r["quantity"], "notes": r["notes"],
+            "standee_name": r["standee_name"], "apartment_name": r["apartment_name"],
+            "created_at": r["created_at"],
+        } for r in rows]
+
+    def get_standee_usage(self, standee_id):
+        row = self.conn.execute(
+            "SELECT COALESCE(SUM(quantity),0) FROM standee_assignments WHERE standee_id=?",
+            (int(standee_id),),
+        ).fetchone()
+        return row[0] if row else 0
 
     def get_assigned_for_user(self, username, date=None):
         sql = "SELECT * FROM apartments WHERE assigned_to=?"
@@ -345,6 +434,92 @@ class _SupabaseDB:
         return sorted(d for d, s in date_status.items() if s["total"] > s["visited"])
 
     # ── helpers ──
+    def _standee_rows(self, data):
+        return [{
+            "id": r["id"], "name": r["name"],
+            "total_units": r["total_units"],
+            "storage_location": r.get("storage_location", ""),
+            "created_at": r["created_at"],
+        } for r in data]
+
+    def _assignment_rows(self, data):
+        return [{
+            "id": r["id"], "standee_id": r["standee_id"],
+            "apartment_id": r["apartment_id"],
+            "start_date": r["start_date"], "end_date": r["end_date"],
+            "quantity": r["quantity"], "notes": r.get("notes", ""),
+            "standee_name": r.get("standee_name", ""),
+            "apartment_name": r.get("apartment_name", ""),
+            "created_at": r.get("created_at", ""),
+        } for r in data]
+
+    # ── Standees (Supabase) ──
+    def add_standee(self, name, total_units, storage_location):
+        data = {
+            "name": name.strip(),
+            "total_units": int(total_units) if total_units else 0,
+            "storage_location": storage_location.strip(),
+            "created_at": _now_ist(),
+        }
+        try:
+            result = self.supabase.table("standees").insert(data).execute()
+            return result.data[0]["id"] if result.data else None
+        except:
+            return None
+
+    def get_standees(self):
+        result = self.supabase.table("standees").select("*").order("id", desc=True).execute()
+        return self._standee_rows(result.data)
+
+    def update_standee(self, standee_id, **kwargs):
+        updates = {}
+        if "name" in kwargs: updates["name"] = kwargs["name"]
+        if "total_units" in kwargs: updates["total_units"] = int(kwargs["total_units"])
+        if "storage_location" in kwargs: updates["storage_location"] = kwargs["storage_location"]
+        if updates:
+            self.supabase.table("standees").update(updates).eq("id", int(standee_id)).execute()
+
+    def delete_standee(self, standee_id):
+        self.supabase.table("standee_assignments").delete().eq("standee_id", int(standee_id)).execute()
+        self.supabase.table("standees").delete().eq("id", int(standee_id)).execute()
+
+    def assign_standee(self, standee_id, apartment_id, start_date, end_date, quantity, notes=""):
+        data = {
+            "standee_id": int(standee_id),
+            "apartment_id": int(apartment_id),
+            "start_date": start_date,
+            "end_date": end_date,
+            "quantity": int(quantity) if quantity else 0,
+            "notes": notes or "",
+            "created_at": _now_ist(),
+        }
+        result = self.supabase.table("standee_assignments").insert(data).execute()
+        return result.data[0]["id"] if result.data else None
+
+    def get_assignments(self, apartment_id=None):
+        query = self.supabase.table("standee_assignments").select(
+            "*, standees!inner(name), apartments!inner(apartment_name)"
+        ).order("id", desc=True)
+        if apartment_id:
+            query = query.eq("apartment_id", int(apartment_id))
+        result = query.execute()
+        rows = []
+        for r in result.data:
+            rows.append({
+                "id": r["id"], "standee_id": r["standee_id"],
+                "apartment_id": r["apartment_id"],
+                "start_date": r["start_date"], "end_date": r["end_date"],
+                "quantity": r["quantity"], "notes": r.get("notes", ""),
+                "standee_name": r["standees"]["name"] if r.get("standees") else "",
+                "apartment_name": r["apartments"]["apartment_name"] if r.get("apartments") else "",
+                "created_at": r.get("created_at", ""),
+            })
+        return rows
+
+    def get_standee_usage(self, standee_id):
+        result = self.supabase.table("standee_assignments").select("quantity").eq("standee_id", int(standee_id)).execute()
+        return sum(r.get("quantity", 0) or 0 for r in result.data)
+
     def _apt_rows(self, data):
         return [{
             "Apartment ID": r["id"],

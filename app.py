@@ -157,9 +157,82 @@ def field_analysis():
         USERS=USERS,
         active="field_analysis",
     )
-    db.assign_apartments(apartment_ids, assigned_to, assigned_date, notes_for_field)
-    flash(f"Reassigned {len(apartment_ids)} apartment(s) to {assigned_to} ✓", "success")
-    return redirect(url_for("marketing_assign"))
+
+
+@app.route("/marketing/standees")
+@login_required
+@role_required("marketing")
+def marketing_standees():
+    standees = db.get_standees()
+    assignments = db.get_assignments()
+    apartments = db.get_all_apartments()
+    usage = {s["id"]: db.get_standee_usage(s["id"]) for s in standees}
+    return render_template(
+        "marketing_standees.html",
+        standees=standees,
+        assignments=assignments,
+        apartments=apartments,
+        usage=usage,
+        active="standees",
+    )
+
+
+@app.route("/marketing/standees/add", methods=["POST"])
+@login_required
+@role_required("marketing")
+def add_standee():
+    name = request.form.get("name", "").strip()
+    total = request.form.get("total_units", "0").strip()
+    loc = request.form.get("storage_location", "").strip()
+    if not name:
+        flash("Standee name is required", "danger")
+        return redirect(url_for("marketing_standees"))
+    result = db.add_standee(name, total, loc)
+    if result is None:
+        flash(f"Standee '{name}' already exists", "danger")
+    else:
+        flash(f"Standee '{name}' added ✓", "success")
+    return redirect(url_for("marketing_standees"))
+
+
+@app.route("/marketing/standees/edit/<int:standee_id>", methods=["POST"])
+@login_required
+@role_required("marketing")
+def edit_standee(standee_id):
+    name = request.form.get("name", "").strip()
+    total = request.form.get("total_units", "0").strip()
+    loc = request.form.get("storage_location", "").strip()
+    if name:
+        db.update_standee(standee_id, name=name, total_units=total, storage_location=loc)
+        flash("Standee updated ✓", "success")
+    return redirect(url_for("marketing_standees"))
+
+
+@app.route("/marketing/standees/delete/<int:standee_id>", methods=["POST"])
+@login_required
+@role_required("marketing")
+def delete_standee(standee_id):
+    db.delete_standee(standee_id)
+    flash("Standee deleted", "success")
+    return redirect(url_for("marketing_standees"))
+
+
+@app.route("/marketing/standees/assign", methods=["POST"])
+@login_required
+@role_required("marketing")
+def assign_standee():
+    standee_id = request.form.get("standee_id", "").strip()
+    apartment_id = request.form.get("apartment_id", "").strip()
+    start_date = request.form.get("start_date", "").strip()
+    end_date = request.form.get("end_date", "").strip()
+    quantity = request.form.get("quantity", "0").strip()
+    notes = request.form.get("notes", "").strip()
+    if not all([standee_id, apartment_id, start_date, end_date, quantity]):
+        flash("All fields except notes are required", "danger")
+        return redirect(url_for("marketing_standees"))
+    db.assign_standee(standee_id, apartment_id, start_date, end_date, quantity, notes)
+    flash("Standee assigned ✓", "success")
+    return redirect(url_for("marketing_standees"))
 
 
 @app.route("/marketing/download-page")
