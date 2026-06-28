@@ -423,6 +423,7 @@ function openStandeeAction(action, id, name, apartment, qty, colLoc, notes){
   new bootstrap.Modal(document.getElementById('sActionModal')).show();
 }
 
+document.addEventListener('DOMContentLoaded', function(){
 document.getElementById('sActionForm').addEventListener('submit', function(e){
   if(!pendingStandee){ e.preventDefault(); return; }
   e.preventDefault();
@@ -441,6 +442,7 @@ document.getElementById('sActionForm').addEventListener('submit', function(e){
   document.getElementById('sActionType').value = action === 'place' ? 'Placed' : 'Removed';
   pendingStandee = null;
   this.submit();
+});
 });
 </script>
 

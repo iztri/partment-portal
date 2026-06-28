@@ -615,10 +615,13 @@ def edit_apartment(apartment_id):
 
 
 # ── Field Team Routes ─────────────────────────────────────────────────────
-@app.route("/field")
+@app.route("/field", methods=["GET", "POST"])
 @login_required
 @role_required("field")
 def field_dashboard():
+    if request.method == "POST":
+        date = request.args.get("date") or request.form.get("date") or ""
+        return redirect(url_for("field_dashboard", date=date), code=303)
     username = session.get("user")
     selected_date = request.args.get("date", "")
     apartments = db.get_assigned_for_user(username, selected_date) if selected_date else []
