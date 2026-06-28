@@ -108,48 +108,20 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h5 class="mb-0" style="font-weight:700;color:#1a2a3a;letter-spacing:-.3px;">
       <i class="bi bi-calendar3 me-2" style="color:#00838f;"></i>
-      {{ today[:7] }} <span style="font-weight:400;font-size:.82rem;color:#8899aa;">Calendar</span>
+      <span id="calMonthLabel">{{ today[:7] }}</span> <span style="font-weight:400;font-size:.82rem;color:#8899aa;">Calendar</span>
     </h5>
-    <span class="badge-count"><i class="bi bi-signpost-2 me-1"></i>{{ assignments|length }}</span>
+    <div class="d-flex align-items-center gap-2">
+      <button class="btn btn-sm btn-outline-secondary" style="border-radius:8px;padding:4px 10px;font-size:.75rem;" onclick="changeMonth(-1)"><i class="bi bi-chevron-left"></i></button>
+      <span id="calMonthNav" style="font-size:.8rem;font-weight:600;color:#1a2a3a;min-width:90px;text-align:center;">{{ today[:7] }}</span>
+      <button class="btn btn-sm btn-outline-secondary" style="border-radius:8px;padding:4px 10px;font-size:.75rem;" onclick="changeMonth(1)"><i class="bi bi-chevron-right"></i></button>
+    </div>
   </div>
 
-  {% set month_start = today[:8] + '01' %}
-  {% set m = today[5:7]|int %}
-  {% set y = today[:4]|int %}
-  {% set days_in_month = [31,29 if y%4==0 and (y%100!=0 or y%400==0) else 28,31,30,31,30,31,31,30,31,30,31] %}
-  {% set dim = days_in_month[m-1] %}
-  {% set first_dow = 0 %}
-  {% set ref_y = 2026 %}{% set ref_m = 1 %}{% set ref_d = 1 %}{% set ref_dow = 4 %}
-  {% set days_from_ref = (y - ref_y)*365 %}
-  {% set days_from_ref = days_from_ref + (y - ref_y + 3)//4 %}
-  {% for mm in range(1, m) %}{% set days_from_ref = days_from_ref + days_in_month[mm-1] %}{% endfor %}
-  {% set days_from_ref = days_from_ref - 1 %}
-  {% set first_dow = ((ref_dow + days_from_ref) % 7 + 7) % 7 %}
-
-  <div class="cal-wrap">
+  <div id="calContainer" class="cal-wrap">
     <div class="cal-header">
       <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
     </div>
-    <div class="cal-grid">
-      {% for cell in range(42) %}
-        {% set day = cell - first_dow + 1 %}
-        {% if day >= 1 and day <= dim %}
-          {% set date_str = today[:8] + '%02d'|format(day) %}
-          {% set day_assignments = assignments|selectattr('start_date','equalto',date_str)|list + assignments|selectattr('end_date','equalto',date_str)|list %}
-          <div class="cal-day {{ 'today' if date_str == today }}">
-            <div class="day-num">{{ day }}</div>
-            {% for a in day_assignments %}
-              <div class="cal-event {{ 'place' if a.start_date==date_str else 'remove' }}">
-                <i class="bi {{ 'bi-box-seam' if a.start_date==date_str else 'bi-trash' }}" style="font-size:.55rem;margin-right:2px;"></i>
-                {% if a.start_date == date_str %}Place{% else %}Remove{% endif %}
-              </div>
-            {% endfor %}
-          </div>
-        {% else %}
-          <div class="cal-day other-month"><div class="day-num">&nbsp;</div></div>
-        {% endif %}
-      {% endfor %}
-    </div>
+    <div class="cal-grid" id="calGrid"></div>
   </div>
 
   {# ── All Assignments Table ── #}
@@ -300,6 +272,52 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+const assignmentsData = {{ assignments | tojson | safe }};
+let calYear = {{ today[:4] }};
+let calMonth = {{ today[5:7]|int }};
+
+function renderCalendar(){
+  const daysIn = [31,(((calYear%4==0)&&(calYear%100!=0))||(calYear%400==0))?29:28,31,30,31,30,31,31,30,31,30,31];
+  const dim = daysIn[calMonth-1];
+  const firstDow = new Date(calYear, calMonth-1, 1).getDay();
+  const todayStr = new Date().toISOString().slice(0,10);
+  const monthStr = calYear + '-' + String(calMonth).padStart(2,'0');
+
+  document.getElementById('calMonthLabel').textContent = monthStr;
+  document.getElementById('calMonthNav').textContent = monthStr;
+
+  let html = '';
+  for(let cell=0; cell<42; cell++){
+    const day = cell - firstDow + 1;
+    if(day >= 1 && day <= dim){
+      const dateStr = monthStr + '-' + String(day).padStart(2,'0');
+      const dayAssigns = assignmentsData.filter(a => a.start_date === dateStr || a.end_date === dateStr);
+      html += '<div class="cal-day' + (dateStr === todayStr ? ' today' : '') + '">';
+      html += '<div class="day-num">' + day + '</div>';
+      dayAssigns.forEach(a => {
+        const isPlace = a.start_date === dateStr;
+        html += '<div class="cal-event ' + (isPlace ? 'place' : 'remove') + '">';
+        html += '<i class="bi ' + (isPlace ? 'bi-box-seam' : 'bi-trash') + '" style="font-size:.55rem;margin-right:2px;"></i> ';
+        html += isPlace ? 'Place' : 'Remove';
+        html += '</div>';
+      });
+      html += '</div>';
+    } else {
+      html += '<div class="cal-day other-month"><div class="day-num">&nbsp;</div></div>';
+    }
+  }
+  document.getElementById('calGrid').innerHTML = html;
+}
+
+function changeMonth(delta){
+  calMonth += delta;
+  if(calMonth > 12){ calMonth = 1; calYear++; }
+  else if(calMonth < 1){ calMonth = 12; calYear--; }
+  renderCalendar();
+}
+
+renderCalendar();
+
 const hubNames = {{ hub_names | tojson | safe }};
 
 let pendingAction = null;
