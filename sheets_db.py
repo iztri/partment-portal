@@ -287,6 +287,33 @@ class _SQLiteDB:
             self.conn.execute(f"UPDATE standee_assignments SET {', '.join(fields)} WHERE id=?", vals)
             self.conn.commit()
 
+    def get_standee_tasks_for_user(self, username, date):
+        rows = self.conn.execute(
+            """SELECT sa.*, s.name AS standee_name, a.apartment_name
+               FROM standee_assignments sa
+               LEFT JOIN standees s ON s.id=sa.standee_id
+               LEFT JOIN apartments a ON a.id=sa.apartment_id
+               WHERE sa.assigned_to=? AND (sa.start_date=? OR sa.end_date=?)
+               ORDER BY sa.id DESC""",
+            (username, date, date),
+        ).fetchall()
+        out = []
+        for r in rows:
+            is_place = r["start_date"] == date and r["status"] != "Placed" and r["status"] != "Removed"
+            is_remove = r["end_date"] == date and r["status"] == "Placed"
+            task_type = "place" if is_place else ("remove" if is_remove else r["status"].lower())
+            out.append({
+                "id": r["id"],
+                "standee_name": r["standee_name"] or "",
+                "apartment_name": r["apartment_name"] or "",
+                "quantity": r["quantity"],
+                "task_type": task_type,
+                "status": r["status"],
+                "start_date": r["start_date"],
+                "end_date": r["end_date"],
+            })
+        return out
+
     def get_standee_usage(self, standee_id):
         row = self.conn.execute(
             "SELECT COALESCE(SUM(quantity),0) FROM standee_assignments WHERE standee_id=?",
@@ -568,6 +595,29 @@ class _SupabaseDB:
                 "created_at": r.get("created_at", ""),
             })
         return rows
+
+    def get_standee_tasks_for_user(self, username, date):
+        result = self.supabase.table("standee_assignments").select(
+            "*, standees!inner(name), apartments!inner(apartment_name)"
+        ).eq("assigned_to", username).or_(
+            f"start_date.eq.{date},end_date.eq.{date}"
+        ).order("id", desc=True).execute()
+        out = []
+        for r in result.data:
+            is_place = r["start_date"] == date and r.get("status") not in ("Placed", "Removed")
+            is_remove = r["end_date"] == date and r.get("status") == "Placed"
+            task_type = "place" if is_place else ("remove" if is_remove else r.get("status", "pending").lower())
+            out.append({
+                "id": r["id"],
+                "standee_name": r["standees"]["name"] if r.get("standees") else "",
+                "apartment_name": r["apartments"]["apartment_name"] if r.get("apartments") else "",
+                "quantity": r["quantity"],
+                "task_type": task_type,
+                "status": r.get("status", "Pending"),
+                "start_date": r["start_date"],
+                "end_date": r["end_date"],
+            })
+        return out
 
     def update_assignment_status(self, assignment_id, status):
         now = _now_ist()

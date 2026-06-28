@@ -277,6 +277,7 @@ def field_standees():
         "field_standees.html",
         assignments=assignments,
         today=today,
+        active='standees',
     )
 
 
@@ -536,15 +537,18 @@ def field_dashboard():
     username = session.get("user")
     selected_date = request.args.get("date", "")
     apartments = db.get_assigned_for_user(username, selected_date) if selected_date else []
+    standee_tasks = db.get_standee_tasks_for_user(username, selected_date) if selected_date else []
     available_dates = db.get_available_dates_for_user(username)
     for apt in apartments:
         apt["_is_revisit"] = bool(apt.get("Notes for Field", "").strip())
     return render_template(
         "field_dashboard.html",
         apartments=apartments,
+        standee_tasks=standee_tasks,
         available_dates=available_dates,
         selected_date=selected_date,
         marketing_channels=MARKETING_CHANNELS,
+        active='dashboard',
     )
 
 

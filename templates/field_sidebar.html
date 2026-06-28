@@ -1,0 +1,53 @@
+<div class="sidebar">
+  <div class="sidebar-brand">
+    <i class="bi bi-person-walking me-2"></i>Field Panel
+  </div>
+  <hr class="sidebar-divider">
+  <a href="/field" class="sidebar-link {{ 'active' if active == 'dashboard' }}">
+    <i class="bi bi-grid"></i><span>Dashboard</span>
+  </a>
+  <a href="/field/standees" class="sidebar-link {{ 'active' if active == 'standees' }}">
+    <i class="bi bi-signpost-2"></i><span>Standees</span>
+  </a>
+  <hr class="sidebar-divider" style="margin-top:auto;">
+  <div class="sidebar-user">
+    <i class="bi bi-person-circle me-1"></i>{{ session.name }}
+  </div>
+  <a href="/logout" class="sidebar-link logout-link">
+    <i class="bi bi-box-arrow-right"></i><span>Logout</span>
+  </a>
+</div>
+<style>
+.sidebar {
+  position:fixed; top:0; left:0; width:230px; height:100vh;
+  background:linear-gradient(180deg,#004d40,#00695c,#00838f);
+  display:flex; flex-direction:column; padding:0; z-index:1000;
+  box-shadow:4px 0 24px rgba(0,0,0,.1);
+}
+.sidebar-brand {
+  padding:20px 18px 14px; font-weight:800; font-size:1rem;
+  color:#fff; letter-spacing:-.4px; white-space:nowrap;
+}
+.sidebar-divider { border-color:rgba(255,255,255,.1); margin:8px 14px; }
+.sidebar-link {
+  display:flex; align-items:center; gap:10px;
+  padding:11px 18px; margin:1px 8px; border-radius:10px;
+  color:rgba(255,255,255,.75); text-decoration:none;
+  font-weight:500; font-size:.85rem; transition:all .2s;
+}
+.sidebar-link:hover { background:rgba(255,255,255,.12); color:#fff; }
+.sidebar-link.active { background:rgba(255,255,255,.2); color:#fff; font-weight:600; }
+.sidebar-link i { font-size:1.05rem; width:20px; text-align:center; }
+.logout-link { margin-top:4px; }
+.logout-link:hover { background:rgba(244,67,54,.2); color:#ef9a9a; }
+.sidebar-user {
+  padding:8px 18px; color:rgba(255,255,255,.5); font-size:.78rem;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+@media (max-width:768px) {
+  .sidebar { width:56px; }
+  .sidebar-brand span, .sidebar-link span, .sidebar-user { display:none; }
+  .sidebar-link { justify-content:center; padding:11px 0; }
+  .sidebar-link i { margin:0; }
+}
+</style>
