@@ -402,7 +402,7 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
       <div class="table-responsive">
         <table class="table table-hover mb-0" id="analysisTable">
           <thead><tr>
-            <th>#</th><th>Standee</th><th>Apartment</th><th>Field User</th><th>Start</th><th>End</th><th>Qty</th><th>Status</th><th>Collection</th><th>Return</th><th>Damage</th><th>Notes</th>
+            <th>#</th><th>Standee</th><th>Apartment</th><th>Field User</th><th>Start</th><th>End</th><th>Qty</th><th>Status</th><th>Collection</th><th>Return</th><th>Damage</th><th>Notes</th><th style="width:40px;"></th>
           </tr></thead>
           <tbody>
             {% for a in assignments %}
@@ -419,9 +419,10 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
               <td style="font-size:.72rem;color:#6a1b9a;">{{ a.return_location or '—' }}</td>
               <td style="font-size:.72rem;">{% if a.damage_reported > 0 %}<span style="color:#c62828;font-weight:600;">{{ a.damage_reported }}</span>{% else %}—{% endif %}</td>
               <td style="font-size:.72rem;color:#5a6a7a;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ a.notes or '—' }}</td>
+              <td><button class="btn btn-sm btn-outline-secondary py-1 px-2" style="border-radius:8px;font-size:.65rem;" data-assignment='{{ a|tojson }}' onclick='openAssignmentDetail(this)'><i class="bi bi-eye"></i></button></td>
             </tr>
             {% else %}
-            <tr><td colspan="12" class="text-center text-muted py-4">No assignments yet</td></tr>
+            <tr><td colspan="13" class="text-center text-muted py-4">No assignments yet</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -565,6 +566,80 @@ function filterAnalysisTable(){
   </div>
 </div>
 
+{# ── Assignment Detail Modal ── #}
+<div class="modal fade" id="assignDetailModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content" style="border-radius:18px;border:none;overflow:hidden;">
+      <div class="modal-header" style="border-bottom:1px solid #eef2f5;background:linear-gradient(135deg,#f4fcfb,#f0f7fa);">
+        <h5 class="modal-title fw-bold" style="color:#1a2a3a;"><i class="bi bi-info-circle me-2" style="color:#00838f;"></i>Assignment Detail <span id="assignDetailId" style="color:#8899aa;font-weight:400;font-size:.78rem;"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <div class="row g-4">
+          <div class="col-md-6">
+            <div style="background:#f8fafb;border-radius:12px;padding:14px 16px;">
+              <div style="font-size:.68rem;color:#8899aa;font-weight:600;text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px;">Standee &amp; Apartment</div>
+              <div style="display:flex;flex-direction:column;gap:6px;">
+                <div><span style="color:#5a6a7a;font-size:.75rem;">Standee:</span> <strong id="adStandee" style="color:#1a2a3a;font-size:.88rem;"></strong></div>
+                <div><span style="color:#5a6a7a;font-size:.75rem;">Apartment:</span> <span id="adApartment" style="color:#1a2a3a;font-size:.82rem;"></span></div>
+                <div><span style="color:#5a6a7a;font-size:.75rem;">Quantity:</span> <strong id="adQty" style="color:#1a2a3a;"></strong></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div style="background:#f8fafb;border-radius:12px;padding:14px 16px;">
+              <div style="font-size:.68rem;color:#8899aa;font-weight:600;text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px;">Field User &amp; Dates</div>
+              <div style="display:flex;flex-direction:column;gap:6px;">
+                <div><span style="color:#5a6a7a;font-size:.75rem;">Assigned To:</span> <strong id="adUser" style="color:#1a2a3a;"></strong></div>
+                <div><span style="color:#5a6a7a;font-size:.75rem;">Start:</span> <span id="adStart" style="color:#1a2a3a;"></span> <span style="color:#5a6a7a;font-size:.75rem;">→ End:</span> <span id="adEnd" style="color:#1a2a3a;"></span></div>
+                <div><span style="color:#5a6a7a;font-size:.75rem;">Created:</span> <span id="adCreated" style="color:#8899aa;font-size:.78rem;"></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div style="background:#f8fafb;border-radius:12px;padding:14px 16px;">
+              <div style="font-size:.68rem;color:#8899aa;font-weight:600;text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px;">Status &amp; Timeline</div>
+              <div style="display:flex;flex-direction:column;gap:6px;">
+                <div><span style="color:#5a6a7a;font-size:.75rem;">Status:</span> <strong id="adStatus" style="font-size:.82rem;"></strong></div>
+                <div><span style="color:#5a6a7a;font-size:.75rem;">Placed At:</span> <span id="adPlacedAt" style="color:#2e7d32;font-size:.8rem;"></span></div>
+                <div><span style="color:#5a6a7a;font-size:.75rem;">Removed At:</span> <span id="adRemovedAt" style="color:#c62828;font-size:.8rem;"></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div style="background:#f8fafb;border-radius:12px;padding:14px 16px;">
+              <div style="font-size:.68rem;color:#8899aa;font-weight:600;text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px;">Location</div>
+              <div style="display:flex;flex-direction:column;gap:6px;">
+                <div><span style="color:#5a6a7a;font-size:.75rem;">Collection (Pickup):</span> <strong id="adColl" style="color:#2e7d32;font-size:.82rem;"></strong></div>
+                <div><span style="color:#5a6a7a;font-size:.75rem;">Return (Drop):</span> <strong id="adRet" style="color:#6a1b9a;font-size:.82rem;"></strong></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-12">
+            <div style="background:#f8fafb;border-radius:12px;padding:14px 16px;">
+              <div style="font-size:.68rem;color:#8899aa;font-weight:600;text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px;">Damage Report</div>
+              <div id="adDamageWrap">
+                <div><span style="color:#5a6a7a;font-size:.75rem;">Units Damaged:</span> <strong id="adDamageQty" style="color:#c62828;"></strong></div>
+                <div><span style="color:#5a6a7a;font-size:.75rem;">Details:</span> <span id="adDamageDetails" style="color:#1a2a3a;"></span></div>
+              </div>
+              <div id="adNoDamage" style="display:none;color:#8899aa;font-size:.8rem;">No damage reported</div>
+            </div>
+          </div>
+          <div class="col-12">
+            <div style="background:#f8fafb;border-radius:12px;padding:14px 16px;">
+              <div style="font-size:.68rem;color:#8899aa;font-weight:600;text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px;">Notes</div>
+              <div id="adNotes" style="color:#1a2a3a;font-size:.82rem;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid #eef2f5;">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal" style="border-radius:10px;padding:8px 18px;">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 function openStandeeDetail(id){
   const modal = new bootstrap.Modal(document.getElementById('standeeDetailModal'));
@@ -620,6 +695,43 @@ function openStandeeDetail(id){
     .catch(()=>{
       document.getElementById('detailLoading').innerHTML = '<div class="text-center text-muted py-4">Failed to load detail</div>';
     });
+}
+
+function openAssignmentDetail(btn){
+  const d = JSON.parse(btn.getAttribute('data-assignment'));
+  document.getElementById('assignDetailId').textContent = '#' + d.id;
+  document.getElementById('adStandee').textContent = d.standee_name;
+  document.getElementById('adApartment').textContent = d.apartment_name;
+  document.getElementById('adQty').textContent = d.quantity + ' unit' + (d.quantity > 1 ? 's' : '');
+  document.getElementById('adUser').textContent = d.assigned_to;
+  document.getElementById('adStart').textContent = d.start_date || '—';
+  document.getElementById('adEnd').textContent = d.end_date || '—';
+  document.getElementById('adCreated').textContent = d.created_at ? d.created_at.slice(0,16) : '—';
+
+  const statusEl = document.getElementById('adStatus');
+  statusEl.textContent = d.status;
+  statusEl.className = d.status === 'Placed' ? 'avail-yes' : d.status === 'Removed' ? 'avail-no' : 'avail-badge';
+  statusEl.style.fontSize = '.82rem';
+
+  document.getElementById('adPlacedAt').textContent = d.placed_at ? d.placed_at.slice(0,16) : '—';
+  document.getElementById('adRemovedAt').textContent = d.removed_at ? d.removed_at.slice(0,16) : '—';
+
+  document.getElementById('adColl').textContent = d.collection_location || '—';
+  document.getElementById('adRet').textContent = d.return_location || '—';
+
+  if(d.damage_reported > 0){
+    document.getElementById('adDamageWrap').style.display = '';
+    document.getElementById('adNoDamage').style.display = 'none';
+    document.getElementById('adDamageQty').textContent = d.damage_reported;
+    document.getElementById('adDamageDetails').textContent = d.damage_details || '—';
+  } else {
+    document.getElementById('adDamageWrap').style.display = 'none';
+    document.getElementById('adNoDamage').style.display = '';
+  }
+
+  document.getElementById('adNotes').textContent = d.notes || '—';
+
+  new bootstrap.Modal(document.getElementById('assignDetailModal')).show();
 }
 </script>
 
