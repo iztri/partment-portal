@@ -8,105 +8,74 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <style>
-    * { font-family: 'Inter', -apple-system, sans-serif; }
-    body { background:#f4f7fa; }
+    *{font-family:'Inter',-apple-system,sans-serif;}
+    body{background:#f4f7fa;}
 
-    @keyframes slideIn { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes slideIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes popIn{0%{opacity:0;transform:scale(.9)}100%{opacity:1;transform:scale(1)}}
 
-    .navbar-custom {
-      background:linear-gradient(135deg, #004d40, #00695c, #00838f);
-      padding:14px 0;
-      box-shadow:0 4px 24px rgba(0,77,64,.2);
-    }
-    .navbar-custom .navbar-brand { font-weight:700; font-size:.95rem; }
-    .btn-outline-light { border-radius:8px; border-color:rgba(255,255,255,.25); font-weight:500; }
+    .navbar-custom{background:linear-gradient(135deg,#004d40,#00695c,#00838f);padding:14px 0;box-shadow:0 4px 24px rgba(0,77,64,.2);}
+    .navbar-custom .navbar-brand{font-weight:700;font-size:.95rem;}
+    .btn-outline-light{border-radius:8px;border-color:rgba(255,255,255,.25);font-weight:500;}
 
-    .form-section {
-      background:white; border-radius:18px; padding:24px;
-      margin-bottom:16px;
-      box-shadow:0 2px 16px rgba(0,0,0,.05);
-      transition:all .3s;
-      animation:slideIn .5s cubic-bezier(.16,1,.3,1) both;
-    }
-    .form-section:nth-child(2) { animation-delay:.05s; }
-    .form-section:nth-child(3) { animation-delay:.1s; }
-    .form-section:nth-child(4) { animation-delay:.15s; }
-    .form-section:hover { box-shadow:0 12px 40px rgba(0,0,0,.08); }
-    .form-section h5 { font-weight:700; font-size:1rem; color:#1a2a3a; margin-bottom:18px; letter-spacing:-.3px; }
-    .form-section h5 i { color:#00838f; }
+    .form-section{background:white;border-radius:18px;padding:24px;margin-bottom:16px;box-shadow:0 2px 16px rgba(0,0,0,.05);animation:slideIn .5s both;}
+    .form-section:nth-child(2){animation-delay:.05s}
+    .form-section:nth-child(3){animation-delay:.1s}
+    .form-section:nth-child(4){animation-delay:.15s}
+    .form-section h5{font-weight:700;font-size:1rem;color:#1a2a3a;margin-bottom:18px;letter-spacing:-.3px;}
+    .form-section h5 i{color:#00838f;}
 
-    .form-control {
-      border-radius:10px; padding:11px 14px;
-      border:2px solid #e8edf2;
-      font-size:.88rem; transition:all .2s; background:#fafbfc;
-    }
-    .form-control:focus { border-color:#00838f; box-shadow:0 0 0 4px rgba(0,131,143,.1); background:white; }
-    .form-control-sm { font-size:.82rem; padding:8px 10px; }
-    .form-label { font-weight:600; font-size:.8rem; color:#4a5a6a; margin-bottom:4px; }
+    .form-control,.form-select{border-radius:10px;padding:11px 14px;border:2px solid #e8edf2;font-size:.88rem;transition:all .2s;background:#fafbfc;}
+    .form-control:focus,.form-select:focus{border-color:#00838f;box-shadow:0 0 0 4px rgba(0,131,143,.1);background:white;}
+    .form-label{font-weight:600;font-size:.8rem;color:#4a5a6a;margin-bottom:4px;}
 
-    .btn-success {
-      background:linear-gradient(135deg,#00695c,#00acc1);
-      border:none; border-radius:14px; padding:18px;
-      font-weight:700; font-size:1.05rem;
-      transition:all .3s;
-    }
-    .btn-success:hover { transform:translateY(-3px); box-shadow:0 12px 32px rgba(0,105,92,.35); }
+    .btn-primary{background:linear-gradient(135deg,#00695c,#00838f);border:none;border-radius:10px;padding:10px 18px;font-weight:600;transition:all .25s;}
+    .btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,105,92,.3);}
+    .btn-outline-primary{border:2px solid #b2dfdb;border-radius:10px;color:#00695c;font-weight:600;transition:all .2s;}
+    .btn-outline-primary:hover{background:#00695c;color:white;border-color:#00695c;}
+    .btn-outline-danger{border:2px solid #ffcdd2;border-radius:10px;color:#c62828;font-weight:600;padding:6px 12px;font-size:.78rem;transition:all .2s;}
+    .btn-outline-danger:hover{background:#c62828;color:white;border-color:#c62828;}
+    .btn-outline-secondary{border:2px solid #e0e0e0;border-radius:10px;color:#555;font-weight:600;padding:6px 12px;font-size:.78rem;}
 
-    .apartment-info {
-      background:linear-gradient(135deg,#f0f9fa,#e0f2f1);
-      border-radius:14px; padding:16px 20px;
-      border:1px solid rgba(0,131,143,.08);
-    }
-    .apartment-info .name { font-weight:700; color:#004d40; font-size:1.1rem; letter-spacing:-.3px; }
-    .apartment-info .meta { font-size:.85rem; color:#4a6a6a; }
+    .apartment-info{background:linear-gradient(135deg,#f0f9fa,#e0f2f1);border-radius:14px;padding:16px 20px;border:1px solid rgba(0,131,143,.08);}
+    .apartment-info .name{font-weight:700;color:#004d40;font-size:1.1rem;letter-spacing:-.3px;}
+    .apartment-info .meta{font-size:.85rem;color:#4a6a6a;}
 
-    .ch-item {
-      border:1px solid #e8edf2;
-      border-radius:14px; padding:14px 16px;
-      margin-bottom:8px;
-      transition:all .2s;
-    }
-    .ch-item:hover { background:#f8fbfc; border-color:#b2dfdb; }
-    .ch-item .form-check-label { font-weight:600; font-size:.88rem; color:#1a2a3a; }
-    .ch-item .extra-fields { display:none; margin-top:10px; padding-left:28px; }
-    .ch-item .extra-fields.show { display:flex; gap:12px; flex-wrap:wrap; }
-    .ch-item .extra-fields .field-group { position:relative; }
-    .ch-item .extra-fields .field-group .prefix {
-      position:absolute; left:12px; top:50%; transform:translateY(-50%);
-      font-size:.78rem; color:#666; font-weight:600;
-    }
-    .ch-item .extra-fields .field-group .suffix {
-      position:absolute; right:12px; top:50%; transform:translateY(-50%);
-      font-size:.75rem; color:#888; white-space:nowrap;
-    }
-    .ch-item .extra-fields input { padding-left:28px; padding-right:48px; min-width:130px; }
-    .ch-item .extra-fields .days-field input { min-width:110px; }
+    .ch-chip{display:inline-flex;align-items:center;gap:10px;background:#f0f9fa;border:1.5px solid #b2dfdb;border-radius:12px;padding:10px 14px;margin:0 8px 10px 0;animation:popIn .25s ease-out;transition:all .2s;}
+    .ch-chip:hover{border-color:#00838f;box-shadow:0 2px 12px rgba(0,131,143,.1);}
+    .ch-chip .ch-name{font-weight:700;font-size:.85rem;color:#004d40;}
+    .ch-chip .ch-detail{font-size:.78rem;color:#4a6a6a;}
+    .ch-chip .ch-actions{display:flex;gap:4px;margin-left:4px;}
+    .ch-chip .ch-actions button{width:28px;height:28px;border-radius:8px;border:none;display:inline-flex;align-items:center;justify-content:center;font-size:.7rem;transition:all .15s;padding:0;}
 
-    .ch-toggle { width:1.15em !important; height:1.15em !important; margin-top:2px !important; cursor:pointer; }
-    .ch-toggle:checked { background-color:#00695c !important; border-color:#00695c !important; }
+    .add-row{background:#fafbfc;border:2px dashed #d5dee5;border-radius:14px;padding:16px;transition:all .25s;}
+    .add-row:focus-within{border-color:#00838f;background:#f0f9fa;}
+    .empty-state{text-align:center;padding:30px 0;color:#aab4bd;}
+    .empty-state i{font-size:2.2rem;display:block;margin-bottom:8px;}
 
-    .alert-info { border-radius:14px; border:none; font-size:.85rem; background:#e0f2f1; color:#004d40; }
+    .save-btn{background:linear-gradient(135deg,#00695c,#00acc1);border:none;border-radius:14px;padding:18px;font-weight:700;font-size:1.05rem;transition:all .3s;width:100%;}
+    .save-btn:hover{transform:translateY(-3px);box-shadow:0 12px 32px rgba(0,105,92,.35);}
 
-    ::-webkit-scrollbar { width:5px; }
-    ::-webkit-scrollbar-track { background:transparent; }
-    ::-webkit-scrollbar-thumb { background:#c4d1d9; border-radius:4px; }
+    .edit-inline{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+    .edit-inline .field-group{position:relative;}
+    .edit-inline .field-group .prefix{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:.75rem;color:#888;font-weight:600;pointer-events:none;}
+    .edit-inline .field-group .suffix{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:.72rem;color:#888;white-space:nowrap;pointer-events:none;}
+    .edit-inline input{padding-left:24px;padding-right:40px;min-width:110px;font-size:.82rem;text-align:center;}
 
-    @media (max-width:768px) {
-      .form-section { padding:16px; }
-      .ch-item .extra-fields { flex-direction:column; }
-      .ch-item .extra-fields input { min-width:100%; }
-    }
+    .alert-info{border-radius:14px;border:none;font-size:.85rem;background:#e0f2f1;color:#004d40;}
+
+    ::-webkit-scrollbar{width:5px;}
+    ::-webkit-scrollbar-track{background:transparent;}
+    ::-webkit-scrollbar-thumb{background:#c4d1d9;border-radius:4px;}
+
+    @media(max-width:768px){.form-section{padding:16px;}}
   </style>
 </head>
 <body>
   <nav class="navbar navbar-dark navbar-custom">
     <div class="container-fluid px-4">
-      <a href="/field" class="btn btn-outline-light btn-sm">
-        <i class="bi bi-arrow-left me-1"></i>Back
-      </a>
-      <span class="navbar-brand mb-0">
-        {{ 'Edit Visit' if existing_data else 'New Visit' }}: {{ apartment['Apartment Name'] }}
-      </span>
+      <a href="/field" class="btn btn-outline-light btn-sm"><i class="bi bi-arrow-left me-1"></i>Back</a>
+      <span class="navbar-brand mb-0">{{ 'Edit Visit' if existing_data else 'New Visit' }}: {{ apartment['Apartment Name'] }}</span>
       <span></span>
     </div>
   </nav>
@@ -115,7 +84,7 @@
     {% with msgs = get_flashed_messages(with_categories=true) %}
       {% if msgs %}
         {% for cat, msg in msgs %}
-          <div class="alert alert-{{ cat }} alert-dismissible fade show py-2" role="alert" style="border-radius:14px; border:none; animation:slideIn .3s;">
+          <div class="alert alert-{{ cat }} alert-dismissible fade show py-2" role="alert" style="border-radius:14px;border:none;animation:slideIn .3s;">
             <i class="bi bi-{{ 'check-circle-fill' if cat=='success' else 'exclamation-circle-fill' }} me-1"></i>
             {{ msg }}<button type="button" class="btn-close py-2" data-bs-dismiss="alert"></button>
           </div>
@@ -125,15 +94,24 @@
 
     {% if existing_data %}
       <div class="alert alert-info py-3">
-        <i class="bi bi-info-circle me-1"></i>
-        Loading previous visit data. Update and submit to record a new visit.
+        <i class="bi bi-info-circle me-1"></i>Loading previous visit data. Update and submit to record a new visit.
       </div>
     {% endif %}
 
-    <form method="post" action="/field/submit-visit">
+    {% if apartment.get('Notes for Field') %}
+    <div class="form-section" style="border-left:4px solid #f9a825;">
+      <h5><i class="bi bi-chat-quote me-2"></i>Marketing Note</h5>
+      <div style="background:#fff8e1;border-radius:12px;padding:14px 16px;font-size:.88rem;color:#6d4c00;">
+        <i class="bi bi-quote me-1"></i>{{ apartment['Notes for Field'] }}
+      </div>
+    </div>
+    {% endif %}
+
+    <form method="post" action="/field/submit-visit" id="visitForm" onsubmit="return onSubmitVisit()">
       <input type="hidden" name="apartment_id" value="{{ apartment['Apartment ID'] }}">
       <input type="hidden" name="apartment_name" value="{{ apartment['Apartment Name'] }}">
       <input type="hidden" name="hub_name" value="{{ apartment['Hub Name'] }}">
+      <input type="hidden" name="channels_json" id="channelsJson" value="">
 
       <div class="form-section">
         <h5><i class="bi bi-info-circle me-2"></i>Apartment</h5>
@@ -142,9 +120,7 @@
           <div class="meta">
             <i class="bi bi-building"></i> {{ apartment['Hub Name'] }}
             {% if apartment['Location Link'] %}
-              &middot; <a href="{{ apartment['Location Link'] }}" target="_blank" style="color:#00838f;">
-                <i class="bi bi-geo-alt-fill"></i> Map
-              </a>
+              &middot; <a href="{{ apartment['Location Link'] }}" target="_blank" style="color:#00838f;"><i class="bi bi-geo-alt-fill"></i> Map</a>
             {% endif %}
           </div>
         </div>
@@ -155,70 +131,65 @@
         <div class="row g-2">
           <div class="col-md-5">
             <label class="form-label">Manager Name *</label>
-            <input type="text" name="manager_name" class="form-control" required
-                   placeholder="e.g. Rajesh Kumar"
-                   value="{{ existing_data.get('manager_name', '') }}">
+            <input type="text" name="manager_name" class="form-control" required placeholder="e.g. Rajesh Kumar" value="{{ existing_data.get('manager_name', '') }}">
           </div>
           <div class="col-md-3">
             <label class="form-label">No of Units</label>
-            <input type="number" name="no_of_units" class="form-control" min="0"
-                   placeholder="e.g. 120"
-                   value="{{ existing_data.get('no_of_units', '') }}">
+            <input type="number" name="no_of_units" class="form-control" min="0" placeholder="e.g. 120" value="{{ existing_data.get('no_of_units', '') }}">
           </div>
           <div class="col-md-4">
             <label class="form-label">Manager Phone</label>
-            <input type="text" name="manager_phone" class="form-control"
-                   placeholder="e.g. 9876543210"
-                   value="{{ existing_data.get('manager_phone', '') }}">
+            <input type="text" name="manager_phone" class="form-control" placeholder="e.g. 9876543210" value="{{ existing_data.get('manager_phone', '') }}">
           </div>
         </div>
       </div>
 
       <div class="form-section">
         <h5><i class="bi bi-chat-dots me-2"></i>Notes / Comments</h5>
-        <textarea name="notes" class="form-control" rows="3"
-                  placeholder="Any observations, feedback, or notes about this apartment visit..."
-                  style="resize:vertical;">{{ existing_data.get('notes', '') }}</textarea>
+        <textarea name="notes" class="form-control" rows="3" placeholder="Any observations, feedback, or notes about this apartment visit..." style="resize:vertical;">{{ existing_data.get('notes', '') }}</textarea>
       </div>
 
       <div class="form-section">
         <h5><i class="bi bi-megaphone me-2"></i>Marketing Channels</h5>
-        <p class="text-muted small mb-3">Select channels available at this apartment and set pricing.</p>
+        <p class="text-muted small mb-3">Select a channel, set pricing, and add it. Add as many as needed.</p>
 
-        {% set existing_map = existing_data.get('channels', {}) %}
-        {% for ch in marketing_channels %}
-        {% set key = 'ch_' + ch|replace(' ', '_')|replace('/', '_')|replace('(', '')|replace(')', '')|replace("'", '')|replace('.', '') %}
-        {% set prev = existing_map.get(ch, None) %}
-        <div class="ch-item">
-          <div class="form-check">
-            <input class="form-check-input ch-toggle" type="checkbox"
-                   id="{{ key }}" name="{{ key }}_available"
-                   data-target="{{ key }}_fields"
-                   {{ 'checked' if prev else '' }}>
-            <label class="form-check-label" for="{{ key }}">{{ ch }}</label>
-          </div>
-          <div class="extra-fields {{ 'show' if prev else '' }}" id="{{ key }}_fields">
-            <div class="field-group">
-              <span class="prefix">₹</span>
-              <input type="number" name="{{ key }}_amount"
-                     class="form-control form-control-sm"
-                     min="0" step="100" placeholder="0"
-                     value="{{ prev.amount if prev else '' }}">
-              <span class="suffix">per day</span>
+        <div id="channelsContainer" class="mb-3"></div>
+
+        <div id="emptyState" class="empty-state">
+          <i class="bi bi-plus-circle"></i>
+          <div>No channels added yet</div>
+        </div>
+
+        <div class="add-row">
+          <div class="row g-2 align-items-end">
+            <div class="col-md-5">
+              <label class="form-label"><i class="bi bi-list me-1"></i>Channel</label>
+              <select id="chSelector" class="form-select">
+                <option value="">— Select a channel —</option>
+                {% for ch in marketing_channels %}
+                <option value="{{ ch }}">{{ ch }}</option>
+                {% endfor %}
+              </select>
             </div>
-            <div class="field-group days-field">
-              <input type="number" name="{{ key }}_days"
-                     class="form-control form-control-sm"
-                     min="1" placeholder="1"
-                     value="{{ prev.days if prev else '1' }}">
-              <span class="suffix">day{% if (prev.days|int if prev and prev.days else 1) > 1 %}s{% endif %}</span>
+            <div class="col-md-2">
+              <label class="form-label"><i class="bi bi-currency-rupee me-1"></i>Amount</label>
+              <input type="number" id="chAmount" class="form-control" min="0" step="100" placeholder="0">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label"><i class="bi bi-calendar me-1"></i>Days</label>
+              <input type="number" id="chDays" class="form-control" min="1" value="1" placeholder="1">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">&nbsp;</label>
+              <button type="button" class="btn btn-primary w-100" onclick="addChannel()">
+                <i class="bi bi-plus-lg me-1"></i>Add
+              </button>
             </div>
           </div>
         </div>
-        {% endfor %}
       </div>
 
-      <button type="submit" class="btn btn-success btn-lg w-100 mb-4">
+      <button type="submit" class="save-btn mb-4">
         <i class="bi bi-check2-circle me-2"></i>
         {{ 'Update Visit Record' if existing_data else 'Submit Visit Details' }}
       </button>
@@ -227,11 +198,134 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    document.querySelectorAll('.ch-toggle').forEach(cb => {
-      cb.addEventListener('change', function() {
-        document.getElementById(this.dataset.target).classList.toggle('show');
+    const channels = {{ existing_data.get('channels_raw', []) | tojson | safe }};
+    let channelList = channels.length ? channels.map(c => ({
+      channel: c.channel,
+      amount: parseInt(c.amount) || 0,
+      days: parseInt(c.days) || 1
+    })) : [];
+
+    const allChannelNames = {{ marketing_channels | tojson | safe }};
+
+    function renderChannels() {
+      const container = document.getElementById('channelsContainer');
+      const empty = document.getElementById('emptyState');
+      container.innerHTML = '';
+
+      if (channelList.length === 0) {
+        empty.style.display = 'block';
+        return;
+      }
+      empty.style.display = 'none';
+
+      channelList.forEach((ch, idx) => {
+        const div = document.createElement('div');
+        div.className = 'ch-chip';
+        div.innerHTML = `
+          <div>
+            <div class="ch-name">${escHtml(ch.channel)}</div>
+            <div class="ch-detail">₹${commaNum(ch.amount)} &middot; ${ch.days} day${ch.days > 1 ? 's' : ''}</div>
+          </div>
+          <div class="ch-actions">
+            <button type="button" class="btn btn-sm" style="background:#e0f2f1;color:#00695c;" onclick="editChannel(${idx})" title="Edit">
+              <i class="bi bi-pencil"></i>
+            </button>
+            <button type="button" class="btn btn-sm" style="background:#ffebee;color:#c62828;" onclick="removeChannel(${idx})" title="Remove">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>
+        `;
+        container.appendChild(div);
       });
-    });
+
+      updateSelector();
+    }
+
+    function addChannel() {
+      const sel = document.getElementById('chSelector');
+      const amount = document.getElementById('chAmount');
+      const days = document.getElementById('chDays');
+
+      const name = sel.value.trim();
+      if (!name) { sel.focus(); return; }
+
+      if (channelList.some(c => c.channel === name)) {
+        alert('"' + name + '" is already added. Edit it instead.');
+        return;
+      }
+
+      channelList.push({
+        channel: name,
+        amount: parseInt(amount.value) || 0,
+        days: parseInt(days.value) || 1
+      });
+
+      sel.value = '';
+      amount.value = '';
+      days.value = '1';
+      renderChannels();
+    }
+
+    function removeChannel(idx) {
+      channelList.splice(idx, 1);
+      renderChannels();
+    }
+
+    function editChannel(idx) {
+      const ch = channelList[idx];
+      const name = prompt('Channel name:', ch.channel);
+      if (!name || !name.trim()) return;
+
+      const existing = channelList.findIndex((c, i) => c.channel === name.trim() && i !== idx);
+      if (existing !== -1) {
+        alert('"' + name.trim() + '" is already in the list.');
+        return;
+      }
+
+      const amount = prompt('Amount (per day):', ch.amount);
+      const days = prompt('Number of days:', ch.days);
+
+      channelList[idx] = {
+        channel: name.trim(),
+        amount: amount ? parseInt(amount) : 0,
+        days: days ? parseInt(days) : 1
+      };
+      renderChannels();
+    }
+
+    function updateSelector() {
+      const sel = document.getElementById('chSelector');
+      const added = new Set(channelList.map(c => c.channel));
+      Array.from(sel.options).forEach(opt => {
+        if (opt.value && added.has(opt.value)) {
+          opt.disabled = true;
+          opt.style.color = '#bbb';
+        } else if (opt.value) {
+          opt.disabled = false;
+          opt.style.color = '';
+        }
+      });
+    }
+
+    function onSubmitVisit() {
+      const manager = document.querySelector('[name="manager_name"]').value.trim();
+      if (!manager) { alert('Manager name is required'); return false; }
+
+      document.getElementById('channelsJson').value = JSON.stringify(channelList);
+      return true;
+    }
+
+    function escHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    function commaNum(n) {
+      return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    }
+
+    renderChannels();
   </script>
 </body>
 </html>

@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Assign — Apartment Portal</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+*{font-family:'Inter',-apple-system,sans-serif;}
+body{background:#f4f7fa;margin-left:230px;padding:24px;}
+@media(max-width:768px){body{margin-left:56px;padding:12px;}}
+.card{border-radius:18px;border:none;box-shadow:0 2px 16px rgba(0,0,0,.05);}
+.table th{font-weight:600;color:#5a6a7a;font-size:.75rem;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid #e8edf2;padding:14px 12px;background:#fafbfc;}
+.table td{font-size:.85rem;vertical-align:middle;padding:12px;border-bottom:1px solid #f0f3f6;}
+.tab-boxes{display:flex;gap:16px;margin-bottom:20px;}
+.tab-card{flex:1;padding:16px 20px;border-radius:16px;cursor:pointer;transition:all .25s;border:2.5px solid transparent;display:flex;align-items:center;gap:14px;}
+.tab-card .tab-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;}
+.tab-card .tab-label{font-weight:700;font-size:.95rem;}
+.tab-card .tab-sub{font-size:.78rem;opacity:.75;margin-top:2px;}
+.tab-card.unassigned{background:#f5f0ff;border-color:#d4c4f0;color:#5a2d9c;}
+.tab-card.unassigned .tab-icon{background:#e8dfff;color:#5a2d9c;}
+.tab-card.unassigned.active{background:#7c3aed;border-color:#7c3aed;color:#fff;box-shadow:0 8px 24px rgba(124,58,237,.25);}
+.tab-card.unassigned.active .tab-icon{background:rgba(255,255,255,.2);color:#fff;}
+.tab-card.assigned{background:#fff4e5;border-color:#fad6a5;color:#b85a0e;}
+.tab-card.assigned .tab-icon{background:#ffe8cc;color:#b85a0e;}
+.tab-card.assigned.active{background:#e07c1b;border-color:#e07c1b;color:#fff;box-shadow:0 8px 24px rgba(224,124,27,.25);}
+.tab-card.assigned.active .tab-icon{background:rgba(255,255,255,.2);color:#fff;}
+.tab-pane{display:none;}
+.tab-pane.active{display:block;animation:fadeUp .3s ease-out;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.form-section{background:white;border-radius:18px;padding:20px;box-shadow:0 2px 16px rgba(0,0,0,.05);}
+.form-control,.form-select{border-radius:10px;padding:10px 12px;border:2px solid #e8edf2;font-size:.85rem;}
+.form-control:focus,.form-select:focus{border-color:#00838f;box-shadow:0 0 0 4px rgba(0,131,143,.1);}
+.btn-primary{background:linear-gradient(135deg,#00695c,#00838f);border:none;border-radius:10px;padding:10px 18px;font-weight:600;}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,105,92,.3);}
+.alert{border-radius:14px;border:none;}
+.status-badge{font-size:.68rem;padding:4px 12px;border-radius:20px;font-weight:600;}
+.status-Pending{background:#fff8e1;color:#e65100;}
+.status-Visited{background:#e0f2f1;color:#00695c;}
+.assign-chip{display:inline-flex;align-items:center;gap:4px;background:#f0f3f6;border-radius:8px;padding:3px 8px;font-size:.75rem;color:#4a5a6a;}
+</style>
+</head><body>
+{% include 'marketing_sidebar.html' %}
+<div class="container-fluid p-0">
+  <h4 style="font-weight:700;color:#1a2a3a;margin-bottom:16px;"><i class="bi bi-person-check me-2" style="color:#00838f;"></i>Assign Apartment</h4>
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% if msgs %}{% for cat,msg in msgs %}
+    <div class="alert alert-{{ cat }} alert-dismissible fade show py-2" role="alert">
+      <i class="bi bi-{{ 'check-circle-fill' if cat=='success' else 'exclamation-circle-fill' }} me-1"></i>{{ msg }}
+      <button type="button" class="btn-close py-2" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}{% endif %}
+  {% endwith %}
+
+  <div class="tab-boxes">
+    <div class="tab-card unassigned active" data-tab="unassigned" onclick="switchTab(this)">
+      <div class="tab-icon"><i class="bi bi-inbox"></i></div>
+      <div>
+        <div class="tab-label">Unassigned</div>
+        <div class="tab-sub">{{ unassigned|length }} apartments</div>
+      </div>
+    </div>
+    <div class="tab-card assigned" data-tab="assigned" onclick="switchTab(this)">
+      <div class="tab-icon"><i class="bi bi-people"></i></div>
+      <div>
+        <div class="tab-label">Assigned</div>
+        <div class="tab-sub">{{ assigned|length }} apartments</div>
+      </div>
+    </div>
+  </div>
+
+  {# ── TAB 1: UNASSIGNED ── #}
+  <div class="tab-pane active" id="tab-unassigned">
+    <div class="row g-4">
+      <div class="col-lg-8">
+        <div class="card">
+          <div class="card-header bg-white py-3 px-4" style="border-radius:18px 18px 0 0;border-bottom:1px solid #eef2f5;">
+            <h5 class="mb-0" style="font-weight:700;color:#1a2a3a;font-size:.95rem;"><i class="bi bi-table me-2" style="color:#00838f;"></i>Unassigned Apartments</h5>
+          </div>
+          <div class="card-body p-0" style="max-height:500px;overflow-y:auto;">
+            <table class="table table-hover mb-0">
+              <thead><tr>
+                <th style="width:32px;"><input type="checkbox" id="selectAll1" class="form-check-input"></th>
+                <th>#</th><th>Apartment</th><th>Hub</th><th>Created</th>
+              </tr></thead>
+              <tbody>
+                {% for apt in unassigned %}
+                <tr>
+                  <td><input type="checkbox" name="apartment_ids[]" class="apt-check-1 form-check-input" value="{{ apt['Apartment ID'] }}" form="form1"></td>
+                  <td class="fw-semibold" style="color:#8899aa;">{{ apt['Apartment ID'] }}</td>
+                  <td><strong style="color:#1a2a3a;">{{ apt['Apartment Name'] }}</strong></td>
+                  <td><span class="assign-chip"><i class="bi bi-building"></i>{{ apt['Hub Name'] }}</span></td>
+                  <td style="font-size:.8rem;color:#8899aa;">{{ (apt['Created At'] or '')[:10] }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="text-center text-muted py-4">No unassigned apartments</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <div class="form-section">
+          <form method="post" action="/marketing/assign" id="form1">
+            <h6 style="font-weight:700;font-size:.9rem;color:#1a2a3a;margin-bottom:14px;"><i class="bi bi-send me-1" style="color:#00838f;"></i>Assign To</h6>
+            <div class="mb-2">
+              <select name="assigned_to" class="form-select" required>
+                <option value="">— Select Field User —</option>{% for fu in field_users %}
+                <option value="{{ fu.username }}">{{ fu.name }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="mb-2"><input type="date" name="assigned_date" class="form-control" required></div>
+            <div id="count1" style="background:#f4f7fa;border-radius:8px;padding:7px 12px;margin-bottom:10px;font-size:.8rem;color:#666;">
+              <i class="bi bi-check2-square me-1"></i><span>0</span> selected
+            </div>
+            <button type="submit" class="btn btn-primary w-100"><i class="bi bi-send me-1"></i>Assign</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── TAB 2: ASSIGNED ── #}
+  <div class="tab-pane" id="tab-assigned">
+    <div class="row g-4">
+      <div class="col-lg-8">
+        <div class="card">
+          <div class="card-header bg-white py-3 px-4" style="border-radius:18px 18px 0 0;border-bottom:1px solid #eef2f5;">
+            <h5 class="mb-0" style="font-weight:700;color:#1a2a3a;font-size:.95rem;"><i class="bi bi-arrow-repeat me-2" style="color:#00838f;"></i>Assigned Apartments — Select to Reassign</h5>
+          </div>
+          <div class="card-body p-0" style="max-height:500px;overflow-y:auto;">
+            <table class="table table-hover mb-0">
+              <thead><tr>
+                <th style="width:32px;"><input type="checkbox" id="selectAll2" class="form-check-input"></th>
+                <th>#</th><th>Apartment</th><th>Hub</th><th>Assigned To</th><th>Date</th><th>Status</th>
+              </tr></thead>
+              <tbody>
+                {% for apt in assigned %}
+                <tr>
+                  <td><input type="checkbox" name="reassign_ids[]" class="apt-check-2 form-check-input" value="{{ apt['Apartment ID'] }}" form="form2"></td>
+                  <td class="fw-semibold" style="color:#8899aa;">{{ apt['Apartment ID'] }}</td>
+                  <td><strong style="color:#1a2a3a;">{{ apt['Apartment Name'] }}</strong></td>
+                  <td><span class="assign-chip"><i class="bi bi-building"></i>{{ apt['Hub Name'] }}</span></td>
+                  <td><span class="assign-chip"><i class="bi bi-person"></i>{{ apt['Assigned To'] }}</span></td>
+                  <td style="font-size:.8rem;">{{ (apt['Assigned Date'] or '')[:10] }}</td>
+                  <td><span class="status-badge status-{{ apt['Status'] }}">{{ apt['Status'] }}</span></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="text-center text-muted py-4">No assigned apartments</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <div class="form-section">
+          <form method="post" action="/marketing/reassign" id="form2">
+            <h6 style="font-weight:700;font-size:.9rem;color:#1a2a3a;margin-bottom:14px;"><i class="bi bi-arrow-repeat me-1" style="color:#00838f;"></i>Reassign &amp; Add Note</h6>
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Reassign To</label>
+              <select name="assigned_to" class="form-select" required>
+                <option value="">— Select Field User —</option>{% for fu in field_users %}
+                <option value="{{ fu.username }}">{{ fu.name }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Date</label>
+              <input type="date" name="assigned_date" class="form-control" required>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Note for Field Team</label>
+              <textarea name="notes_for_field" class="form-control" rows="3" placeholder="e.g. Get updated pricing from manager..." style="resize:vertical;"></textarea>
+            </div>
+            <div id="count2" style="background:#f4f7fa;border-radius:8px;padding:7px 12px;margin-bottom:10px;font-size:.8rem;color:#666;">
+              <i class="bi bi-check2-square me-1"></i><span>0</span> selected
+            </div>
+            <button type="submit" class="btn btn-primary w-100"><i class="bi bi-send me-1"></i>Reassign</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function switchTab(el){
+  document.querySelectorAll('.tab-card').forEach(c=>c.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-'+el.dataset.tab).classList.add('active');
+}
+['1','2'].forEach(n => {
+  document.getElementById('selectAll'+n)?.addEventListener('change', function(){
+    document.querySelectorAll('.apt-check-'+n).forEach(cb=>cb.checked=this.checked);updateCount(n);
+  });
+  document.querySelectorAll('.apt-check-'+n).forEach(cb=>cb.addEventListener('change',()=>updateCount(n)));
+});
+function updateCount(n){
+  document.querySelector('#count'+n+' span').textContent=document.querySelectorAll('.apt-check-'+n+':checked').length;
+}
+</script>
+</body></html>

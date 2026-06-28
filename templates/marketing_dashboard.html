@@ -8,433 +8,95 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <style>
-    * { font-family: 'Inter', -apple-system, sans-serif; }
-    body { background:#f4f7fa; }
-
-    ::-webkit-scrollbar { width:5px; height:5px; }
-    ::-webkit-scrollbar-track { background:transparent; }
-    ::-webkit-scrollbar-thumb { background:#c4d1d9; border-radius:4px; }
-    ::-webkit-scrollbar-thumb:hover { background:#a0b4bf; }
-
-    @keyframes fadeUp {
-      from { opacity:0; transform:translateY(18px); }
-      to { opacity:1; transform:translateY(0); }
-    }
-    @keyframes slideIn { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
-    @keyframes shimmer {
-      0% { background-position:-200px 0; }
-      100% { background-position:calc(200px + 100%) 0; }
-    }
-    @keyframes badgePop { 0% { transform:scale(.8); opacity:0; } 100% { transform:scale(1); opacity:1; } }
-
-    .navbar-custom {
-      background:linear-gradient(135deg, #004d40, #00695c, #00838f);
-      padding:14px 0;
-      box-shadow:0 4px 24px rgba(0,77,64,.2);
-    }
-    .navbar-custom .navbar-brand { font-weight:800; letter-spacing:-.4px; font-size:1.15rem; }
-
-    /* ── Cards ── */
-    .card {
-      border-radius:18px; border:none;
-      box-shadow:0 2px 16px rgba(0,0,0,.05);
-      transition:all .3s cubic-bezier(.16,1,.3,1);
-    }
-    .card:hover { box-shadow:0 12px 40px rgba(0,0,0,.08); transform:translateY(-2px); }
-
-    /* ── Sections ── */
-    .form-section {
-      background:white; border-radius:18px; padding:24px;
-      margin-bottom:16px;
-      box-shadow:0 2px 16px rgba(0,0,0,.05);
-      transition:all .3s;
-      animation:slideIn .5s cubic-bezier(.16,1,.3,1) both;
-    }
-    .form-section:nth-child(2) { animation-delay:.06s; }
-    .form-section:nth-child(3) { animation-delay:.12s; }
-    .form-section:hover { box-shadow:0 12px 40px rgba(0,0,0,.08); transform:translateY(-2px); }
-    .form-section h5 { font-weight:700; font-size:1rem; color:#1a2a3a; margin-bottom:18px; letter-spacing:-.3px; }
-    .form-section h5 i { color:#00838f; }
-
-    /* ── Form Controls ── */
-    .form-control, .form-select {
-      border-radius:10px; padding:11px 14px;
-      border:2px solid #e8edf2;
-      font-size:.88rem; transition:all .2s; background:#fafbfc;
-    }
-    .form-control:focus, .form-select:focus {
-      border-color:#00838f; box-shadow:0 0 0 4px rgba(0,131,143,.1);
-      background:white;
-    }
-
-    /* ── Buttons ── */
-    .btn-primary {
-      background:linear-gradient(135deg,#00695c,#00838f);
-      border:none; border-radius:10px; padding:11px 18px;
-      font-weight:600; transition:all .25s;
-    }
-    .btn-primary:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,105,92,.3); }
-    .btn-success {
-      background:linear-gradient(135deg,#00695c,#00acc1);
-      border:none; border-radius:10px; padding:11px 18px;
-      font-weight:600; transition:all .25s;
-    }
-    .btn-success:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,105,92,.3); }
-
-    .btn-outline-primary {
-      border-radius:8px; border:2px solid #e0e6ed;
-      color:#4a5a6a; padding:5px 10px; font-size:.78rem;
-      transition:all .2s;
-    }
-    .btn-outline-primary:hover { background:#00838f; border-color:#00838f; color:white; transform:translateY(-1px); }
-    .btn-outline-info {
-      border-radius:8px; border:2px solid #e0e6ed;
-      color:#4a5a6a; padding:5px 10px; font-size:.78rem;
-      transition:all .2s;
-    }
-    .btn-outline-info:hover { background:#00838f; border-color:#00838f; color:white; transform:translateY(-1px); }
-
-    /* ── Table ── */
-    .table th {
-      font-weight:600; color:#5a6a7a; font-size:.75rem;
-      text-transform:uppercase; letter-spacing:.5px;
-      border-bottom:2px solid #e8edf2;
-      padding:16px 12px; background:#fafbfc;
-    }
-    .table td {
-      font-size:.88rem; vertical-align:middle;
-      padding:14px 12px; border-bottom:1px solid #f0f3f6;
-    }
-    .table tbody tr {
-      transition:all .2s;
-      animation:fadeUp .35s ease-out both;
-    }
-    .table tbody tr:hover { background:#f0f9fa; }
-    .table-container { max-height:calc(100vh - 210px); overflow-y:auto; }
-
-    /* ── Status ── */
-    .status-badge {
-      font-size:.68rem; padding:5px 14px; border-radius:20px;
-      font-weight:600; letter-spacing:.2px;
-      animation:badgePop .3s ease-out;
-    }
-    .status-Pending { background:#fff8e1; color:#e65100; }
-    .status-Visited { background:#e0f2f1; color:#00695c; }
-
-    .assign-chip {
-      display:inline-flex; align-items:center; gap:5px;
-      background:#f0f3f6; border-radius:8px; padding:4px 10px;
-      font-size:.78rem; font-weight:500; color:#4a5a6a;
-    }
-    .assign-chip i { font-size:.7rem; color:#00838f; }
-
-    .stat-box {
-      background:white; border-radius:14px; padding:14px 18px;
-      box-shadow:0 2px 12px rgba(0,0,0,.04);
-      transition:all .25s;
-    }
-    .stat-box:hover { transform:translateY(-2px); box-shadow:0 6px 20px rgba(0,0,0,.06); }
-    .stat-box .num { font-size:1.4rem; font-weight:800; color:#00695c; }
-    .stat-box .lbl { font-size:.72rem; color:#8899aa; font-weight:600; text-transform:uppercase; letter-spacing:.3px; }
-
-    .badge-count { background:#e8edf2; color:#4a5a6a; font-weight:600; border-radius:20px; padding:5px 14px; font-size:.75rem; }
-
-    /* ── Search ── */
-    .search-wrap { position:relative; }
-    .search-wrap .bi-search {
-      position:absolute; left:14px; top:50%; transform:translateY(-50%);
-      color:#aab4bd; font-size:.9rem;
-    }
-    .search-wrap input { padding-left:38px; border-radius:30px; background:#f4f7fa; border-color:transparent; }
-    .search-wrap input:focus { background:white; border-color:#00838f; box-shadow:0 0 0 4px rgba(0,131,143,.08); }
-
-    .modal-content { border-radius:20px; border:none; overflow:hidden; }
-    .modal-header {
-      background:linear-gradient(135deg,#f4fcfb,#f0f7fa);
-      border-bottom:1px solid #eef2f5;
-    }
-    .modal-footer { border-top:1px solid #eef2f5; }
-
-    @media (max-width:768px) {
-      .table-container { max-height:none; }
-      .form-section { padding:16px; }
-      .table td, .table th { padding:8px 6px; font-size:.8rem; }
-      .stat-box .num { font-size:1.1rem; }
-    }
+    *{font-family:'Inter',-apple-system,sans-serif;}
+    body{background:#f4f7fa;margin-left:230px;padding:24px;}
+    @media(max-width:768px){body{margin-left:56px;padding:12px;}}
+    ::-webkit-scrollbar{width:5px;height:5px;}
+    ::-webkit-scrollbar-thumb{background:#c4d1d9;border-radius:4px;}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(18px);}to{opacity:1;transform:translateY(0);}}
+    .card{border-radius:18px;border:none;box-shadow:0 2px 16px rgba(0,0,0,.05);}
+    .table th{font-weight:600;color:#5a6a7a;font-size:.75rem;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid #e8edf2;padding:16px 12px;background:#fafbfc;}
+    .table td{font-size:.88rem;vertical-align:middle;padding:14px 12px;border-bottom:1px solid #f0f3f6;}
+    .table tbody tr{transition:all .2s;animation:fadeUp .35s ease-out both;}
+    .table tbody tr:hover{background:#f0f9fa;}
+    .table-container{max-height:calc(100vh - 210px);overflow-y:auto;}
+    .status-badge{font-size:.68rem;padding:5px 14px;border-radius:20px;font-weight:600;}
+    .status-Pending{background:#fff8e1;color:#e65100;}
+    .status-Visited{background:#e0f2f1;color:#00695c;}
+    .assign-chip{display:inline-flex;align-items:center;gap:5px;background:#f0f3f6;border-radius:8px;padding:4px 10px;font-size:.78rem;font-weight:500;color:#4a5a6a;}
+    .stat-box{background:white;border-radius:14px;padding:14px 18px;box-shadow:0 2px 12px rgba(0,0,0,.04);}
+    .stat-box .num{font-size:1.4rem;font-weight:800;color:#00695c;}
+    .stat-box .lbl{font-size:.72rem;color:#8899aa;font-weight:600;text-transform:uppercase;letter-spacing:.3px;}
+    .badge-count{background:#e8edf2;color:#4a5a6a;font-weight:600;border-radius:20px;padding:5px 14px;font-size:.75rem;}
+    .search-wrap{position:relative;}
+    .search-wrap .bi-search{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#aab4bd;font-size:.9rem;}
+    .search-wrap input{padding-left:38px;border-radius:30px;background:#f4f7fa;border-color:transparent;}
+    .search-wrap input:focus{background:white;border-color:#00838f;box-shadow:0 0 0 4px rgba(0,131,143,.08);}
+    .modal-content{border-radius:20px;border:none;overflow:hidden;}
+    .modal-header{background:linear-gradient(135deg,#f4fcfb,#f0f7fa);border-bottom:1px solid #eef2f5;}
+    .modal-footer{border-top:1px solid #eef2f5;}
+    @media(max-width:768px){.table-container{max-height:none;}}
   </style>
 </head>
 <body>
-  <nav class="navbar navbar-dark navbar-custom">
-    <div class="container-fluid px-4">
-      <span class="navbar-brand mb-0">
-        <i class="bi bi-building me-2"></i>Marketing Panel
-      </span>
-      <div class="d-flex align-items-center gap-3">
-        <span class="text-white-50 small"><i class="bi bi-person-circle me-1"></i>{{ session.name }}</span>
-        {% if session.user == 'gowtham' %}
-        <a href="/marketing/trash" class="btn btn-outline-light btn-sm px-3" style="border-radius:8px; border-color:rgba(255,255,255,.25);">
-          <i class="bi bi-trash me-1"></i>Trash
-        </a>
-        {% endif %}
-        <a href="/logout" class="btn btn-outline-light btn-sm px-3" style="border-radius:8px; border-color:rgba(255,255,255,.25);">
-          <i class="bi bi-box-arrow-right me-1"></i>Logout
-        </a>
-      </div>
-    </div>
-  </nav>
+{% include 'marketing_sidebar.html' %}
 
-  <div class="container-fluid p-4" style="max-width:1500px;">
+  <div class="container-fluid p-0" style="max-width:1500px;">
     {% with msgs = get_flashed_messages(with_categories=true) %}
-      {% if msgs %}
-        {% for cat, msg in msgs %}
-          <div class="alert alert-{{ cat }} alert-dismissible fade show py-2" role="alert" style="border-radius:14px; border:none; animation:slideIn .3s;">
-            <i class="bi bi-{{ 'check-circle-fill' if cat=='success' else 'exclamation-circle-fill' }} me-1"></i>
-            {{ msg }}<button type="button" class="btn-close py-2" data-bs-dismiss="alert"></button>
-          </div>
-        {% endfor %}
-      {% endif %}
+      {% if msgs %}{% for cat,msg in msgs %}
+      <div class="alert alert-{{ cat }} alert-dismissible fade show py-2" role="alert" style="border-radius:14px;border:none;">
+        <i class="bi bi-{{ 'check-circle-fill' if cat=='success' else 'exclamation-circle-fill' }} me-1"></i>{{ msg }}
+        <button type="button" class="btn-close py-2" data-bs-dismiss="alert"></button>
+      </div>
+      {% endfor %}{% endif %}
     {% endwith %}
 
-    <div class="row g-4">
-      <!-- LEFT -->
-      <div class="col-lg-4">
-        <div class="row g-2 mb-3">
-          <div class="col-6">
-            <div class="stat-box text-center">
-              <div class="num">{{ apartments|length }}</div>
-              <div class="lbl">Total</div>
-            </div>
-          </div>
-          <div class="col-6">
-            <div class="stat-box text-center">
-              <div class="num">{{ apartments|selectattr('Status','equalto','Visited')|list|length }}</div>
-              <div class="lbl">Visited</div>
-            </div>
-          </div>
-        </div>
+    <div class="row g-2 mb-3">
+      <div class="col-auto"><div class="stat-box text-center px-4"><div class="num">{{ apartments|length }}</div><div class="lbl">Total</div></div></div>
+      <div class="col-auto"><div class="stat-box text-center px-4"><div class="num">{{ apartments|selectattr('Status','equalto','Visited')|list|length }}</div><div class="lbl">Visited</div></div></div>
+      <div class="col-auto"><div class="stat-box text-center px-4"><div class="num">{{ apartments|selectattr('Status','equalto','Pending')|list|length }}</div><div class="lbl">Pending</div></div></div>
+    </div>
 
-        <!-- Tabs -->
-        <ul class="nav nav-pills mb-3 gap-1" id="sideTabs" role="tablist" style="background:#f4f7fa; border-radius:14px; padding:4px;">
-          <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="add-tab" data-bs-toggle="pill" data-bs-target="#addPane" type="button" role="tab"
-                    style="border-radius:10px; font-size:.78rem; font-weight:600; padding:8px 14px;">
-              <i class="bi bi-plus-circle me-1"></i>Add
-            </button>
-          </li>
-          <li class="nav-item" role="presentation">
-            <button class="nav-link" id="assign-tab" data-bs-toggle="pill" data-bs-target="#assignPane" type="button" role="tab"
-                    style="border-radius:10px; font-size:.78rem; font-weight:600; padding:8px 14px;">
-              <i class="bi bi-person-check me-1"></i>Assign
-            </button>
-          </li>
-          <li class="nav-item" role="presentation">
-            <button class="nav-link" id="download-tab" data-bs-toggle="pill" data-bs-target="#downloadPane" type="button" role="tab"
-                    style="border-radius:10px; font-size:.78rem; font-weight:600; padding:8px 14px;">
-              <i class="bi bi-download me-1"></i>Download
-            </button>
-          </li>
-        </ul>
-
-        <div class="tab-content">
-          <!-- ── ADD TAB ── -->
-          <div class="tab-pane fade show active" id="addPane" role="tabpanel">
-            <div class="form-section">
-              <h5><i class="bi bi-plus-circle me-2"></i>Add Apartment</h5>
-              <form method="post" action="/marketing/add">
-                <div class="mb-2">
-                  <input type="text" name="apartment_name" class="form-control" placeholder="Apartment name" required>
-                </div>
-                <div class="mb-2">
-                  <select name="hub_name" class="form-select" required>
-                    <option value="">— Select Hub —</option>
-                    {% for h in hub_names %}
-                      <option value="{{ h }}">{{ h }}</option>
-                    {% endfor %}
-                  </select>
-                </div>
-                <div class="mb-2">
-                  <input type="url" name="location_link" class="form-control" placeholder="Google Maps link (optional)">
-                </div>
-                <button type="submit" class="btn btn-primary w-100"><i class="bi bi-plus-lg me-1"></i>Add</button>
-              </form>
-            </div>
-            <div class="form-section">
-              <h5><i class="bi bi-upload me-2"></i>Bulk Upload</h5>
-              <div class="small text-muted mb-2">
-                <i class="bi bi-info-circle me-1"></i>One per line: <code>Name, Hub, Map Link</code>
-                <button class="btn btn-link btn-sm p-0 ms-1" style="font-size:.78rem;"
-                        onclick="document.getElementById('bulk_data').value='Prestige Sunrise Park, Arekere, https://maps.google.com\nSattva Misty Charm, Koramangala, https://maps.google.com'">
-                  <i class="bi bi-file-text me-1"></i>Sample
-                </button>
-              </div>
-              <form method="post" action="/marketing/bulk-upload">
-                <div class="mb-2">
-                  <textarea name="bulk_data" id="bulk_data" class="form-control" rows="4"
-                            placeholder="Prestige Sunrise Park, Arekere, https://maps.google.com/..."
-                            style="font-family:monospace; font-size:.82rem;"></textarea>
-                </div>
-                <button type="submit" class="btn btn-primary w-100"><i class="bi bi-cloud-upload me-1"></i>Upload</button>
-              </form>
-            </div>
-          </div>
-
-          <!-- ── ASSIGN TAB ── -->
-          <div class="tab-pane fade" id="assignPane" role="tabpanel">
-            <div class="form-section">
-              <h5><i class="bi bi-person-check me-2"></i>Assign to Field</h5>
-              <form method="post" action="/marketing/assign" id="assignForm">
-                <div class="mb-2 text-muted small">
-                  <i class="bi bi-info-circle me-1"></i>Select apartments from table first
-                </div>
-                <div class="mb-2">
-                  <select name="assigned_to" class="form-select" required>
-                    <option value="">— Select Field User —</option>
-                    {% for fu in field_users %}
-                      <option value="{{ fu.username }}">{{ fu.name }}</option>
-                    {% endfor %}
-                  </select>
-                </div>
-                <div class="mb-2">
-                  <input type="date" name="assigned_date" class="form-control" required>
-                </div>
-                <div id="selectedCount" class="small text-muted mb-2" style="background:#f4f7fa; border-radius:8px; padding:7px 12px;">
-                  <i class="bi bi-check2-square me-1"></i><span>0</span> apartments selected
-                </div>
-                <button type="submit" class="btn btn-success w-100"><i class="bi bi-send me-1"></i>Assign</button>
-              </form>
-            </div>
-          </div>
-
-          <!-- ── DOWNLOAD TAB ── -->
-          <div class="tab-pane fade" id="downloadPane" role="tabpanel">
-            <div class="form-section">
-              <h5><i class="bi bi-download me-2"></i>Download Data</h5>
-              <form method="get" action="/marketing/download" target="_blank">
-                <div class="mb-2">
-                  <label class="form-label small fw-semibold">Start Date</label>
-                  <input type="date" name="start_date" class="form-control">
-                </div>
-                <div class="mb-2">
-                  <label class="form-label small fw-semibold">End Date</label>
-                  <input type="date" name="end_date" class="form-control">
-                </div>
-                <div class="mb-2">
-                  <label class="form-label small fw-semibold">Status</label>
-                  <select name="status" class="form-select">
-                    <option value="">— All —</option>
-                    <option value="Pending">Pending</option>
-                    <option value="Visited">Visited</option>
-                  </select>
-                </div>
-                <button type="submit" class="btn btn-primary w-100">
-                  <i class="bi bi-file-earmark-excel me-1"></i>Download Excel
-                </button>
-              </form>
-            </div>
-          </div>
+    <div class="card">
+      <div class="card-header bg-white py-3 px-4 d-flex flex-wrap justify-content-between align-items-center gap-2" style="border-radius:18px 18px 0 0;border-bottom:1px solid #eef2f5;">
+        <h5 class="mb-0" style="font-weight:700;color:#1a2a3a;"><i class="bi bi-table me-2" style="color:#00838f;"></i>All Apartments</h5>
+        <div class="d-flex gap-2 align-items-center">
+          <div class="search-wrap"><i class="bi bi-search"></i><input type="text" id="searchInput" class="form-control form-control-sm" placeholder="Search..." style="width:200px;"></div>
+          <span class="badge-count">{{ apartments|length }}</span>
         </div>
       </div>
-
-      <!-- RIGHT -->
-      <div class="col-lg-8">
-        <div class="card">
-          <div class="card-header bg-white py-3 px-4 d-flex flex-wrap justify-content-between align-items-center gap-2" style="border-radius:18px 18px 0 0; border-bottom:1px solid #eef2f5;">
-            <h5 class="mb-0" style="font-weight:700; color:#1a2a3a; letter-spacing:-.3px;">
-              <i class="bi bi-table me-2" style="color:#00838f;"></i>All Apartments
-            </h5>
-            <div class="d-flex gap-2 align-items-center">
-              <div class="search-wrap">
-                <i class="bi bi-search"></i>
-                <input type="text" id="searchInput" class="form-control form-control-sm" placeholder="Search apartment..." style="width:220px;">
-              </div>
-              <span class="badge-count">{{ apartments|length }} total</span>
-            </div>
-          </div>
-          <div class="card-body p-0">
-            <div class="table-container">
-              <table class="table table-hover mb-0" id="aptTable">
-                <thead>
-                  <tr>
-                    <th style="width:30px;"><input type="checkbox" id="selectAll" class="form-check-input"></th>
-                    <th style="width:32px;">#</th>
-                    <th>Apartment</th>
-                    <th>Hub</th>
-                    <th>Assigned To</th>
-                    <th>Assigned</th>
-                    <th>Visited</th>
-                    <th>Status</th>
-                    <th style="width:110px;">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for apt in apartments %}
-                  <tr data-name="{{ apt['Apartment Name']|lower }}" style="animation-delay:{{ loop.index * 0.025 }}s">
-                    <td>
-                      {% if apt['Status'] == 'Pending' and not apt['Assigned To'] %}
-                        <input type="checkbox" class="apt-check form-check-input" value="{{ apt['Apartment ID'] }}" form="assignForm" name="apartment_ids[]">
-                      {% endif %}
-                    </td>
-                    <td class="fw-semibold" style="color:#8899aa;">{{ apt['Apartment ID'] }}</td>
-                    <td>
-                      <strong style="color:#1a2a3a;">{{ apt['Apartment Name'] }}</strong>
-                      {% if apt['Location Link'] %}
-                        <br><a href="{{ apt['Location Link'] }}" target="_blank" class="small text-decoration-none" style="color:#00838f;">
-                          <i class="bi bi-geo-alt-fill"></i> Map
-                        </a>
-                      {% endif %}
-                    </td>
-                    <td><span class="assign-chip"><i class="bi bi-building"></i>{{ apt['Hub Name'] }}</span></td>
-                    <td>
-                      {% if apt['Assigned To'] %}
-                        <span class="assign-chip"><i class="bi bi-person"></i>{{ apt['Assigned To'] }}</span>
-                      {% else %}
-                        <span class="text-muted" style="font-size:.78rem;">—</span>
-                      {% endif %}
-                    </td>
-                    <td>
-                      {% if apt['Assigned Date'] %}
-                        <span class="assign-chip"><i class="bi bi-calendar3"></i>{{ apt['Assigned Date'] }}</span>
-                      {% else %}
-                        <span class="text-muted" style="font-size:.78rem;">—</span>
-                      {% endif %}
-                    </td>
-                    <td>
-                      {% if apt._visited_at %}
-                        <span class="assign-chip"><i class="bi bi-clock-history"></i>{{ apt._visited_at[:10] }}</span>
-                      {% else %}
-                        <span class="text-muted" style="font-size:.78rem;">—</span>
-                      {% endif %}
-                    </td>
-                    <td><span class="status-badge status-{{ apt['Status'] }}">{{ apt['Status'] }}</span></td>
-                    <td>
-                      <div class="d-flex gap-1">
-                        <button class="btn btn-outline-primary" data-bs-toggle="modal"
-                                data-bs-target="#editModal{{ apt['Apartment ID'] }}" title="Edit">
-                          <i class="bi bi-pencil"></i>
-                        </button>
-                        <button class="btn btn-outline-danger" data-bs-toggle="modal"
-                                data-bs-target="#deleteModal{{ apt['Apartment ID'] }}" title="Delete">
-                          <i class="bi bi-trash"></i>
-                        </button>
-                        {% if apt['Status'] == 'Visited' %}
-                          <a href="/visit/{{ apt['Apartment ID'] }}" class="btn btn-outline-info" title="View Visit">
-                            <i class="bi bi-eye"></i>
-                          </a>
-                        {% endif %}
-                      </div>
-                    </td>
-                  </tr>
-                  {% endfor %}
-                  {% if not apartments %}
-                  <tr id="noDataRow"><td colspan="9" class="text-center text-muted py-5">
-                    <i class="bi bi-inbox" style="font-size:2rem; display:block; margin-bottom:8px; color:#ccd7e0;"></i>
-                    No apartments added yet
-                  </td></tr>
-                  {% endif %}
-                </tbody>
-              </table>
-            </div>
-          </div>
+      <div class="card-body p-0">
+        <div class="table-container">
+          <table class="table table-hover mb-0" id="aptTable">
+            <thead><tr>
+              <th>#</th><th>Apartment</th><th>Hub</th><th>Assigned To</th><th>Date</th><th>Visited</th><th>Status</th><th style="width:110px;">Actions</th>
+            </tr></thead>
+            <tbody>
+              {% for apt in apartments %}
+              <tr data-name="{{ apt['Apartment Name']|lower }}" style="animation-delay:{{ loop.index * 0.025 }}s">
+                <td class="fw-semibold" style="color:#8899aa;">{{ apt['Apartment ID'] }}</td>
+                <td>
+                  <strong style="color:#1a2a3a;">{{ apt['Apartment Name'] }}</strong>
+                  {% if apt['Location Link'] %}<br><a href="{{ apt['Location Link'] }}" target="_blank" class="small text-decoration-none" style="color:#00838f;"><i class="bi bi-geo-alt-fill"></i> Map</a>{% endif %}
+                </td>
+                <td><span class="assign-chip"><i class="bi bi-building"></i>{{ apt['Hub Name'] }}</span></td>
+                <td>{% if apt['Assigned To'] %}<span class="assign-chip"><i class="bi bi-person"></i>{{ apt['Assigned To'] }}</span>{% else %}<span class="text-muted" style="font-size:.78rem;">—</span>{% endif %}</td>
+                <td>{% if apt['Assigned Date'] %}<span class="assign-chip"><i class="bi bi-calendar3"></i>{{ apt['Assigned Date'] }}</span>{% else %}<span class="text-muted" style="font-size:.78rem;">—</span>{% endif %}</td>
+                <td>{% if apt._visited_at %}<span class="assign-chip"><i class="bi bi-clock-history"></i>{{ apt._visited_at[:10] }}</span>{% else %}<span class="text-muted" style="font-size:.78rem;">—</span>{% endif %}</td>
+                <td><span class="status-badge status-{{ apt['Status'] }}">{{ apt['Status'] }}</span></td>
+                <td>
+                  <div class="d-flex gap-1">
+                    <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editModal{{ apt['Apartment ID'] }}" title="Edit"><i class="bi bi-pencil"></i></button>
+                    <button class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ apt['Apartment ID'] }}" title="Delete"><i class="bi bi-trash"></i></button>
+                    {% if apt['Status'] == 'Visited' %}<a href="/visit/{{ apt['Apartment ID'] }}" class="btn btn-outline-info" title="View Visit"><i class="bi bi-eye"></i></a>{% endif %}
+                  </div>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="8" class="text-center text-muted py-5"><i class="bi bi-inbox" style="font-size:2rem;display:block;margin-bottom:8px;color:#ccd7e0;"></i>No apartments added yet</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -447,64 +109,26 @@
       <div class="modal-content">
         <form method="post" action="/marketing/edit/{{ apt['Apartment ID'] }}">
           <div class="modal-header">
-            <h5 class="modal-title" style="font-weight:700;">
-              <i class="bi bi-pencil-square me-1" style="color:#00838f;"></i>
-              Edit #{{ apt['Apartment ID'] }}
-            </h5>
+            <h5 class="modal-title" style="font-weight:700;"><i class="bi bi-pencil-square me-1" style="color:#00838f;"></i>Edit #{{ apt['Apartment ID'] }}</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
-            <div class="mb-3">
-              <label class="form-label small fw-semibold">Apartment Name</label>
-              <input type="text" name="apartment_name" class="form-control" value="{{ apt['Apartment Name'] }}">
+            <div class="mb-3"><label class="form-label small fw-semibold">Apartment Name</label><input type="text" name="apartment_name" class="form-control" value="{{ apt['Apartment Name'] }}"></div>
+            <div class="mb-3"><label class="form-label small fw-semibold">Hub Name</label>
+              <select name="hub_name" class="form-select">{% for h in hub_names %}<option value="{{ h }}" {{ 'selected' if h==apt['Hub Name'] else '' }}>{{ h }}</option>{% endfor %}</select>
             </div>
-            <div class="mb-3">
-              <label class="form-label small fw-semibold">Hub Name</label>
-              <select name="hub_name" class="form-select">
-                {% for h in hub_names %}
-                  <option value="{{ h }}" {{ 'selected' if h == apt['Hub Name'] else '' }}>{{ h }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="mb-3">
-              <label class="form-label small fw-semibold">Location Link</label>
-              <input type="url" name="location_link" class="form-control" value="{{ apt['Location Link'] }}">
-            </div>
+            <div class="mb-3"><label class="form-label small fw-semibold">Location Link</label><input type="url" name="location_link" class="form-control" value="{{ apt['Location Link'] }}"></div>
             <hr style="border-color:#eef2f5;">
-            <h6 style="font-weight:700; color:#1a2a3a; font-size:.88rem; margin-bottom:14px;">
-              <i class="bi bi-person-check me-1" style="color:#00838f;"></i>Assignment
-            </h6>
-            {% if apt['_visited_at'] %}
-              <div class="alert alert-info py-2" style="border-radius:10px; font-size:.82rem; background:#e0f2f1; color:#004d40; border:none;">
-                <i class="bi bi-info-circle me-1"></i>
-                Already visited on <strong>{{ apt['_visited_at'][:10] }}</strong>.
-                Changing the assignment below will reset status back to <strong>Pending</strong>.
-              </div>
-            {% endif %}
+            <h6 style="font-weight:700;color:#1a2a3a;font-size:.88rem;margin-bottom:14px;"><i class="bi bi-person-check me-1" style="color:#00838f;"></i>Assignment</h6>
+            {% if apt['_visited_at'] %}<div class="alert alert-info py-2" style="border-radius:10px;font-size:.82rem;background:#e0f2f1;color:#004d40;border:none;"><i class="bi bi-info-circle me-1"></i>Visited on <strong>{{ apt['_visited_at'][:10] }}</strong>. Changing user/date resets to Pending.</div>{% endif %}
             <div class="row g-2 mb-2">
-              <div class="col-md-6">
-                <label class="form-label small fw-semibold">Assign To</label>
-                <select name="assigned_to" class="form-select">
-                  <option value="">— Keep current —</option>
-                  {% for fu in field_users %}
-                    <option value="{{ fu.username }}" {{ 'selected' if fu.username == apt['Assigned To'] else '' }}>{{ fu.name }}</option>
-                  {% endfor %}
-                </select>
+              <div class="col-md-6"><label class="form-label small fw-semibold">Assign To</label>
+                <select name="assigned_to" class="form-select"><option value="">— Keep —</option>{% for fu in field_users %}<option value="{{ fu.username }}" {{ 'selected' if fu.username==apt['Assigned To'] else '' }}>{{ fu.name }}</option>{% endfor %}</select>
               </div>
-              <div class="col-md-6">
-                <label class="form-label small fw-semibold">Date</label>
-                <input type="date" name="assigned_date" class="form-control"
-                       value="{{ apt['Assigned Date'] if apt['Assigned Date'] else '' }}">
-              </div>
-            </div>
-            <div class="small text-muted">
-              <i class="bi bi-arrow-repeat me-1"></i>Changing user or date resets status to Pending
+              <div class="col-md-6"><label class="form-label small fw-semibold">Date</label><input type="date" name="assigned_date" class="form-control" value="{{ apt['Assigned Date'] or '' }}"></div>
             </div>
           </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" style="border-radius:10px;">Cancel</button>
-            <button type="submit" class="btn btn-primary">Save Changes</button>
-          </div>
+          <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" style="border-radius:10px;">Cancel</button><button type="submit" class="btn btn-primary">Save</button></div>
         </form>
       </div>
     </div>
@@ -517,7 +141,7 @@
     <div class="modal-dialog modal-dialog-centered modal-sm">
       <div class="modal-content">
         <div class="modal-body text-center py-4">
-          <i class="bi bi-exclamation-triangle-fill" style="font-size:2.5rem; color:#e65100; display:block; margin-bottom:12px;"></i>
+          <i class="bi bi-exclamation-triangle-fill" style="font-size:2.5rem;color:#e65100;display:block;margin-bottom:12px;"></i>
           <h6 style="font-weight:700;">Delete Apartment?</h6>
           <p class="text-muted small mb-3">{{ apt['Apartment Name'] }} (#{{ apt['Apartment ID'] }})</p>
           <form method="post" action="/marketing/delete/{{ apt['Apartment ID'] }}">
@@ -532,37 +156,12 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    // Select all
-    document.getElementById('selectAll')?.addEventListener('change', function() {
-      document.querySelectorAll('.apt-check').forEach(cb => cb.checked = this.checked);
-      updateCount();
-    });
-    document.querySelectorAll('.apt-check').forEach(cb => {
-      cb.addEventListener('change', updateCount);
-    });
-    function updateCount() {
-      const n = document.querySelectorAll('.apt-check:checked').length;
-      document.getElementById('selectedCount').innerHTML = '<i class="bi bi-check2-square me-1"></i><span>' + n + '</span> apartments selected';
-    }
-
-    // Search
-    document.getElementById('searchInput')?.addEventListener('keyup', function() {
-      const q = this.value.toLowerCase().trim();
-      const rows = document.querySelectorAll('#aptTable tbody tr');
-      let visible = 0;
-      rows.forEach(tr => {
-        if (tr.id === 'noDataRow') return;
-        const name = tr.dataset.name || '';
-        if (name.includes(q)) {
-          tr.style.display = '';
-          visible++;
-        } else {
-          tr.style.display = 'none';
-        }
+    document.getElementById('searchInput')?.addEventListener('keyup',function(){
+      const q=this.value.toLowerCase().trim();
+      document.querySelectorAll('#aptTable tbody tr').forEach(tr=>{
+        if(tr.id==='noDataRow')return;
+        tr.style.display=((tr.dataset.name||'').includes(q))?'':'none';
       });
-      // Show/hide no-data row
-      const nd = document.getElementById('noDataRow');
-      if (nd) nd.style.display = visible === 0 ? '' : 'none';
     });
   </script>
 </body>

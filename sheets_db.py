@@ -3,6 +3,7 @@
 import json
 import os
 import sqlite3
+import requests
 from datetime import datetime, timezone, timedelta
 from supabase import create_client
 
@@ -34,7 +35,8 @@ class _SQLiteDB:
                 assigned_date TEXT DEFAULT '',
                 status TEXT DEFAULT 'Pending',
                 created_by TEXT DEFAULT '',
-                created_at TEXT DEFAULT ''
+                created_at TEXT DEFAULT '',
+                notes_for_field TEXT DEFAULT ''
             );
             CREATE TABLE IF NOT EXISTS visits (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,6 +53,11 @@ class _SQLiteDB:
             );
         """)
         self.conn.commit()
+        # migrate existing tables if column missing
+        try:
+            self.conn.execute("ALTER TABLE apartments ADD COLUMN notes_for_field TEXT DEFAULT ''")
+        except:
+            pass
 
     def add_apartment(self, name, hub_name, location_link, created_by):
         now = _now_ist()
@@ -81,12 +88,12 @@ class _SQLiteDB:
         rows = self.conn.execute("SELECT * FROM apartments WHERE status!='Deleted' ORDER BY id DESC").fetchall()
         return [self._apt_row(r) for r in rows]
 
-    def assign_apartments(self, apartment_ids, assigned_to, assigned_date):
+    def assign_apartments(self, apartment_ids, assigned_to, assigned_date, notes_for_field=""):
         ids = [int(x) for x in apartment_ids]
         for aid in ids:
             self.conn.execute(
-                "UPDATE apartments SET assigned_to=?, assigned_date=?, status='Pending' WHERE id=?",
-                (assigned_to, assigned_date, aid),
+                "UPDATE apartments SET assigned_to=?, assigned_date=?, notes_for_field=?, status='Pending' WHERE id=?",
+                (assigned_to, assigned_date, notes_for_field, aid),
             )
         self.conn.commit()
 
@@ -100,6 +107,7 @@ class _SQLiteDB:
             "Status": "status",
             "Created By": "created_by",
             "Created At": "created_at",
+            "Notes for Field": "notes_for_field",
         }
         cols = []
         vals = []
@@ -163,13 +171,21 @@ class _SQLiteDB:
 
     def get_available_dates_for_user(self, username):
         rows = self.conn.execute(
-            "SELECT DISTINCT assigned_date FROM apartments WHERE assigned_to=? AND assigned_date!='' ORDER BY assigned_date",
+            """SELECT assigned_date FROM apartments
+               WHERE assigned_to=? AND assigned_date!=''
+               GROUP BY assigned_date
+               HAVING COUNT(*)>COUNT(CASE WHEN status='Visited' THEN 1 END)
+               ORDER BY assigned_date""",
             (username,),
         ).fetchall()
         return [r["assigned_date"] for r in rows]
 
     # ── helpers ──
     def _apt_row(self, r):
+        try:
+            notes = r["notes_for_field"] or ""
+        except (KeyError, IndexError):
+            notes = ""
         return {
             "Apartment ID": r["id"],
             "Apartment Name": r["apartment_name"],
@@ -180,6 +196,7 @@ class _SQLiteDB:
             "Status": r["status"],
             "Created By": r["created_by"],
             "Created At": r["created_at"],
+            "Notes for Field": notes,
         }
 
     def _visit_row(self, r):
@@ -203,10 +220,19 @@ class _SQLiteDB:
 # ═══════════════════════════════════════════════════════════════════════
 class _SupabaseDB:
     def __init__(self):
-        self.supabase = create_client(
-            "https://ppxyhlmlymvhrjdcnoks.supabase.co",
-            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBweHlobG1seW12aHJqZGNub2tzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjM2MzY1NCwiZXhwIjoyMDk3OTM5NjU0fQ.D7QZbfzpZKtutgo4lp4F8R15HNlzQAf7N3ApBz6GQ6s"
-        )
+        self.url = "https://ppxyhlmlymvhrjdcnoks.supabase.co"
+        self.key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBweHlobG1seW12aHJqZGNub2tzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjM2MzY1NCwiZXhwIjoyMDk3OTM5NjU0fQ.D7QZbfzpZKtutgo4lp4F8R15HNlzQAf7N3ApBz6GQ6s"
+        self.supabase = create_client(self.url, self.key)
+        self._run_migration()
+
+    def _run_migration(self):
+        """Add notes_for_field column if missing."""
+        try:
+            payload = {"query": "ALTER TABLE apartments ADD COLUMN IF NOT EXISTS notes_for_field TEXT DEFAULT ''"}
+            headers = {"apikey": self.key, "Authorization": f"Bearer {self.key}", "Content-Type": "application/json"}
+            resp = requests.post(f"{self.url}/rest/v1/rpc/pg_query", json=payload, headers=headers, timeout=10)
+        except:
+            pass
 
     def add_apartment(self, name, hub_name, location_link, created_by):
         data = {
@@ -218,6 +244,7 @@ class _SupabaseDB:
             "status": "Pending",
             "created_by": created_by,
             "created_at": _now_ist(),
+            "notes_for_field": "",
         }
         result = self.supabase.table("apartments").insert(data).execute()
         return result.data[0]["id"] if result.data else None
@@ -237,11 +264,12 @@ class _SupabaseDB:
         result = self.supabase.table("apartments").select("*").neq("status", "Deleted").order("id", desc=True).execute()
         return self._apt_rows(result.data)
 
-    def assign_apartments(self, apartment_ids, assigned_to, assigned_date):
+    def assign_apartments(self, apartment_ids, assigned_to, assigned_date, notes_for_field=""):
         for aid in (int(x) for x in apartment_ids):
             self.supabase.table("apartments").update({
                 "assigned_to": assigned_to,
                 "assigned_date": assigned_date,
+                "notes_for_field": notes_for_field,
                 "status": "Pending",
             }).eq("id", aid).execute()
 
@@ -253,6 +281,9 @@ class _SupabaseDB:
             "Assigned To": "assigned_to",
             "Assigned Date": "assigned_date",
             "Status": "status",
+            "Created By": "created_by",
+            "Created At": "created_at",
+            "Notes for Field": "notes_for_field",
         }
         updates = {mapping[k]: v for k, v in kwargs.items() if k in mapping}
         if updates:
@@ -302,12 +333,16 @@ class _SupabaseDB:
         return self._apt_rows(result.data)
 
     def get_available_dates_for_user(self, username):
-        result = self.supabase.table("apartments").select("assigned_date").eq("assigned_to", username).neq("assigned_date", "").execute()
-        dates = set()
+        result = self.supabase.table("apartments").select("assigned_date,status").eq("assigned_to", username).neq("assigned_date", "").execute()
+        date_status = {}
         for r in result.data:
-            if r.get("assigned_date"):
-                dates.add(r["assigned_date"])
-        return sorted(dates)
+            d = r.get("assigned_date")
+            if d:
+                date_status.setdefault(d, {"total": 0, "visited": 0})
+                date_status[d]["total"] += 1
+                if r.get("status") == "Visited":
+                    date_status[d]["visited"] += 1
+        return sorted(d for d, s in date_status.items() if s["total"] > s["visited"])
 
     # ── helpers ──
     def _apt_rows(self, data):
@@ -321,6 +356,7 @@ class _SupabaseDB:
             "Status": r["status"],
             "Created By": r["created_by"],
             "Created At": r["created_at"],
+            "Notes for Field": r.get("notes_for_field", ""),
         } for r in data]
 
     def _visit_rows(self, data):

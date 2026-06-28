@@ -78,7 +78,95 @@ def marketing_dashboard():
         field_users=field_users,
         marketing_channels=MARKETING_CHANNELS,
         hub_names=HUB_NAMES,
+        active="dashboard",
     )
+
+
+@app.route("/marketing/add-page")
+@login_required
+@role_required("marketing")
+def marketing_add():
+    return render_template("marketing_add.html", hub_names=HUB_NAMES, active="add")
+
+
+@app.route("/marketing/assign-page")
+@login_required
+@role_required("marketing")
+def marketing_assign():
+    all_apts = db.get_all_apartments()
+    unassigned = [a for a in all_apts if not a.get("Assigned To")]
+    assigned = [a for a in all_apts if a.get("Assigned To")]
+    field_users = [
+        {"username": u, "name": info["name"]}
+        for u, info in USERS.items() if info["role"] == "field"
+    ]
+    return render_template("marketing_assign.html", unassigned=unassigned,
+                           assigned=assigned, field_users=field_users, active="assign")
+
+
+@app.route("/marketing/reassign", methods=["POST"])
+@login_required
+@role_required("marketing")
+def reassign_apartments():
+    apartment_ids = request.form.getlist("reassign_ids[]")
+    assigned_to = request.form.get("assigned_to", "").strip()
+    assigned_date = request.form.get("assigned_date", "").strip()
+    notes_for_field = request.form.get("notes_for_field", "").strip()
+    if not apartment_ids or not assigned_to or not assigned_date:
+        flash("Select apartments, field user, and date", "danger")
+    return redirect(url_for("marketing_assign"))
+
+
+@app.route("/marketing/field-analysis")
+@login_required
+@role_required("marketing")
+def field_analysis():
+    # Gather data from all non-deleted apartments
+    all_apts = db.get_all_apartments()
+    field_users = [
+        {"username": u, "info": info}
+        for u, info in USERS.items() if info["role"] == "field"
+    ]
+    # Aggregate by field user + date
+    from collections import defaultdict
+    agg = defaultdict(lambda: {"total": 0, "visited": 0, "pending": 0})
+    for a in all_apts:
+        u = a.get("Assigned To", "")
+        d = a.get("Assigned Date", "")
+        if not u or not d:
+            continue
+        key = (u, d)
+        agg[key]["total"] += 1
+        if a.get("Status") == "Visited":
+            agg[key]["visited"] += 1
+        else:
+            agg[key]["pending"] += 1
+    # Sort by date desc then user
+    rows = sorted(agg.items(), key=lambda x: (x[0][1], x[0][0]), reverse=True)
+    # User totals
+    user_totals = defaultdict(lambda: {"total": 0, "visited": 0, "pending": 0})
+    for (u, d), s in agg.items():
+        user_totals[u]["total"] += s["total"]
+        user_totals[u]["visited"] += s["visited"]
+        user_totals[u]["pending"] += s["pending"]
+    return render_template(
+        "marketing_field_analysis.html",
+        rows=rows,
+        field_users=field_users,
+        user_totals=dict(user_totals),
+        USERS=USERS,
+        active="field_analysis",
+    )
+    db.assign_apartments(apartment_ids, assigned_to, assigned_date, notes_for_field)
+    flash(f"Reassigned {len(apartment_ids)} apartment(s) to {assigned_to} ✓", "success")
+    return redirect(url_for("marketing_assign"))
+
+
+@app.route("/marketing/download-page")
+@login_required
+@role_required("marketing")
+def marketing_download():
+    return render_template("marketing_download.html", active="download")
 
 
 @app.route("/marketing/add", methods=["POST"])
@@ -319,6 +407,8 @@ def field_dashboard():
     selected_date = request.args.get("date", "")
     apartments = db.get_assigned_for_user(username, selected_date) if selected_date else []
     available_dates = db.get_available_dates_for_user(username)
+    for apt in apartments:
+        apt["_is_revisit"] = bool(apt.get("Notes for Field", "").strip())
     return render_template(
         "field_dashboard.html",
         apartments=apartments,
@@ -352,8 +442,10 @@ def visit_form(apartment_id):
         try:
             channels_list = json.loads(latest_visit["Channels Data (JSON)"])
             existing_data["channels"] = {c["channel"]: c for c in channels_list}
+            existing_data["channels_raw"] = channels_list
         except:
             existing_data["channels"] = {}
+            existing_data["channels_raw"] = []
         existing_data["manager_name"] = latest_visit.get("Manager Name", "")
         existing_data["no_of_units"] = latest_visit.get("No of Units", "")
         existing_data["manager_phone"] = latest_visit.get("Manager Phone", "")
@@ -382,20 +474,23 @@ def submit_visit():
         flash("Manager name is required", "danger")
         return redirect(url_for("visit_form", apartment_id=apartment_id))
 
-    # Build channels data from form
+    # Build channels data from JSON hidden field
     channels_data = []
-    for ch in MARKETING_CHANNELS:
-        key = _channel_key(ch)
-        available = request.form.get(f"{key}_available") == "on"
-        amount = request.form.get(f"{key}_amount", "0").strip()
-        days = request.form.get(f"{key}_days", "0").strip()
-        if available:
-            channels_data.append({
-                "channel": ch,
-                "available": True,
-                "amount": int(amount) if amount else 0,
-                "days": int(days) if days else 0,
-            })
+    channels_json = request.form.get("channels_json", "[]")
+    try:
+        parsed = json.loads(channels_json)
+        if isinstance(parsed, list):
+            channels_data = [
+                {
+                    "channel": c.get("channel", ""),
+                    "available": True,
+                    "amount": int(c.get("amount", 0) or 0),
+                    "days": int(c.get("days", 0) or 0),
+                }
+                for c in parsed if c.get("channel")
+            ]
+    except (json.JSONDecodeError, ValueError):
+        pass
 
     db.record_visit(
         apartment_id=apartment_id,
