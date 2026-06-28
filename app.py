@@ -592,6 +592,7 @@ def field_dashboard():
     apartments = db.get_assigned_for_user(username, selected_date) if selected_date else []
     standee_tasks = db.get_standee_tasks_for_user(username, selected_date) if selected_date else []
     available_dates = db.get_available_dates_for_user(username)
+    standee_dates = db.get_standee_available_dates_for_user(username)
     for apt in apartments:
         apt["_is_revisit"] = bool(apt.get("Notes for Field", "").strip())
     return render_template(
@@ -599,6 +600,7 @@ def field_dashboard():
         apartments=apartments,
         standee_tasks=standee_tasks,
         available_dates=available_dates,
+        standee_dates=standee_dates,
         selected_date=selected_date,
         marketing_channels=MARKETING_CHANNELS,
         active='dashboard',

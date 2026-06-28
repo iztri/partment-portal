@@ -181,6 +181,19 @@
       </div>
     </div>
 
+    {% if standee_dates %}
+    <div class="card p-3 mb-4" style="border-left:4px solid #6a1b9a;">
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span class="small fw-semibold" style="color:#6a1b9a;"><i class="bi bi-megaphone me-1"></i>Standee quick jump</span>
+        <div style="overflow-x:auto;white-space:nowrap;">
+          {% for d in standee_dates %}
+            <a href="/field?date={{ d }}" class="quick-date-link {% if d == selected_date %}text-white{% endif %}" style="{% if d == selected_date %}background:#6a1b9a;color:white;{% endif %}">{{ d }}</a>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
     {% if selected_date %}
       <div class="d-flex justify-content-between align-items-center mb-3">
         <h5 class="mb-0" style="font-weight:700; color:#1a2a3a; letter-spacing:-.3px;">

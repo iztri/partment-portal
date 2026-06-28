@@ -374,6 +374,19 @@ class _SQLiteDB:
         ).fetchone()
         return row[0] if row else 0
 
+    def get_standee_available_dates_for_user(self, username):
+        """Return dates where user has pending standee tasks (sorted, unique)."""
+        rows = self.conn.execute(
+            """SELECT DISTINCT sa.start_date AS d FROM standee_assignments sa
+               WHERE sa.assigned_to=? AND sa.start_date!='' AND sa.status!='Placed' AND sa.status!='Removed'
+               UNION
+               SELECT DISTINCT sa.end_date FROM standee_assignments sa
+               WHERE sa.assigned_to=? AND sa.end_date!='' AND sa.status='Placed'
+               ORDER BY d""",
+            (username, username),
+        ).fetchall()
+        return [r["d"] for r in rows]
+
     def get_standee_detail(self, standee_id):
         """Return standee info + all assignment history + current active location."""
         s = self.conn.execute("SELECT * FROM standees WHERE id=?", (int(standee_id),)).fetchone()
@@ -753,6 +766,23 @@ class _SupabaseDB:
     def get_standee_usage(self, standee_id):
         result = self.supabase.table("standee_assignments").select("quantity").eq("standee_id", int(standee_id)).eq("status", "Placed").execute()
         return sum(r.get("quantity", 0) or 0 for r in result.data)
+
+    def get_standee_available_dates_for_user(self, username):
+        """Return dates where user has pending standee tasks (sorted, unique)."""
+        r_start = self.supabase.table("standee_assignments").select("start_date").eq("assigned_to", username).neq("status", "Placed").neq("status", "Removed").neq("start_date", "").execute()
+        r_end = self.supabase.table("standee_assignments").select("end_date").eq("assigned_to", username).eq("status", "Placed").neq("end_date", "").execute()
+        seen = set()
+        out = []
+        for r in r_start.data:
+            d = r["start_date"]
+            if d and d not in seen:
+                seen.add(d); out.append(d)
+        for r in r_end.data:
+            d = r["end_date"]
+            if d and d not in seen:
+                seen.add(d); out.append(d)
+        out.sort()
+        return out
 
     def get_standee_detail(self, standee_id):
         s_data = self.supabase.table("standees").select("*").eq("id", int(standee_id)).single().execute()
