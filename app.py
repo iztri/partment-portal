@@ -167,12 +167,17 @@ def marketing_standees():
     assignments = db.get_assignments()
     apartments = db.get_all_apartments()
     usage = {s["id"]: db.get_standee_usage(s["id"]) for s in standees}
+    field_users = [
+        {"username": u, "name": info["name"]}
+        for u, info in USERS.items() if info["role"] == "field"
+    ]
     return render_template(
         "marketing_standees.html",
         standees=standees,
         assignments=assignments,
         apartments=apartments,
         usage=usage,
+        field_users=field_users,
         active="standees",
     )
 
@@ -223,16 +228,44 @@ def delete_standee(standee_id):
 def assign_standee():
     standee_id = request.form.get("standee_id", "").strip()
     apartment_id = request.form.get("apartment_id", "").strip()
+    assigned_to = request.form.get("assigned_to", "").strip()
     start_date = request.form.get("start_date", "").strip()
     end_date = request.form.get("end_date", "").strip()
     quantity = request.form.get("quantity", "0").strip()
     notes = request.form.get("notes", "").strip()
-    if not all([standee_id, apartment_id, start_date, end_date, quantity]):
+    if not all([standee_id, apartment_id, assigned_to, start_date, end_date, quantity]):
         flash("All fields except notes are required", "danger")
         return redirect(url_for("marketing_standees"))
-    db.assign_standee(standee_id, apartment_id, start_date, end_date, quantity, notes)
+    db.assign_standee(standee_id, apartment_id, assigned_to, start_date, end_date, quantity, notes)
     flash("Standee assigned ✓", "success")
     return redirect(url_for("marketing_standees"))
+
+
+@app.route("/field/standees")
+@login_required
+@role_required("field")
+def field_standees():
+    username = session.get("user")
+    assignments = db.get_assignments(assigned_to=username)
+    from datetime import date
+    today = date.today().isoformat()
+    return render_template(
+        "field_standees.html",
+        assignments=assignments,
+        today=today,
+    )
+
+
+@app.route("/field/standees/update-status/<int:assignment_id>/<status>", methods=["POST"])
+@login_required
+@role_required("field")
+def update_standee_status(assignment_id, status):
+    if status not in ("Placed", "Removed"):
+        flash("Invalid status", "danger")
+        return redirect(url_for("field_standees"))
+    db.update_assignment_status(assignment_id, status)
+    flash(f"Standee marked as {status} ✓", "success")
+    return redirect(url_for("field_standees"))
 
 
 @app.route("/marketing/download-page")

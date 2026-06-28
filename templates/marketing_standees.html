@@ -136,6 +136,13 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
                 {% for s in standees %}<option value="{{ s.id }}">{{ s.name }} ({{ s.total_units - usage.get(s.id, 0) }} avail)</option>{% endfor %}
               </select>
             </div>
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Assign To (Field)</label>
+              <select name="assigned_to" class="form-select" required>
+                <option value="">— Select Field User —</option>
+                {% for fu in field_users %}<option value="{{ fu.username }}">{{ fu.name }}</option>{% endfor %}
+              </select>
+            </div>
             <div class="row g-2 mb-2">
               <div class="col-6">
                 <label class="form-label small fw-semibold">Start Date</label>
@@ -168,7 +175,7 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
           <div class="card-body p-0" style="max-height:450px;overflow-y:auto;">
             <table class="table table-hover mb-0">
               <thead><tr>
-                <th>Apartment</th><th>Standee</th><th>Qty</th><th>Start</th><th>End</th><th>Notes</th>
+                <th>Apartment</th><th>Standee</th><th>Qty</th><th>Field User</th><th>Start</th><th>End</th><th>Status</th><th>Notes</th>
               </tr></thead>
               <tbody>
                 {% for a in assignments %}
@@ -176,12 +183,14 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
                   <td><strong style="color:#1a2a3a;font-size:.78rem;">{{ a.apartment_name }}</strong></td>
                   <td><span style="font-size:.78rem;">{{ a.standee_name }}</span></td>
                   <td class="fw-bold">{{ a.quantity }}</td>
+                  <td style="font-size:.75rem;">{{ a.assigned_to }}</td>
                   <td style="font-size:.75rem;">{{ a.start_date }}</td>
                   <td style="font-size:.75rem;">{{ a.end_date }}</td>
+                  <td><span class="avail-badge {{ 'avail-yes' if a.status in ('Placed','Removed') else 'avail-no' }}" style="font-size:.65rem;">{{ a.status }}</span></td>
                   <td style="font-size:.72rem;color:#5a6a7a;">{{ a.notes or '—' }}</td>
                 </tr>
                 {% else %}
-                <tr><td colspan="6" class="text-center text-muted py-4">No assignments yet</td></tr>
+                <tr><td colspan="8" class="text-center text-muted py-4">No assignments yet</td></tr>
                 {% endfor %}
               </tbody>
             </table>

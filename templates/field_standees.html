@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Standees — Field Panel</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+*{font-family:'Inter',-apple-system,sans-serif;}
+body{background:#f4f7fa;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.navbar-custom{background:linear-gradient(135deg,#004d40,#00695c,#00838f);padding:14px 0;box-shadow:0 4px 24px rgba(0,77,64,.2);}
+.navbar-custom .navbar-brand{font-weight:800;font-size:1.05rem;}
+.card{border-radius:16px;border:none;box-shadow:0 2px 12px rgba(0,0,0,.05);}
+.table th{font-weight:600;color:#5a6a7a;font-size:.72rem;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid #e8edf2;padding:14px 10px;background:#fafbfc;}
+.table td{font-size:.82rem;vertical-align:middle;padding:12px 10px;border-bottom:1px solid #f0f3f6;}
+.action-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border-radius:10px;font-weight:600;font-size:.75rem;text-decoration:none;border:none;transition:all .25s;color:#fff;}
+.action-btn:hover{transform:translateY(-2px);color:#fff;}
+.action-btn.place{background:linear-gradient(135deg,#2e7d32,#43a047);box-shadow:0 4px 12px rgba(46,125,50,.25);}
+.action-btn.remove{background:linear-gradient(135deg,#c62828,#e53935);box-shadow:0 4px 12px rgba(198,40,40,.25);}
+.action-btn.done{background:#e0e0e0;color:#888;cursor:default;box-shadow:none;}
+.status-badge{padding:4px 12px;border-radius:20px;font-size:.68rem;font-weight:600;}
+.status-Pending{background:#fff8e1;color:#e65100;}
+.status-Placed{background:#e8f5e9;color:#2e7d32;}
+.status-Removed{background:#e0e0e0;color:#555;}
+.cal-wrap{background:white;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.05);}
+.cal-header{display:grid;grid-template-columns:repeat(7,1fr);background:#004d40;color:#fff;font-weight:600;font-size:.75rem;text-transform:uppercase;}
+.cal-header div{padding:12px 6px;text-align:center;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);}
+.cal-day{min-height:90px;padding:6px;border-right:1px solid #f0f3f6;border-bottom:1px solid #f0f3f6;font-size:.72rem;}
+.cal-day .day-num{font-weight:700;color:#1a2a3a;margin-bottom:4px;}
+.cal-day.today{background:#e3f2fd;}
+.cal-day.other-month{background:#fafbfc;color:#ccc;}
+.cal-event{font-size:.62rem;padding:2px 6px;border-radius:4px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default;}
+.cal-event.place{background:#c8e6c9;color:#1b5e20;}
+.cal-event.remove{background:#ffcdd2;color:#b71c1c;}
+.cal-event.pending{background:#fff8e1;color:#e65100;}
+.today-banner{background:linear-gradient(135deg,#fff8e1,#fff3e0);border-radius:14px;padding:16px 20px;margin-bottom:16px;border-left:5px solid #f9a825;}
+.today-banner h6{font-weight:700;color:#e65100;margin-bottom:4px;}
+.today-banner .item{font-size:.82rem;color:#4a3a1a;padding:4px 0;}
+</style>
+</head><body>
+<nav class="navbar navbar-dark navbar-custom">
+  <div class="container-fluid px-4">
+    <a href="/field" class="btn btn-outline-light btn-sm"><i class="bi bi-arrow-left me-1"></i>Back to Dashboard</a>
+    <span class="navbar-brand mb-0"><i class="bi bi-signpost-2 me-2"></i>Standee Tasks</span>
+    <a href="/logout" class="btn btn-outline-light btn-sm"><i class="bi bi-box-arrow-right me-1"></i>Logout</a>
+  </div>
+</nav>
+
+<div class="container-fluid p-4" style="max-width:1100px;">
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% if msgs %}{% for cat,msg in msgs %}
+    <div class="alert alert-{{ cat }} alert-dismissible fade show py-2" style="border-radius:14px;border:none;">
+      <i class="bi bi-{{ 'check-circle-fill' if cat=='success' else 'exclamation-circle-fill' }} me-1"></i>{{ msg }}
+      <button type="button" class="btn-close py-2" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}{% endif %}
+  {% endwith %}
+
+  {# ── Today's Removals Banner ── #}
+  {% set today_removals = assignments|selectattr('end_date','equalto',today)|list %}
+  {% if today_removals %}
+  <div class="today-banner">
+    <h6><i class="bi bi-calendar-check me-1"></i>Removal Due Today</h6>
+    {% for a in today_removals %}
+    <div class="item d-flex justify-content-between align-items-center">
+      <span><strong>{{ a.standee_name }}</strong> at {{ a.apartment_name }} ({{ a.quantity }} units)</span>
+      {% if a.status != 'Removed' %}
+      <form method="post" action="/field/standees/update-status/{{ a.id }}/Removed" style="display:inline;">
+        <button class="action-btn remove"><i class="bi bi-trash"></i>Mark Removed</button>
+      </form>
+      {% else %}
+      <span class="action-btn done"><i class="bi bi-check"></i>Done</span>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# ── Calendar View ── #}
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0" style="font-weight:700;color:#1a2a3a;">
+      <i class="bi bi-calendar3 me-2" style="color:#00838f;"></i>
+      {{ today[:7] }} <span style="font-weight:400;font-size:.85rem;color:#8899aa;">Calendar View</span>
+    </h5>
+    <span class="badge-count" style="background:#e8edf2;padding:5px 14px;border-radius:20px;font-size:.75rem;font-weight:600;color:#4a5a6a;">
+      {{ assignments|length }} assignments
+    </span>
+  </div>
+
+  {% set month_start = today[:8] + '01' %}
+  {% set m = today[5:7]|int %}
+  {% set y = today[:4]|int %}
+  {# Simple calendar: first day of month, 42 cells #}
+  {% set days_in_month = [31,29 if y%4==0 and (y%100!=0 or y%400==0) else 28,31,30,31,30,31,31,30,31,30,31] %}
+  {% set dim = days_in_month[m-1] %}
+  {% set first_dow = 0 %}
+  {# We'll compute using a known reference: 2026-01-01 is Thursday=4 #}
+  {% set ref_y = 2026 %}{% set ref_m = 1 %}{% set ref_d = 1 %}{% set ref_dow = 4 %}
+  {# approximate: days from ref to month_start #}
+  {% set days_from_ref = (y - ref_y)*365 %}
+  {% set days_from_ref = days_from_ref + (y - ref_y + 3)//4 %}
+  {% for mm in range(1, m) %}{% set days_from_ref = days_from_ref + days_in_month[mm-1] %}{% endfor %}
+  {% set days_from_ref = days_from_ref - 1 %}
+  {% set first_dow = ((ref_dow + days_from_ref) % 7 + 7) % 7 %}
+
+  <div class="cal-wrap">
+    <div class="cal-header">
+      <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+    </div>
+    <div class="cal-grid">
+      {% for cell in range(42) %}
+        {% set day = cell - first_dow + 1 %}
+        {% if day >= 1 and day <= dim %}
+          {% set date_str = today[:8] + '%02d'|format(day) %}
+          {% set day_assignments = assignments|selectattr('start_date','equalto',date_str)|list + assignments|selectattr('end_date','equalto',date_str)|list %}
+          <div class="cal-day {{ 'today' if date_str == today }}">
+            <div class="day-num">{{ day }}</div>
+            {% for a in day_assignments %}
+              <div class="cal-event {{ 'place' if a.start_date==date_str else 'remove' }}">
+                {% if a.start_date == date_str %}📌{% else %}🗑️{% endif %}
+                {{ a.standee_name[:12] }}{{ '…' if a.standee_name|length>12 }}
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="cal-day other-month"><div class="day-num">&nbsp;</div></div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+
+  {# ── All Assignments Table ── #}
+  <div class="card mt-4">
+    <div class="card-header bg-white py-3 px-4" style="border-radius:16px 16px 0 0;border-bottom:1px solid #eef2f5;">
+      <h5 class="mb-0" style="font-weight:700;font-size:.9rem;color:#1a2a3a;">
+        <i class="bi bi-list me-2" style="color:#00838f;"></i>All My Assignments
+      </h5>
+    </div>
+    <div class="card-body p-0">
+      <table class="table table-hover mb-0">
+        <thead><tr>
+          <th>Standee</th><th>Apartment</th><th>Qty</th><th>Start</th><th>End</th><th>Status</th><th>Notes</th><th>Actions</th>
+        </tr></thead>
+        <tbody>
+          {% for a in assignments %}
+          <tr>
+            <td><strong style="color:#1a2a3a;">{{ a.standee_name }}</strong></td>
+            <td>{{ a.apartment_name }}</td>
+            <td class="fw-bold">{{ a.quantity }}</td>
+            <td style="font-size:.75rem;">{{ a.start_date }}</td>
+            <td style="font-size:.75rem;">{{ a.end_date }}</td>
+            <td><span class="status-badge status-{{ a.status }}">{{ a.status }}</span></td>
+            <td style="font-size:.72rem;color:#5a6a7a;">{{ a.notes or '—' }}</td>
+            <td>
+              {% if a.status == 'Pending' %}
+              <form method="post" action="/field/standees/update-status/{{ a.id }}/Placed" style="display:inline;">
+                <button class="action-btn place"><i class="bi bi-check-lg"></i>Mark Placed</button>
+              </form>
+              {% elif a.status == 'Placed' %}
+              <form method="post" action="/field/standees/update-status/{{ a.id }}/Removed" style="display:inline;">
+                <button class="action-btn remove"><i class="bi bi-trash"></i>Mark Removed</button>
+              </form>
+              {% else %}
+              <span class="action-btn done"><i class="bi bi-check-circle"></i>Done</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="8" class="text-center text-muted py-4">No standee assignments</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body></html>

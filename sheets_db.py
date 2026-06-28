@@ -62,10 +62,14 @@ class _SQLiteDB:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 standee_id INTEGER REFERENCES standees(id),
                 apartment_id INTEGER REFERENCES apartments(id),
+                assigned_to TEXT DEFAULT '',
                 start_date TEXT DEFAULT '',
                 end_date TEXT DEFAULT '',
                 quantity INTEGER DEFAULT 0,
                 notes TEXT DEFAULT '',
+                status TEXT DEFAULT 'Pending',
+                placed_at TEXT DEFAULT '',
+                removed_at TEXT DEFAULT '',
                 created_at TEXT DEFAULT ''
             );
         """)
@@ -73,6 +77,13 @@ class _SQLiteDB:
         # migrate existing tables if column missing
         try:
             self.conn.execute("ALTER TABLE apartments ADD COLUMN notes_for_field TEXT DEFAULT ''")
+        except:
+            pass
+        try:
+            self.conn.execute("ALTER TABLE standee_assignments ADD COLUMN assigned_to TEXT DEFAULT ''")
+            self.conn.execute("ALTER TABLE standee_assignments ADD COLUMN status TEXT DEFAULT 'Pending'")
+            self.conn.execute("ALTER TABLE standee_assignments ADD COLUMN placed_at TEXT DEFAULT ''")
+            self.conn.execute("ALTER TABLE standee_assignments ADD COLUMN removed_at TEXT DEFAULT ''")
         except:
             pass
 
@@ -213,34 +224,56 @@ class _SQLiteDB:
         self.conn.execute("DELETE FROM standees WHERE id=?", (int(standee_id),))
         self.conn.commit()
 
-    def assign_standee(self, standee_id, apartment_id, start_date, end_date, quantity, notes=""):
+    def assign_standee(self, standee_id, apartment_id, assigned_to, start_date, end_date, quantity, notes=""):
         now = _now_ist()
         cur = self.conn.execute(
-            "INSERT INTO standee_assignments (standee_id, apartment_id, start_date, end_date, quantity, notes, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (int(standee_id), int(apartment_id), start_date, end_date, int(quantity) if quantity else 0, notes or "", now),
+            "INSERT INTO standee_assignments (standee_id, apartment_id, assigned_to, start_date, end_date, quantity, notes, status, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, 'Pending', ?)",
+            (int(standee_id), int(apartment_id), assigned_to, start_date, end_date,
+             int(quantity) if quantity else 0, notes or "", now),
         )
         self.conn.commit()
         return cur.lastrowid
 
-    def get_assignments(self, apartment_id=None):
+    def get_assignments(self, apartment_id=None, assigned_to=None):
         sql = """SELECT sa.*, s.name as standee_name, a.apartment_name
                  FROM standee_assignments sa
                  JOIN standees s ON sa.standee_id = s.id
                  JOIN apartments a ON sa.apartment_id = a.id"""
         params = []
+        where = []
         if apartment_id:
-            sql += " WHERE sa.apartment_id=?"
+            where.append("sa.apartment_id=?")
             params.append(int(apartment_id))
+        if assigned_to:
+            where.append("sa.assigned_to=?")
+            params.append(assigned_to)
+        if where:
+            sql += " WHERE " + " AND ".join(where)
         sql += " ORDER BY sa.id DESC"
         rows = self.conn.execute(sql, params).fetchall()
         return [{
             "id": r["id"], "standee_id": r["standee_id"], "apartment_id": r["apartment_id"],
+            "assigned_to": r["assigned_to"],
             "start_date": r["start_date"], "end_date": r["end_date"],
             "quantity": r["quantity"], "notes": r["notes"],
+            "status": r["status"], "placed_at": r["placed_at"], "removed_at": r["removed_at"],
             "standee_name": r["standee_name"], "apartment_name": r["apartment_name"],
             "created_at": r["created_at"],
         } for r in rows]
+
+    def update_assignment_status(self, assignment_id, status):
+        now = _now_ist()
+        if status == "Placed":
+            self.conn.execute("UPDATE standee_assignments SET status=?, placed_at=? WHERE id=?",
+                              (status, now, int(assignment_id)))
+        elif status == "Removed":
+            self.conn.execute("UPDATE standee_assignments SET status=?, removed_at=? WHERE id=?",
+                              (status, now, int(assignment_id)))
+        else:
+            self.conn.execute("UPDATE standee_assignments SET status=? WHERE id=?",
+                              (status, int(assignment_id)))
+        self.conn.commit()
 
     def get_standee_usage(self, standee_id):
         row = self.conn.execute(
@@ -483,38 +516,55 @@ class _SupabaseDB:
         self.supabase.table("standee_assignments").delete().eq("standee_id", int(standee_id)).execute()
         self.supabase.table("standees").delete().eq("id", int(standee_id)).execute()
 
-    def assign_standee(self, standee_id, apartment_id, start_date, end_date, quantity, notes=""):
+    def assign_standee(self, standee_id, apartment_id, assigned_to, start_date, end_date, quantity, notes=""):
         data = {
             "standee_id": int(standee_id),
             "apartment_id": int(apartment_id),
+            "assigned_to": assigned_to,
             "start_date": start_date,
             "end_date": end_date,
             "quantity": int(quantity) if quantity else 0,
             "notes": notes or "",
+            "status": "Pending",
             "created_at": _now_ist(),
         }
         result = self.supabase.table("standee_assignments").insert(data).execute()
         return result.data[0]["id"] if result.data else None
 
-    def get_assignments(self, apartment_id=None):
+    def get_assignments(self, apartment_id=None, assigned_to=None):
         query = self.supabase.table("standee_assignments").select(
             "*, standees!inner(name), apartments!inner(apartment_name)"
         ).order("id", desc=True)
         if apartment_id:
             query = query.eq("apartment_id", int(apartment_id))
+        if assigned_to:
+            query = query.eq("assigned_to", assigned_to)
         result = query.execute()
         rows = []
         for r in result.data:
             rows.append({
                 "id": r["id"], "standee_id": r["standee_id"],
                 "apartment_id": r["apartment_id"],
+                "assigned_to": r.get("assigned_to", ""),
                 "start_date": r["start_date"], "end_date": r["end_date"],
                 "quantity": r["quantity"], "notes": r.get("notes", ""),
+                "status": r.get("status", "Pending"),
+                "placed_at": r.get("placed_at", ""),
+                "removed_at": r.get("removed_at", ""),
                 "standee_name": r["standees"]["name"] if r.get("standees") else "",
                 "apartment_name": r["apartments"]["apartment_name"] if r.get("apartments") else "",
                 "created_at": r.get("created_at", ""),
             })
         return rows
+
+    def update_assignment_status(self, assignment_id, status):
+        now = _now_ist()
+        updates = {"status": status}
+        if status == "Placed":
+            updates["placed_at"] = now
+        elif status == "Removed":
+            updates["removed_at"] = now
+        self.supabase.table("standee_assignments").update(updates).eq("id", int(assignment_id)).execute()
 
     def get_standee_usage(self, standee_id):
         result = self.supabase.table("standee_assignments").select("quantity").eq("standee_id", int(standee_id)).execute()
