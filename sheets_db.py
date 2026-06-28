@@ -244,6 +244,25 @@ class _SQLiteDB:
         self.conn.execute("DELETE FROM standees WHERE id=?", (int(standee_id),))
         self.conn.commit()
 
+    def get_active_placements(self):
+        """Return apartments where standees are currently Placed (for pickup source)."""
+        rows = self.conn.execute(
+            """SELECT DISTINCT a.id, a.apartment_name, a.hub_name, sa.standee_id, s.name AS standee_name, sa.quantity
+               FROM standee_assignments sa
+               JOIN apartments a ON a.id=sa.apartment_id
+               JOIN standees s ON s.id=sa.standee_id
+               WHERE sa.status='Placed'
+               ORDER BY a.apartment_name"""
+        ).fetchall()
+        return [{
+            "apartment_id": r["id"],
+            "apartment_name": r["apartment_name"],
+            "hub_name": r["hub_name"],
+            "standee_id": r["standee_id"],
+            "standee_name": r["standee_name"],
+            "quantity": r["quantity"],
+        } for r in rows]
+
     def assign_standee(self, standee_id, apartment_id, assigned_to, start_date, end_date, quantity, notes="", collection_location=""):
         now = _now_ist()
         cur = self.conn.execute(
@@ -664,6 +683,28 @@ class _SupabaseDB:
     def delete_standee(self, standee_id):
         self.supabase.table("standee_assignments").delete().eq("standee_id", int(standee_id)).execute()
         self.supabase.table("standees").delete().eq("id", int(standee_id)).execute()
+
+    def get_active_placements(self):
+        """Return apartments where standees are currently Placed (for pickup source)."""
+        result = self.supabase.table("standee_assignments").select(
+            "apartment_id, standee_id, quantity, apartments!inner(apartment_name, hub_name), standees!inner(name)"
+        ).eq("status", "Placed").execute()
+        seen = {}
+        out = []
+        for r in result.data:
+            aid = r["apartment_id"]
+            if aid not in seen:
+                seen[aid] = True
+                out.append({
+                    "apartment_id": aid,
+                    "apartment_name": r["apartments"]["apartment_name"],
+                    "hub_name": r["apartments"]["hub_name"],
+                    "standee_id": r["standee_id"],
+                    "standee_name": r["standees"]["name"],
+                    "quantity": r["quantity"],
+                })
+        out.sort(key=lambda x: x["apartment_name"])
+        return out
 
     def assign_standee(self, standee_id, apartment_id, assigned_to, start_date, end_date, quantity, notes="", collection_location=""):
         data = {

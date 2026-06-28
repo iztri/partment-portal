@@ -194,6 +194,7 @@ def marketing_standees():
         {"username": u, "name": info["name"]}
         for u, info in USERS.items() if info["role"] == "field"
     ]
+    active_placements = db.get_active_placements()
     return render_template(
         "marketing_standees.html",
         standees=standees,
@@ -205,6 +206,7 @@ def marketing_standees():
         standee_activity=standee_activity,
         standee_stats={"total": total_assignments, "placed": placed_count, "removed": removed_count, "pending": pending_count},
         hub_names=HUB_NAMES,
+        active_placements=active_placements,
     )
 
 
@@ -273,6 +275,8 @@ def assign_standee():
     col_detail = request.form.get("collection_location_detail", "").strip()
     if col_hub == "__custom__":
         collection_location = col_detail
+    elif col_hub.startswith("apt:"):
+        collection_location = col_hub[4:]
     else:
         collection_location = (col_hub + " - " + col_detail).strip(" -") if col_hub else col_detail
     if not all([standee_id, apartment_id, assigned_to, start_date, end_date, quantity]):
@@ -298,6 +302,8 @@ def edit_assignment(assignment_id):
     col_detail = request.form.get("collection_location_detail", "").strip()
     if col_hub == "__custom__":
         collection_location = col_detail
+    elif col_hub.startswith("apt:"):
+        collection_location = col_hub[4:]
     else:
         collection_location = (col_hub + " - " + col_detail).strip(" -") if col_hub else col_detail
     kwargs = {}

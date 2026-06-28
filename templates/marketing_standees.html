@@ -205,11 +205,18 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
               <label class="form-label small fw-semibold">Collection Location <span class="text-muted" style="font-weight:400;">(where field team picks up from)</span></label>
               <div class="row g-2">
                 <div class="col-md-6">
-                  <select name="collection_location" class="form-select">
-                    <option value="">— Select Hub —</option>
-                    {% for h in hub_names %}
-                    <option value="{{ h }}">{{ h }}</option>
-                    {% endfor %}
+                  <select name="collection_location" class="form-select" id="collectionSelect">
+                    <option value="">— Select Hub or Active Apartment —</option>
+                    <optgroup label="Active Placements (Live Standees)">
+                      {% for p in active_placements %}
+                      <option value="apt:{{ p.apartment_name }} ({{ p.hub_name }})">{{ p.standee_name }} → {{ p.apartment_name }} ({{ p.hub_name }})</option>
+                      {% endfor %}
+                    </optgroup>
+                    <optgroup label="Hubs">
+                      {% for h in hub_names %}
+                      <option value="{{ h }}">{{ h }}</option>
+                      {% endfor %}
+                    </optgroup>
                     <option value="__custom__">Other (type below)</option>
                   </select>
                 </div>
@@ -473,14 +480,24 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
             <div class="row g-2">
               <div class="col-md-6">
                 <select name="collection_location" class="form-select">
-                  <option value="">— Select Hub —</option>
-                  {% for h in hub_names %}
-                  <option value="{{ h }}" {{ 'selected' if a.collection_location and h in a.collection_location }}>{{ h }}</option>
-                  {% endfor %}
+                  <option value="">— Select Hub or Active Apartment —</option>
+                  {% if active_placements %}
+                  <optgroup label="Active Placements">
+                    {% for p in active_placements %}
+                    <option value="apt:{{ p.apartment_name }} ({{ p.hub_name }})" {{ 'selected' if a.collection_location and p.apartment_name in a.collection_location }}>{{ p.standee_name }} → {{ p.apartment_name }}</option>
+                    {% endfor %}
+                  </optgroup>
+                  {% endif %}
+                  <optgroup label="Hubs">
+                    {% for h in hub_names %}
+                    <option value="{{ h }}" {{ 'selected' if a.collection_location and h in a.collection_location }}>{{ h }}</option>
+                    {% endfor %}
+                  </optgroup>
+                  <option value="__custom__">Other (type below)</option>
                 </select>
               </div>
               <div class="col-md-6">
-                <input type="text" name="collection_location_detail" class="form-control" placeholder="Detail" value="{{ a.collection_location.replace(',' , '') if a.collection_location else '' }}">
+                <input type="text" name="collection_location_detail" class="form-control" placeholder="Detail" value="">
               </div>
             </div>
           </div>
