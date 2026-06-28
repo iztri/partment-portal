@@ -195,7 +195,7 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
               </td>
               <td>
                 {% if a.status == 'Pending' %}
-                <button class="action-btn place" style="padding:6px 14px;font-size:.7rem;" onclick="openActionModal('place',{{ a.id }},'{{ a.standee_name|e }}','{{ a.apartment_name|e }}',{{ a.quantity }})"><i class="bi bi-check-lg"></i>Place</button>
+                <button class="action-btn place" style="padding:6px 14px;font-size:.7rem;" onclick="openActionModal('place',{{ a.id }},'{{ a.standee_name|e }}','{{ a.apartment_name|e }}',{{ a.quantity }},'{{ a.collection_location|e }}')"><i class="bi bi-check-lg"></i>Place</button>
                 {% elif a.status == 'Placed' %}
                 <button class="action-btn remove" style="padding:6px 14px;font-size:.7rem;" onclick="openActionModal('remove',{{ a.id }},'{{ a.standee_name|e }}','{{ a.apartment_name|e }}',{{ a.quantity }})"><i class="bi bi-trash"></i>Remove</button>
                 {% else %}
@@ -232,9 +232,12 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
           {# Only show location fields on the standalone page where we have access to standees #}
           {% endif %}
 
-          {# ── Collection / Return Location ── #}
-          <div id="locationSection" class="mb-3">
-            <label class="form-label small fw-semibold" id="locationLabel">Collection Location <span class="text-muted" style="font-weight:400;">(where to collect from)</span></label>
+          {# ── Collection Location (pre-set by marketing, shown on Place) ── #}
+          <div id="collectionSection" class="mb-3">
+            <label class="form-label small fw-semibold">Collection Location <span class="text-muted" style="font-weight:400;">(where to collect from)</span></label>
+            <div id="collectionInfo" class="mb-2" style="display:none;padding:8px 12px;background:#e8f5e9;border-radius:8px;font-size:.8rem;color:#2e7d32;border-left:3px solid #43a047;">
+              <i class="bi bi-info-circle me-1"></i><span id="collectionInfoText"></span>
+            </div>
             <div class="row g-2">
               <div class="col-md-6">
                 <select name="location_hub" class="form-select" id="locationHub" style="border-radius:10px;padding:9px 12px;border:2px solid #e8edf2;font-size:.82rem;">
@@ -249,9 +252,29 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
                 <input type="text" name="location_detail" id="locationDetail" class="form-control" placeholder="Floor, block, room no..." style="border-radius:10px;padding:9px 12px;border:2px solid #e8edf2;font-size:.82rem;">
               </div>
             </div>
-            <input type="hidden" name="collection_location" id="collectionLocationHidden" value="">
-            <input type="hidden" name="return_location" id="returnLocationHidden" value="">
           </div>
+
+          {# ── Return / Drop Location (filled by field on Remove) ── #}
+          <div id="returnSection" class="mb-3" style="display:none;">
+            <label class="form-label small fw-semibold">Drop Location <span class="text-muted" style="font-weight:400;">(where to return after removal)</span></label>
+            <div class="row g-2">
+              <div class="col-md-6">
+                <select name="return_hub" class="form-select" id="returnHub" style="border-radius:10px;padding:9px 12px;border:2px solid #e8edf2;font-size:.82rem;">
+                  <option value="">— Select Hub —</option>
+                  {% for h in hub_names %}
+                  <option value="{{ h }}">{{ h }}</option>
+                  {% endfor %}
+                  <option value="__custom__">Other (type below)</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <input type="text" name="return_detail" id="returnDetail" class="form-control" placeholder="Floor, block, room no..." style="border-radius:10px;padding:9px 12px;border:2px solid #e8edf2;font-size:.82rem;">
+              </div>
+            </div>
+          </div>
+
+          <input type="hidden" name="collection_location" id="collectionLocationHidden" value="">
+          <input type="hidden" name="return_location" id="returnLocationHidden" value="">
 
           {# ── Damage Reporting ── #}
           <div class="mb-3">
@@ -281,7 +304,7 @@ const hubNames = {{ hub_names | tojson | safe }};
 
 let pendingAction = null;
 
-function openActionModal(action, id, name, apartment, qty){
+function openActionModal(action, id, name, apartment, qty, collectionLocation){
   pendingAction = { action, id };
   const modal = new bootstrap.Modal(document.getElementById('actionModal'));
   document.querySelector('#actionModalTitle span').textContent = action === 'place' ? 'Place Standee' : 'Remove Standee';
@@ -289,24 +312,35 @@ function openActionModal(action, id, name, apartment, qty){
   document.getElementById('actionApartment').textContent = apartment;
   document.getElementById('actionQty').textContent = qty;
 
-  const locSection = document.getElementById('locationSection');
-  const locLabel = document.getElementById('locationLabel');
+  const collSection = document.getElementById('collectionSection');
+  const retSection = document.getElementById('returnSection');
+  const collInfo = document.getElementById('collectionInfo');
+  const collInfoText = document.getElementById('collectionInfoText');
   const submitBtn = document.getElementById('actionSubmitBtn');
 
   if(action === 'place'){
-    locSection.style.display = 'block';
-    locLabel.innerHTML = 'Collection Location <span class="text-muted" style="font-weight:400;">(where to collect from)</span>';
+    collSection.style.display = 'block';
+    retSection.style.display = 'none';
+    if(collectionLocation){
+      collInfo.style.display = 'block';
+      collInfoText.textContent = 'Pre-set by marketing: ' + collectionLocation;
+    } else {
+      collInfo.style.display = 'none';
+    }
     submitBtn.innerHTML = '<i class="bi bi-check-lg"></i> Mark Placed';
     submitBtn.className = 'btn btn-primary btn-sm';
+    document.getElementById('actionForm').querySelector('[name="damage_reported"]').closest('.mb-3').style.display = 'block';
   } else {
-    locSection.style.display = 'block';
-    locLabel.innerHTML = 'Return Location <span class="text-muted" style="font-weight:400;">(where you kept it back)</span>';
+    collSection.style.display = 'none';
+    retSection.style.display = 'block';
     submitBtn.innerHTML = '<i class="bi bi-trash"></i> Mark Removed';
     submitBtn.className = 'btn btn-danger btn-sm';
   }
 
   document.getElementById('locationHub').value = '';
   document.getElementById('locationDetail').value = '';
+  document.getElementById('returnHub').value = '';
+  document.getElementById('returnDetail').value = '';
   document.querySelector('[name="damage_reported"]').value = '0';
   document.querySelector('[name="damage_details"]').value = '';
 
@@ -317,25 +351,33 @@ document.getElementById('actionForm').addEventListener('submit', function(e){
   e.preventDefault();
   if(!pendingAction) return;
 
-  const hub = document.getElementById('locationHub').value;
-  const detail = document.getElementById('locationDetail').value.trim();
-  let locationStr = '';
-  if(hub === '__custom__'){
-    locationStr = detail || '';
-  } else if(hub){
-    locationStr = hub + (detail ? ', ' + detail : '');
+  const action = pendingAction.action;
+  let collLoc = '', retLoc = '';
+
+  if(action === 'place'){
+    const hub = document.getElementById('locationHub').value;
+    const detail = document.getElementById('locationDetail').value.trim();
+    if(hub === '__custom__'){
+      collLoc = detail || '';
+    } else if(hub){
+      collLoc = hub + (detail ? ', ' + detail : '');
+    } else {
+      collLoc = detail || '';
+    }
   } else {
-    locationStr = detail || '';
+    const hub = document.getElementById('returnHub').value;
+    const detail = document.getElementById('returnDetail').value.trim();
+    if(hub === '__custom__'){
+      retLoc = detail || '';
+    } else if(hub){
+      retLoc = hub + (detail ? ', ' + detail : '');
+    } else {
+      retLoc = detail || '';
+    }
   }
 
-  const action = pendingAction.action;
-  if(action === 'place'){
-    document.getElementById('collectionLocationHidden').value = locationStr;
-    document.getElementById('returnLocationHidden').value = '';
-  } else {
-    document.getElementById('returnLocationHidden').value = locationStr;
-    document.getElementById('collectionLocationHidden').value = '';
-  }
+  document.getElementById('collectionLocationHidden').value = collLoc;
+  document.getElementById('returnLocationHidden').value = retLoc;
 
   const form = document.getElementById('actionForm');
   form.action = '/field/standees/update-status/' + pendingAction.id + '/' + (action === 'place' ? 'Placed' : 'Removed');

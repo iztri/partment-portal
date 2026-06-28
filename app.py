@@ -269,10 +269,16 @@ def assign_standee():
     end_date = request.form.get("end_date", "").strip()
     quantity = request.form.get("quantity", "0").strip()
     notes = request.form.get("notes", "").strip()
+    col_hub = request.form.get("collection_location", "").strip()
+    col_detail = request.form.get("collection_location_detail", "").strip()
+    if col_hub == "__custom__":
+        collection_location = col_detail
+    else:
+        collection_location = (col_hub + " - " + col_detail).strip(" -") if col_hub else col_detail
     if not all([standee_id, apartment_id, assigned_to, start_date, end_date, quantity]):
         flash("All fields except notes are required", "danger")
         return redirect(url_for("marketing_standees"))
-    db.assign_standee(standee_id, apartment_id, assigned_to, start_date, end_date, quantity, notes)
+    db.assign_standee(standee_id, apartment_id, assigned_to, start_date, end_date, quantity, notes, collection_location)
     flash("Standee assigned ✓", "success")
     return redirect(url_for("marketing_standees"))
 
@@ -288,6 +294,12 @@ def edit_assignment(assignment_id):
     end_date = request.form.get("end_date", "").strip()
     quantity = request.form.get("quantity", "").strip()
     notes = request.form.get("notes", "").strip()
+    col_hub = request.form.get("collection_location", "").strip()
+    col_detail = request.form.get("collection_location_detail", "").strip()
+    if col_hub == "__custom__":
+        collection_location = col_detail
+    else:
+        collection_location = (col_hub + " - " + col_detail).strip(" -") if col_hub else col_detail
     kwargs = {}
     if standee_id: kwargs["standee_id"] = int(standee_id)
     if apartment_id: kwargs["apartment_id"] = int(apartment_id)
@@ -296,6 +308,7 @@ def edit_assignment(assignment_id):
     if end_date: kwargs["end_date"] = end_date
     if quantity: kwargs["quantity"] = int(quantity)
     kwargs["notes"] = notes
+    kwargs["collection_location"] = collection_location
     db.update_assignment(assignment_id, **kwargs)
     flash("Assignment updated ✓", "success")
     return redirect(url_for("marketing_standees"))

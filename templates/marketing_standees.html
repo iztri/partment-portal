@@ -235,6 +235,23 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
                 <input type="text" name="notes" class="form-control" placeholder="e.g. Main entrance">
               </div>
             </div>
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Collection Location <span class="text-muted" style="font-weight:400;">(where field team picks up from)</span></label>
+              <div class="row g-2">
+                <div class="col-md-6">
+                  <select name="collection_location" class="form-select">
+                    <option value="">— Select Hub —</option>
+                    {% for h in hub_names %}
+                    <option value="{{ h }}">{{ h }}</option>
+                    {% endfor %}
+                    <option value="__custom__">Other (type below)</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <input type="text" name="collection_location_detail" class="form-control" placeholder="Floor, block, room no..." style="font-size:.82rem;">
+                </div>
+              </div>
+            </div>
             <button type="submit" class="btn btn-primary w-100"><i class="bi bi-send me-1"></i>Assign</button>
           </form>
         </div>
@@ -248,7 +265,7 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
             <div class="table-responsive">
               <table class="table table-hover mb-0">
                 <thead><tr>
-                  <th>Apartment</th><th>Standee</th><th>Qty</th><th>Field User</th><th>Start</th><th>End</th><th>Status</th><th>Notes</th><th style="width:50px;">Actions</th>
+                  <th>Apartment</th><th>Standee</th><th>Qty</th><th>Field User</th><th>Start</th><th>End</th><th>Status</th><th>Collection</th><th>Notes</th><th style="width:50px;">Actions</th>
                 </tr></thead>
                 <tbody>
                   {% for a in assignments %}
@@ -260,6 +277,7 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
                     <td style="font-size:.75rem;">{{ a.start_date }}</td>
                     <td style="font-size:.75rem;">{{ a.end_date }}</td>
                     <td><span class="avail-badge {{ 'avail-yes' if a.status in ('Placed','Removed') else 'avail-no' }}" style="font-size:.65rem;">{{ a.status }}</span></td>
+                    <td style="font-size:.72rem;color:#00695c;">{{ a.collection_location or '—' }}</td>
                     <td style="font-size:.72rem;color:#5a6a7a;">{{ a.notes or '—' }}</td>
                     <td><button class="btn btn-sm btn-outline-primary py-1 px-2" style="border-radius:8px;font-size:.7rem;" data-bs-toggle="modal" data-bs-target="#editAssign{{ a.id }}"><i class="bi bi-pencil"></i></button></td>
                   </tr>
@@ -337,6 +355,22 @@ body{background:#f4f7fa;margin-left:230px;padding:24px;}
           <div class="row g-2 mb-2">
             <div class="col-6"><label class="form-label small fw-semibold">Quantity</label><input type="number" name="quantity" class="form-control" value="{{ a.quantity }}" min="0"></div>
             <div class="col-6"><label class="form-label small fw-semibold">Notes</label><input type="text" name="notes" class="form-control" value="{{ a.notes }}"></div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Collection Location</label>
+            <div class="row g-2">
+              <div class="col-md-6">
+                <select name="collection_location" class="form-select">
+                  <option value="">— Select Hub —</option>
+                  {% for h in hub_names %}
+                  <option value="{{ h }}" {{ 'selected' if a.collection_location and h in a.collection_location }}>{{ h }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-6">
+                <input type="text" name="collection_location_detail" class="form-control" placeholder="Detail" value="{{ a.collection_location.replace(',' , '') if a.collection_location else '' }}">
+              </div>
+            </div>
           </div>
         </div>
         <div class="modal-footer" style="border-top:1px solid #eef2f5;">
@@ -446,6 +480,7 @@ function openStandeeDetail(id){
                 ${h.assigned_to ? '<strong>'+h.assigned_to+'</strong> &middot; ' : ''}
                 ${h.start_date} \u2192 ${h.end_date}
                 ${h.damage_reported > 0 ? ' &middot; <span style="color:#c62828;">\u26a0 '+h.damage_reported+' damaged</span>' : ''}
+                ${h.collection_location ? ' &middot; Collected: '+h.collection_location : ''}
                 ${h.return_location ? ' &middot; Returned: '+h.return_location : ''}
               </div>
             </div>

@@ -244,13 +244,13 @@ class _SQLiteDB:
         self.conn.execute("DELETE FROM standees WHERE id=?", (int(standee_id),))
         self.conn.commit()
 
-    def assign_standee(self, standee_id, apartment_id, assigned_to, start_date, end_date, quantity, notes=""):
+    def assign_standee(self, standee_id, apartment_id, assigned_to, start_date, end_date, quantity, notes="", collection_location=""):
         now = _now_ist()
         cur = self.conn.execute(
-            "INSERT INTO standee_assignments (standee_id, apartment_id, assigned_to, start_date, end_date, quantity, notes, status, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, 'Pending', ?)",
+            "INSERT INTO standee_assignments (standee_id, apartment_id, assigned_to, start_date, end_date, quantity, notes, collection_location, status, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pending', ?)",
             (int(standee_id), int(apartment_id), assigned_to, start_date, end_date,
-             int(quantity) if quantity else 0, notes or "", now),
+             int(quantity) if quantity else 0, notes or "", collection_location, now),
         )
         self.conn.commit()
         return cur.lastrowid
@@ -325,7 +325,7 @@ class _SQLiteDB:
     def update_assignment(self, assignment_id, **kwargs):
         fields = []
         vals = []
-        for k in ("standee_id", "apartment_id", "assigned_to", "start_date", "end_date", "quantity", "notes"):
+        for k in ("standee_id", "apartment_id", "assigned_to", "start_date", "end_date", "quantity", "notes", "collection_location"):
             if k in kwargs and kwargs[k] is not None:
                 fields.append(f"{k}=?")
                 vals.append(kwargs[k])
@@ -664,7 +664,7 @@ class _SupabaseDB:
         self.supabase.table("standee_assignments").delete().eq("standee_id", int(standee_id)).execute()
         self.supabase.table("standees").delete().eq("id", int(standee_id)).execute()
 
-    def assign_standee(self, standee_id, apartment_id, assigned_to, start_date, end_date, quantity, notes=""):
+    def assign_standee(self, standee_id, apartment_id, assigned_to, start_date, end_date, quantity, notes="", collection_location=""):
         data = {
             "standee_id": int(standee_id),
             "apartment_id": int(apartment_id),
@@ -673,6 +673,7 @@ class _SupabaseDB:
             "end_date": end_date,
             "quantity": int(quantity) if quantity else 0,
             "notes": notes or "",
+            "collection_location": collection_location,
             "status": "Pending",
             "created_at": _now_ist(),
         }
@@ -757,7 +758,7 @@ class _SupabaseDB:
 
     def update_assignment(self, assignment_id, **kwargs):
         updates = {}
-        for k in ("standee_id", "apartment_id", "assigned_to", "start_date", "end_date", "quantity", "notes"):
+        for k in ("standee_id", "apartment_id", "assigned_to", "start_date", "end_date", "quantity", "notes", "collection_location"):
             if k in kwargs and kwargs[k] is not None:
                 updates[k] = kwargs[k]
         if updates:
@@ -803,6 +804,7 @@ class _SupabaseDB:
                 "quantity": r["quantity"], "notes": r.get("notes", ""),
                 "damage_reported": r.get("damage_reported", 0) or 0,
                 "damage_details": r.get("damage_details", "") or "",
+                "collection_location": r.get("collection_location", "") or "",
                 "return_location": r.get("return_location", "") or "",
             }
             assignments.append(row)
