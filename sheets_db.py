@@ -771,7 +771,10 @@ class _SupabaseDB:
             query = query.eq("apartment_id", int(apartment_id))
         if assigned_to:
             query = query.eq("assigned_to", assigned_to)
-        result = query.execute()
+        try:
+            result = query.execute()
+        except Exception:
+            return []
         rows = []
         for r in result.data:
             rows.append({
@@ -794,11 +797,14 @@ class _SupabaseDB:
         return rows
 
     def get_standee_tasks_for_user(self, username, date):
-        result = self.supabase.table("standee_assignments").select(
-            "*, standees!inner(name), apartments!inner(apartment_name)"
-        ).eq("assigned_to", username).or_(
-            f"start_date.eq.{date},end_date.eq.{date}"
-        ).order("id", desc=True).execute()
+        try:
+            result = self.supabase.table("standee_assignments").select(
+                "*, standees!inner(name), apartments!inner(apartment_name)"
+            ).eq("assigned_to", username).or_(
+                f"start_date.eq.{date},end_date.eq.{date}"
+            ).order("id", desc=True).execute()
+        except Exception:
+            return []
         out = []
         for r in result.data:
             status = r.get("status", "Pending")
