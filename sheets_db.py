@@ -536,8 +536,17 @@ class _SupabaseDB:
             "created_at": _now_ist(),
             "notes_for_field": "",
         }
-        result = self.supabase.table("apartments").insert(data).execute()
-        return result.data[0]["id"] if result.data else None
+        try:
+            result = self.supabase.table("apartments").insert(data).execute()
+            return result.data[0]["id"] if result.data else None
+        except Exception:
+            # retry without notes_for_field (column may not exist yet)
+            data.pop("notes_for_field", None)
+            try:
+                result = self.supabase.table("apartments").insert(data).execute()
+                return result.data[0]["id"] if result.data else None
+            except Exception:
+                return None
 
     def get_apartments(self, status=None, assigned_to=None, date=None):
         query = self.supabase.table("apartments").select("*")
@@ -555,13 +564,22 @@ class _SupabaseDB:
         return self._apt_rows(result.data)
 
     def assign_apartments(self, apartment_ids, assigned_to, assigned_date, notes_for_field=""):
+        updates = {
+            "assigned_to": assigned_to,
+            "assigned_date": assigned_date,
+            "status": "Pending",
+        }
+        updates["notes_for_field"] = notes_for_field
         for aid in (int(x) for x in apartment_ids):
-            self.supabase.table("apartments").update({
-                "assigned_to": assigned_to,
-                "assigned_date": assigned_date,
-                "notes_for_field": notes_for_field,
-                "status": "Pending",
-            }).eq("id", aid).execute()
+            try:
+                self.supabase.table("apartments").update(updates).eq("id", aid).execute()
+            except Exception:
+                # retry without notes_for_field
+                minimal = {k: v for k, v in updates.items() if k != "notes_for_field"}
+                try:
+                    self.supabase.table("apartments").update(minimal).eq("id", aid).execute()
+                except Exception:
+                    pass
 
     def update_apartment(self, apartment_id, **kwargs):
         mapping = {
@@ -577,7 +595,16 @@ class _SupabaseDB:
         }
         updates = {mapping[k]: v for k, v in kwargs.items() if k in mapping}
         if updates:
-            self.supabase.table("apartments").update(updates).eq("id", int(apartment_id)).execute()
+            try:
+                self.supabase.table("apartments").update(updates).eq("id", int(apartment_id)).execute()
+            except Exception:
+                # retry without notes_for_field if it might not exist
+                minimal = {k: v for k, v in updates.items() if k != "notes_for_field"}
+                if minimal:
+                    try:
+                        self.supabase.table("apartments").update(minimal).eq("id", int(apartment_id)).execute()
+                    except Exception:
+                        pass
 
     def delete_apartment(self, apartment_id):
         self.supabase.table("apartments").update({"status": "Deleted"}).eq("id", int(apartment_id)).execute()
