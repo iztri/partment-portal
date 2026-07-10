@@ -15,7 +15,7 @@ USERS = {
     "rohit":  {"password": "rohit@123",  "role": "marketing", "name": "Rohit - Marketing"},
     "deva":   {"password": "deva@123",   "role": "marketing", "name": "Deva - Marketing"},
     "gowtham": {"password": "iztri@123", "role": "marketing", "name": "Gowtham - Marketing"},
-    "abishek": {"password": "abishek@123", "role": "marketing", "name": "Abishek - Marketing"},
+    "abishek": {"password": "abishek@123", "role": "field", "name": "Abishek - Field"},
     "akshay": {"password": "akshay@123", "role": "field",     "name": "Akshay - Field"},
 }
 
