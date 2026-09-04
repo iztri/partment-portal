@@ -27,6 +27,8 @@
   .photo-thumb button{position:absolute; top:3px; right:3px; width:22px; height:22px; border-radius:50%;
     border:none; background:rgba(16,24,40,.65); color:#fff; font-size:12px; line-height:1; cursor:pointer;}
   .copy-row{display:flex; align-items:center; gap:8px;}
+  .photo-btns{display:flex; gap:8px;}
+  .photo-btns .btn{flex:1; justify-content:center;}
   .save-bar{position:sticky; bottom:0; z-index:10; padding-top:12px; margin-top:6px;}
   .save-bar .btn{width:100%; padding:13px; font-size:14px;}
   @media(max-width:560px){.save-bar{margin:0 -16px; padding:12px 16px; background:var(--surface); border-top:1px solid var(--border);}}
@@ -71,8 +73,12 @@
     <div class="card-head"><h2>Confirm placement</h2><span class="sub">add at least one photo</span></div>
     <div class="card-body">
       <div id="photoGrid" class="photo-grid"></div>
-      <button type="button" class="btn btn-default btn-block" id="addPhotoBtn"><i class="bi bi-camera"></i>Add photo</button>
-      <input type="file" id="photoPicker" accept="image/*" capture="environment" hidden>
+      <div class="photo-btns">
+        <button type="button" class="btn btn-default" id="takePhotoBtn"><i class="bi bi-camera"></i>Take photo</button>
+        <button type="button" class="btn btn-default" id="galleryBtn"><i class="bi bi-images"></i>Choose from gallery</button>
+      </div>
+      <input type="file" id="cameraPicker" accept="image/*" capture="environment" hidden>
+      <input type="file" id="galleryPicker" accept="image/*" multiple hidden>
       <input type="file" name="photos" id="photosReal" multiple hidden>
     </div>
   </div>
@@ -109,8 +115,12 @@
         <div class="field">
           <label>Damage photos</label>
           <div id="dmgGrid" class="photo-grid"></div>
-          <button type="button" class="btn btn-default btn-block" id="addDmgBtn"><i class="bi bi-camera"></i>Add photo</button>
-          <input type="file" id="dmgPicker" accept="image/*" capture="environment" hidden>
+          <div class="photo-btns">
+            <button type="button" class="btn btn-default" id="takeDmgBtn"><i class="bi bi-camera"></i>Take photo</button>
+            <button type="button" class="btn btn-default" id="galleryDmgBtn"><i class="bi bi-images"></i>Choose from gallery</button>
+          </div>
+          <input type="file" id="dmgCameraPicker" accept="image/*" capture="environment" hidden>
+          <input type="file" id="dmgGalleryPicker" accept="image/*" multiple hidden>
           <input type="file" name="damage_photos" id="dmgReal" multiple hidden>
         </div>
       </div>
@@ -157,11 +167,11 @@
     });
   }
 
-  function photoPicker(pickBtnId, pickerId, gridId, realInputId){
+  function photoPicker(cfg){
+    var grid = document.getElementById(cfg.grid);
+    if(!grid) return;
+    var real = document.getElementById(cfg.real);
     var files = [];
-    var pickBtn = document.getElementById(pickBtnId);
-    if(!pickBtn) return;
-    var picker = document.getElementById(pickerId), grid = document.getElementById(gridId), real = document.getElementById(realInputId);
     function render(){
       grid.innerHTML = files.map(function(f, i){
         return '<div class="photo-thumb"><img src="' + URL.createObjectURL(f) + '">' +
@@ -176,14 +186,21 @@
       files.forEach(function(f){ dt.items.add(f); });
       real.files = dt.files;
     }
-    pickBtn.addEventListener('click', function(){ picker.click(); });
-    picker.addEventListener('change', function(){
-      if(picker.files[0]){ files.push(picker.files[0]); render(); sync(); }
-      picker.value = '';
-    });
+    function wire(btnId, pickerId){
+      var btn = document.getElementById(btnId), picker = document.getElementById(pickerId);
+      if(!btn || !picker) return;
+      btn.addEventListener('click', function(){ picker.click(); });
+      picker.addEventListener('change', function(){
+        Array.prototype.forEach.call(picker.files, function(f){ files.push(f); });
+        render(); sync();
+        picker.value = '';
+      });
+    }
+    wire(cfg.cameraBtn, cfg.cameraPicker);
+    wire(cfg.galleryBtn, cfg.galleryPicker);
   }
-  photoPicker('addPhotoBtn', 'photoPicker', 'photoGrid', 'photosReal');
-  photoPicker('addDmgBtn', 'dmgPicker', 'dmgGrid', 'dmgReal');
+  photoPicker({cameraBtn:'takePhotoBtn', cameraPicker:'cameraPicker', galleryBtn:'galleryBtn', galleryPicker:'galleryPicker', grid:'photoGrid', real:'photosReal'});
+  photoPicker({cameraBtn:'takeDmgBtn', cameraPicker:'dmgCameraPicker', galleryBtn:'galleryDmgBtn', galleryPicker:'dmgGalleryPicker', grid:'dmgGrid', real:'dmgReal'});
 
   var qtyDamaged = document.getElementById('qtyDamaged');
   if(qtyDamaged){
