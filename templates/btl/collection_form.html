@@ -54,6 +54,8 @@
   <div class="card" id="yesBlock">
     <div class="card-head"><h2>Contact</h2></div>
     <div class="card-body">
+      <div class="field"><label>Contact name <span class="hint">optional</span></label>
+        <input type="text" name="contact_name" value="{{ collection.contact_name if collection and collection.outcome=='number' else '' }}" placeholder="e.g. Ramesh Kumar"></div>
       <div class="grid-2">
         <div class="field"><label>Contact number</label>
           <input type="tel" name="phone" inputmode="tel" value="{{ collection.phone if collection and collection.outcome=='number' else '' }}" placeholder="e.g. 9876543210"></div>

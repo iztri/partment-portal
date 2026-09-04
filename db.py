@@ -66,6 +66,7 @@ class SQLiteDatabase:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 apartment_id INTEGER NOT NULL UNIQUE REFERENCES apartments(id) ON DELETE CASCADE,
                 outcome TEXT NOT NULL DEFAULT 'number',       -- 'number' | 'no_number'
+                contact_name TEXT NOT NULL DEFAULT '',
                 phone TEXT NOT NULL DEFAULT '',
                 designation TEXT NOT NULL DEFAULT '',
                 no_number_reason TEXT NOT NULL DEFAULT '',
@@ -81,9 +82,64 @@ class SQLiteDatabase:
                 price REAL NOT NULL DEFAULT 0,
                 days INTEGER NOT NULL DEFAULT 0
             );
+
+            CREATE TABLE IF NOT EXISTS standees (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                photo_path TEXT NOT NULL DEFAULT '',
+                total_units INTEGER NOT NULL DEFAULT 0,
+                storage_location TEXT NOT NULL DEFAULT '',
+                created_by TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT ''
+            );
+
+            CREATE TABLE IF NOT EXISTS standee_reprints (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                standee_id INTEGER NOT NULL REFERENCES standees(id) ON DELETE CASCADE,
+                added_units INTEGER NOT NULL DEFAULT 0,
+                note TEXT NOT NULL DEFAULT '',
+                added_by TEXT NOT NULL DEFAULT '',
+                added_at TEXT NOT NULL DEFAULT ''
+            );
+
+            CREATE TABLE IF NOT EXISTS standee_assignments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                standee_id INTEGER NOT NULL REFERENCES standees(id),
+                apartment_id INTEGER NOT NULL REFERENCES apartments(id),
+                assigned_to TEXT NOT NULL DEFAULT '',
+                quantity INTEGER NOT NULL DEFAULT 0,
+                duration_days INTEGER NOT NULL DEFAULT 0,
+                collection_location TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'Assigned',
+                placed_at TEXT NOT NULL DEFAULT '',
+                placed_by TEXT NOT NULL DEFAULT '',
+                collect_by TEXT NOT NULL DEFAULT '',
+                collected_at TEXT NOT NULL DEFAULT '',
+                collected_by TEXT NOT NULL DEFAULT '',
+                quantity_returned INTEGER NOT NULL DEFAULT 0,
+                quantity_damaged INTEGER NOT NULL DEFAULT 0,
+                damage_note TEXT NOT NULL DEFAULT '',
+                drop_location TEXT NOT NULL DEFAULT '',
+                created_by TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT ''
+            );
+
+            CREATE TABLE IF NOT EXISTS standee_photos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                assignment_id INTEGER NOT NULL REFERENCES standee_assignments(id) ON DELETE CASCADE,
+                kind TEXT NOT NULL DEFAULT 'placement',
+                path TEXT NOT NULL,
+                uploaded_at TEXT NOT NULL DEFAULT ''
+            );
             """
         )
         self.conn.commit()
+        # migrate: add contact_name to a pre-existing collections table
+        try:
+            self.conn.execute("ALTER TABLE collections ADD COLUMN contact_name TEXT NOT NULL DEFAULT ''")
+            self.conn.commit()
+        except sqlite3.OperationalError:
+            pass
 
     # ── users ──────────────────────────────────────────────────────────────
     def count_users(self):
@@ -247,7 +303,7 @@ class SQLiteDatabase:
             out[d["apartment_id"]] = d
         return out
 
-    def save_collection(self, apartment_id, outcome, phone, designation,
+    def save_collection(self, apartment_id, outcome, contact_name, phone, designation,
                         no_number_reason, campaigns, collected_by):
         apartment_id = int(apartment_id)
         now = _now()
@@ -257,16 +313,16 @@ class SQLiteDatabase:
         if existing:
             cid = existing["id"]
             self.conn.execute(
-                "UPDATE collections SET outcome=?, phone=?, designation=?, no_number_reason=?, "
-                "collected_by=?, updated_at=? WHERE id=?",
-                (outcome, phone, designation, no_number_reason, collected_by, now, cid),
+                "UPDATE collections SET outcome=?, contact_name=?, phone=?, designation=?, "
+                "no_number_reason=?, collected_by=?, updated_at=? WHERE id=?",
+                (outcome, contact_name, phone, designation, no_number_reason, collected_by, now, cid),
             )
         else:
             cur = self.conn.execute(
-                "INSERT INTO collections (apartment_id, outcome, phone, designation, "
+                "INSERT INTO collections (apartment_id, outcome, contact_name, phone, designation, "
                 "no_number_reason, collected_by, collected_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (apartment_id, outcome, phone, designation, no_number_reason,
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (apartment_id, outcome, contact_name, phone, designation, no_number_reason,
                  collected_by, now, now),
             )
             cid = cur.lastrowid
@@ -286,6 +342,199 @@ class SQLiteDatabase:
         )
         self.conn.commit()
         return cid
+
+    def upsert_contact(self, apartment_id, contact_name, designation, phone, updated_by):
+        """Marketing bulk-upload path: sets contact fields only, never touches campaigns."""
+        apartment_id = int(apartment_id)
+        now = _now()
+        existing = self.conn.execute(
+            "SELECT id FROM collections WHERE apartment_id=?", (apartment_id,)
+        ).fetchone()
+        if existing:
+            self.conn.execute(
+                "UPDATE collections SET outcome='number', contact_name=?, designation=?, "
+                "phone=?, updated_at=? WHERE id=?",
+                (contact_name, designation, phone, now, existing["id"]),
+            )
+        else:
+            self.conn.execute(
+                "INSERT INTO collections (apartment_id, outcome, contact_name, phone, "
+                "designation, collected_by, collected_at, updated_at) "
+                "VALUES (?, 'number', ?, ?, ?, ?, ?, ?)",
+                (apartment_id, contact_name, phone, designation, updated_by, now, now),
+            )
+        self.conn.execute(
+            "UPDATE apartments SET status=? WHERE id=?", (STATUS_COLLECTED, apartment_id)
+        )
+        self.conn.commit()
+
+    # ── standees ─────────────────────────────────────────────────────────
+    def add_standee(self, name, photo_path, total_units, storage_location, created_by):
+        try:
+            cur = self.conn.execute(
+                "INSERT INTO standees (name, photo_path, total_units, storage_location, "
+                "created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (name, photo_path, int(total_units), storage_location, created_by, _now()),
+            )
+            self.conn.commit()
+            return cur.lastrowid
+        except sqlite3.IntegrityError:
+            return None
+
+    def list_standees(self):
+        rows = self.conn.execute("SELECT * FROM standees ORDER BY name").fetchall()
+        return [dict(r) for r in rows]
+
+    def get_standee(self, standee_id):
+        r = self.conn.execute("SELECT * FROM standees WHERE id=?", (int(standee_id),)).fetchone()
+        return dict(r) if r else None
+
+    def reprint_standee(self, standee_id, added_units, note, added_by):
+        standee_id = int(standee_id)
+        added_units = int(added_units)
+        self.conn.execute(
+            "INSERT INTO standee_reprints (standee_id, added_units, note, added_by, added_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (standee_id, added_units, note, added_by, _now()),
+        )
+        self.conn.execute(
+            "UPDATE standees SET total_units = total_units + ? WHERE id=?",
+            (added_units, standee_id),
+        )
+        self.conn.commit()
+
+    def reprint_history(self, standee_id):
+        rows = self.conn.execute(
+            "SELECT * FROM standee_reprints WHERE standee_id=? ORDER BY id DESC", (int(standee_id),)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def standee_stats(self):
+        """{standee_id: {placed, damaged, lost, available}}"""
+        placed, damaged, lost = {}, {}, {}
+        for r in self.conn.execute(
+            "SELECT standee_id, SUM(quantity) q FROM standee_assignments "
+            "WHERE status='Placed' GROUP BY standee_id"
+        ):
+            placed[r["standee_id"]] = r["q"] or 0
+        for r in self.conn.execute(
+            "SELECT standee_id, quantity, quantity_returned, quantity_damaged "
+            "FROM standee_assignments WHERE status='Collected'"
+        ):
+            sid = r["standee_id"]
+            damaged[sid] = damaged.get(sid, 0) + (r["quantity_damaged"] or 0)
+            missing = (r["quantity"] or 0) - (r["quantity_returned"] or 0) - (r["quantity_damaged"] or 0)
+            if missing > 0:
+                lost[sid] = lost.get(sid, 0) + missing
+        out = {}
+        for s in self.list_standees():
+            sid = s["id"]
+            p, d, l = placed.get(sid, 0), damaged.get(sid, 0), lost.get(sid, 0)
+            out[sid] = {"placed": p, "damaged": d, "lost": l, "available": s["total_units"] - p - d - l}
+        return out
+
+    def active_standee_placements(self):
+        rows = self.conn.execute(
+            """SELECT sa.standee_id, s.name AS standee_name, sa.apartment_id,
+                      a.name AS apartment_name, a.hub AS apartment_hub, sa.quantity
+               FROM standee_assignments sa
+               JOIN standees s ON s.id = sa.standee_id
+               JOIN apartments a ON a.id = sa.apartment_id
+               WHERE sa.status='Placed' ORDER BY a.name"""
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def create_standee_assignment(self, standee_id, apartment_id, assigned_to, quantity,
+                                   duration_days, collection_location, created_by):
+        cur = self.conn.execute(
+            "INSERT INTO standee_assignments (standee_id, apartment_id, assigned_to, quantity, "
+            "duration_days, collection_location, status, created_by, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, 'Assigned', ?, ?)",
+            (int(standee_id), int(apartment_id), assigned_to, int(quantity),
+             int(duration_days), collection_location, created_by, _now()),
+        )
+        self.conn.commit()
+        return cur.lastrowid
+
+    def list_standee_assignments(self):
+        rows = self.conn.execute(
+            """SELECT sa.*, s.name AS standee_name, a.name AS apartment_name, a.hub AS apartment_hub
+               FROM standee_assignments sa
+               JOIN standees s ON s.id = sa.standee_id
+               JOIN apartments a ON a.id = sa.apartment_id
+               ORDER BY sa.id DESC"""
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def list_standee_assignments_for_btl(self, username):
+        rows = self.conn.execute(
+            """SELECT sa.*, s.name AS standee_name, a.name AS apartment_name, a.hub AS apartment_hub,
+                      a.location_link AS apartment_location_link
+               FROM standee_assignments sa
+               JOIN standees s ON s.id = sa.standee_id
+               JOIN apartments a ON a.id = sa.apartment_id
+               WHERE sa.assigned_to=? ORDER BY sa.id DESC""",
+            (username,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_standee_assignment(self, assignment_id):
+        r = self.conn.execute(
+            """SELECT sa.*, s.name AS standee_name, a.name AS apartment_name, a.hub AS apartment_hub,
+                      a.location_link AS apartment_location_link
+               FROM standee_assignments sa
+               JOIN standees s ON s.id = sa.standee_id
+               JOIN apartments a ON a.id = sa.apartment_id
+               WHERE sa.id=?""",
+            (int(assignment_id),),
+        ).fetchone()
+        return dict(r) if r else None
+
+    def confirm_placement(self, assignment_id, placed_by, photo_paths):
+        assignment_id = int(assignment_id)
+        row = self.conn.execute(
+            "SELECT duration_days FROM standee_assignments WHERE id=?", (assignment_id,)
+        ).fetchone()
+        now = _now()
+        collect_by = (
+            datetime.now(IST) + timedelta(days=int(row["duration_days"] or 0))
+        ).strftime("%Y-%m-%d") if row else ""
+        self.conn.execute(
+            "UPDATE standee_assignments SET status='Placed', placed_at=?, placed_by=?, "
+            "collect_by=? WHERE id=?",
+            (now, placed_by, collect_by, assignment_id),
+        )
+        for p in photo_paths:
+            self.conn.execute(
+                "INSERT INTO standee_photos (assignment_id, kind, path, uploaded_at) "
+                "VALUES (?, 'placement', ?, ?)",
+                (assignment_id, p, now),
+            )
+        self.conn.commit()
+
+    def collect_standee_assignment(self, assignment_id, quantity_returned, quantity_damaged,
+                                    damage_note, drop_location, collected_by, photo_paths):
+        assignment_id = int(assignment_id)
+        now = _now()
+        self.conn.execute(
+            "UPDATE standee_assignments SET status='Collected', collected_at=?, collected_by=?, "
+            "quantity_returned=?, quantity_damaged=?, damage_note=?, drop_location=? WHERE id=?",
+            (now, collected_by, int(quantity_returned), int(quantity_damaged),
+             damage_note, drop_location, assignment_id),
+        )
+        for p in photo_paths:
+            self.conn.execute(
+                "INSERT INTO standee_photos (assignment_id, kind, path, uploaded_at) "
+                "VALUES (?, 'damage', ?, ?)",
+                (assignment_id, p, now),
+            )
+        self.conn.commit()
+
+    def photos_for(self, assignment_id):
+        rows = self.conn.execute(
+            "SELECT * FROM standee_photos WHERE assignment_id=? ORDER BY id", (int(assignment_id),)
+        ).fetchall()
+        return [dict(r) for r in rows]
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -432,15 +681,15 @@ class SupabaseDatabase:
             out[d["apartment_id"]] = d
         return out
 
-    def save_collection(self, apartment_id, outcome, phone, designation,
+    def save_collection(self, apartment_id, outcome, contact_name, phone, designation,
                         no_number_reason, campaigns, collected_by):
         apartment_id = int(apartment_id)
         now = _now()
         existing = self.sb.table("collections").select("id").eq("apartment_id", apartment_id).limit(1).execute()
         row = {
-            "outcome": outcome, "phone": phone, "designation": designation,
-            "no_number_reason": no_number_reason, "collected_by": collected_by,
-            "updated_at": now,
+            "outcome": outcome, "contact_name": contact_name, "phone": phone,
+            "designation": designation, "no_number_reason": no_number_reason,
+            "collected_by": collected_by, "updated_at": now,
         }
         if existing.data:
             cid = existing.data[0]["id"]
@@ -459,6 +708,169 @@ class SupabaseDatabase:
 
         self.sb.table("apartments").update({"status": _status_for(outcome)}).eq("id", apartment_id).execute()
         return cid
+
+    def upsert_contact(self, apartment_id, contact_name, designation, phone, updated_by):
+        apartment_id = int(apartment_id)
+        now = _now()
+        existing = self.sb.table("collections").select("id").eq("apartment_id", apartment_id).limit(1).execute()
+        if existing.data:
+            self.sb.table("collections").update({
+                "outcome": "number", "contact_name": contact_name,
+                "designation": designation, "phone": phone, "updated_at": now,
+            }).eq("id", existing.data[0]["id"]).execute()
+        else:
+            self.sb.table("collections").insert({
+                "apartment_id": apartment_id, "outcome": "number", "contact_name": contact_name,
+                "phone": phone, "designation": designation, "collected_by": updated_by,
+                "collected_at": now, "updated_at": now,
+            }).execute()
+        self.sb.table("apartments").update({"status": STATUS_COLLECTED}).eq("id", apartment_id).execute()
+
+    # ── standees ──
+    def add_standee(self, name, photo_path, total_units, storage_location, created_by):
+        try:
+            r = self.sb.table("standees").insert({
+                "name": name, "photo_path": photo_path, "total_units": int(total_units),
+                "storage_location": storage_location, "created_by": created_by, "created_at": _now(),
+            }).execute()
+            return r.data[0]["id"] if r.data else None
+        except Exception:
+            return None
+
+    def list_standees(self):
+        return self.sb.table("standees").select("*").order("name").execute().data
+
+    def get_standee(self, standee_id):
+        r = self.sb.table("standees").select("*").eq("id", int(standee_id)).limit(1).execute()
+        return r.data[0] if r.data else None
+
+    def reprint_standee(self, standee_id, added_units, note, added_by):
+        standee_id = int(standee_id)
+        added_units = int(added_units)
+        self.sb.table("standee_reprints").insert({
+            "standee_id": standee_id, "added_units": added_units, "note": note,
+            "added_by": added_by, "added_at": _now(),
+        }).execute()
+        s = self.get_standee(standee_id)
+        new_total = (s["total_units"] if s else 0) + added_units
+        self.sb.table("standees").update({"total_units": new_total}).eq("id", standee_id).execute()
+
+    def reprint_history(self, standee_id):
+        return (
+            self.sb.table("standee_reprints").select("*").eq("standee_id", int(standee_id))
+            .order("id", desc=True).execute().data
+        )
+
+    def standee_stats(self):
+        placed, damaged, lost = {}, {}, {}
+        for r in self.sb.table("standee_assignments").select("standee_id,quantity").eq("status", "Placed").execute().data:
+            placed[r["standee_id"]] = placed.get(r["standee_id"], 0) + (r["quantity"] or 0)
+        for r in self.sb.table("standee_assignments").select(
+            "standee_id,quantity,quantity_returned,quantity_damaged"
+        ).eq("status", "Collected").execute().data:
+            sid = r["standee_id"]
+            damaged[sid] = damaged.get(sid, 0) + (r["quantity_damaged"] or 0)
+            missing = (r["quantity"] or 0) - (r["quantity_returned"] or 0) - (r["quantity_damaged"] or 0)
+            if missing > 0:
+                lost[sid] = lost.get(sid, 0) + missing
+        out = {}
+        for s in self.list_standees():
+            sid = s["id"]
+            p, d, l = placed.get(sid, 0), damaged.get(sid, 0), lost.get(sid, 0)
+            out[sid] = {"placed": p, "damaged": d, "lost": l, "available": s["total_units"] - p - d - l}
+        return out
+
+    def active_standee_placements(self):
+        try:
+            rows = self.sb.table("standee_assignments").select(
+                "standee_id, quantity, standees!inner(name), apartment_id, apartments!inner(name,hub)"
+            ).eq("status", "Placed").execute().data
+        except Exception:
+            return []
+        out = [{
+            "standee_id": r["standee_id"], "standee_name": r["standees"]["name"],
+            "apartment_id": r["apartment_id"], "apartment_name": r["apartments"]["name"],
+            "apartment_hub": r["apartments"]["hub"], "quantity": r["quantity"],
+        } for r in rows]
+        out.sort(key=lambda x: x["apartment_name"])
+        return out
+
+    def create_standee_assignment(self, standee_id, apartment_id, assigned_to, quantity,
+                                   duration_days, collection_location, created_by):
+        r = self.sb.table("standee_assignments").insert({
+            "standee_id": int(standee_id), "apartment_id": int(apartment_id),
+            "assigned_to": assigned_to, "quantity": int(quantity),
+            "duration_days": int(duration_days), "collection_location": collection_location,
+            "status": "Assigned", "created_by": created_by, "created_at": _now(),
+        }).execute()
+        return r.data[0]["id"] if r.data else None
+
+    def _join_assignment_rows(self, rows):
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["standee_name"] = r.get("standees", {}).get("name", "") if r.get("standees") else ""
+            apt = r.get("apartments") or {}
+            d["apartment_name"] = apt.get("name", "")
+            d["apartment_hub"] = apt.get("hub", "")
+            d["apartment_location_link"] = apt.get("location_link", "")
+            out.append(d)
+        return out
+
+    def list_standee_assignments(self):
+        rows = self.sb.table("standee_assignments").select(
+            "*, standees!inner(name), apartments!inner(name,hub)"
+        ).order("id", desc=True).execute().data
+        return self._join_assignment_rows(rows)
+
+    def list_standee_assignments_for_btl(self, username):
+        rows = self.sb.table("standee_assignments").select(
+            "*, standees!inner(name), apartments!inner(name,hub,location_link)"
+        ).eq("assigned_to", username).order("id", desc=True).execute().data
+        return self._join_assignment_rows(rows)
+
+    def get_standee_assignment(self, assignment_id):
+        rows = self.sb.table("standee_assignments").select(
+            "*, standees!inner(name), apartments!inner(name,hub,location_link)"
+        ).eq("id", int(assignment_id)).limit(1).execute().data
+        joined = self._join_assignment_rows(rows)
+        return joined[0] if joined else None
+
+    def confirm_placement(self, assignment_id, placed_by, photo_paths):
+        assignment_id = int(assignment_id)
+        r = self.sb.table("standee_assignments").select("duration_days").eq("id", assignment_id).limit(1).execute()
+        duration = r.data[0]["duration_days"] if r.data else 0
+        now = _now()
+        collect_by = (datetime.now(IST) + timedelta(days=int(duration or 0))).strftime("%Y-%m-%d")
+        self.sb.table("standee_assignments").update({
+            "status": "Placed", "placed_at": now, "placed_by": placed_by, "collect_by": collect_by,
+        }).eq("id", assignment_id).execute()
+        if photo_paths:
+            self.sb.table("standee_photos").insert([
+                {"assignment_id": assignment_id, "kind": "placement", "path": p, "uploaded_at": now}
+                for p in photo_paths
+            ]).execute()
+
+    def collect_standee_assignment(self, assignment_id, quantity_returned, quantity_damaged,
+                                    damage_note, drop_location, collected_by, photo_paths):
+        assignment_id = int(assignment_id)
+        now = _now()
+        self.sb.table("standee_assignments").update({
+            "status": "Collected", "collected_at": now, "collected_by": collected_by,
+            "quantity_returned": int(quantity_returned), "quantity_damaged": int(quantity_damaged),
+            "damage_note": damage_note, "drop_location": drop_location,
+        }).eq("id", assignment_id).execute()
+        if photo_paths:
+            self.sb.table("standee_photos").insert([
+                {"assignment_id": assignment_id, "kind": "damage", "path": p, "uploaded_at": now}
+                for p in photo_paths
+            ]).execute()
+
+    def photos_for(self, assignment_id):
+        return (
+            self.sb.table("standee_photos").select("*").eq("assignment_id", int(assignment_id))
+            .order("id").execute().data
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════════

@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+{% block title %}Standees · Apartment Portal{% endblock %}
+
+{% macro location_picker(select_name, detail_name, placeholder) %}
+<select name="{{ select_name }}" style="margin-bottom:8px;">
+  <option value="">— Select hub or active placement —</option>
+  {% if active_placements %}
+  <optgroup label="Active placements">
+    {% for p in active_placements %}
+    <option value="apt:{{ p.apartment_name }} ({{ p.apartment_hub }})">{{ p.standee_name }} → {{ p.apartment_name }}</option>
+    {% endfor %}
+  </optgroup>
+  {% endif %}
+  <optgroup label="Hubs">
+    {% for h in hub_names %}<option value="{{ h }}">{{ h }}</option>{% endfor %}
+  </optgroup>
+  <option value="__custom__">Other (type below)</option>
+</select>
+<input type="text" name="{{ detail_name }}" placeholder="{{ placeholder }}">
+{% endmacro %}
+
+{% macro status_badge(s) %}
+  {% if s == 'Assigned' %}<span class="badge badge-live">Assigned</span>
+  {% elif s == 'Placed' %}<span class="badge badge-alt">Placed</span>
+  {% else %}<span class="badge badge-ok">Collected</span>{% endif %}
+{% endmacro %}
+
+{% block extra_css %}
+<style>
+  .seg{display:inline-flex; background:var(--bg); border:1px solid var(--border); border-radius:var(--r-sm); padding:3px; margin-bottom:18px;}
+  .seg button{border:none; background:none; padding:7px 16px; border-radius:6px; font-family:inherit;
+    font-size:13px; font-weight:600; color:var(--muted); cursor:pointer;}
+  .seg button.active{background:var(--surface); color:var(--text); box-shadow:var(--shadow);}
+  .pane{display:none;} .pane.active{display:block;}
+  .split{display:grid; grid-template-columns:360px 1fr; gap:18px; align-items:start;}
+  @media(max-width:1000px){.split{grid-template-columns:1fr;}}
+  .thumb{width:32px; height:32px; border-radius:6px; object-fit:cover; border:1px solid var(--border); vertical-align:middle; margin-right:8px;}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1>Standees</h1>
+  <p>{{ standees|length }} design{{ '' if standees|length == 1 else 's' }} · {{ assignments|length }} assignment{{ '' if assignments|length == 1 else 's' }}</p>
+</div>
+
+<div class="seg">
+  <button class="active" data-pane="inv">Inventory</button>
+  <button data-pane="assign">Assign</button>
+  <button data-pane="analysis">Analysis</button>
+</div>
+
+<!-- Inventory -->
+<div class="pane active" id="pane-inv">
+  <div class="split">
+    <div class="card">
+      <div class="card-head"><h2>Add standee</h2></div>
+      <div class="card-body">
+        <form method="post" action="/marketing/standees/add" enctype="multipart/form-data">
+          <div class="field"><label>Name</label><input type="text" name="name" placeholder="e.g. Diwali Offer Standee" required></div>
+          <div class="field"><label>Total units printed</label><input type="number" name="total_units" min="0" placeholder="0" required></div>
+          <div class="field"><label>Storage location <span class="hint">optional</span></label><input type="text" name="storage_location" placeholder="e.g. Koramangala office store"></div>
+          <div class="field"><label>Design photo <span class="hint">optional</span></label><input type="file" name="photo" accept="image/*"></div>
+          <button type="submit" class="btn btn-primary btn-block"><i class="bi bi-plus-lg"></i>Add standee</button>
+        </form>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Inventory</h2></div>
+      <div class="card-body flush">
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead><tr><th>Design</th><th>Total</th><th>Placed</th><th>Available</th><th>Damaged</th><th>Lost</th><th>Storage</th><th style="width:90px;"></th></tr></thead>
+            <tbody>
+              {% for s in standees %}
+              {% set st = stats.get(s.id, {'placed':0,'damaged':0,'lost':0,'available':s.total_units}) %}
+              <tr>
+                <td>
+                  {% if s.photo_path %}<img class="thumb" src="/static/{{ s.photo_path }}">{% endif %}
+                  <span class="strong">{{ s.name }}</span>
+                </td>
+                <td>{{ s.total_units }}</td>
+                <td style="color:var(--st-live-fg);">{{ st.placed }}</td>
+                <td><span class="badge {{ 'badge-ok' if st.available > 0 else 'badge-off' }}">{{ st.available }}</span></td>
+                <td>{% if st.damaged %}<span style="color:var(--danger-fg);">{{ st.damaged }}</span>{% else %}<span class="subtle">—</span>{% endif %}</td>
+                <td>{% if st.lost %}<span style="color:var(--danger-fg);">{{ st.lost }}</span>{% else %}<span class="subtle">—</span>{% endif %}</td>
+                <td class="muted">{{ s.storage_location or '—' }}</td>
+                <td><button class="btn btn-default btn-sm" data-bs-toggle="modal" data-bs-target="#reprint{{ s.id }}"><i class="bi bi-printer"></i>Reprint</button></td>
+              </tr>
+              {% else %}
+              <tr><td colspan="8"><div class="empty"><i class="bi bi-signpost-2"></i><div class="t">No standees yet.</div></div></td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Assign -->
+<div class="pane" id="pane-assign">
+  <div class="split">
+    <div class="card">
+      <div class="card-head"><h2>New assignment</h2></div>
+      <div class="card-body">
+        {% if not btl_users %}
+        <div class="alert alert-warning" style="margin-bottom:14px;"><i class="bi bi-exclamation-triangle-fill"></i><span>No BTL users yet — add one on <a href="/marketing/team">Team</a>.</span></div>
+        {% endif %}
+        <form method="post" action="/marketing/standees/assign">
+          <div class="field"><label>Apartment</label>
+            <select name="apartment_id" required>
+              <option value="">— Select —</option>
+              {% for a in apartments %}<option value="{{ a.id }}">{{ a.name }} ({{ a.hub }})</option>{% endfor %}
+            </select></div>
+          <div class="field"><label>Standee</label>
+            <select name="standee_id" required>
+              <option value="">— Select —</option>
+              {% for s in standees %}<option value="{{ s.id }}">{{ s.name }} — {{ stats.get(s.id, {}).get('available', s.total_units) }} available</option>{% endfor %}
+            </select></div>
+          <div class="field"><label>BTL coordinator</label>
+            <select name="assigned_to" required {{ 'disabled' if not btl_users }}>
+              <option value="">— Select —</option>
+              {% for u in btl_users %}<option value="{{ u.username }}">{{ u.name }} ({{ u.username }})</option>{% endfor %}
+            </select></div>
+          <div class="grid-2">
+            <div class="field"><label>Quantity</label><input type="number" name="quantity" min="1" required></div>
+            <div class="field"><label>Duration <span class="hint">days</span></label><input type="number" name="duration_days" min="1" placeholder="e.g. 7" required></div>
+          </div>
+          <div class="field">
+            <label>Pickup location <span class="hint">where the coordinator collects it from, optional</span></label>
+            {{ location_picker('collection_location', 'collection_location_detail', 'Floor, block, room…') }}
+          </div>
+          <button type="submit" class="btn btn-primary btn-block" {{ 'disabled' if not btl_users }}><i class="bi bi-send"></i>Assign standee</button>
+        </form>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Current assignments</h2></div>
+      <div class="card-body flush" style="max-height:65vh; overflow-y:auto;">
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead><tr><th>Apartment</th><th>Standee</th><th>Qty</th><th>Coordinator</th><th>Status</th><th>Collect by</th></tr></thead>
+            <tbody>
+              {% for a in assignments %}
+              <tr>
+                <td class="strong">{{ a.apartment_name }}</td>
+                <td class="muted">{{ a.standee_name }}</td>
+                <td>{{ a.quantity }}</td>
+                <td class="muted">{{ a.assigned_to }}</td>
+                <td>{{ status_badge(a.status) }}</td>
+                <td class="muted" style="font-size:12px;">{{ a.collect_by or '—' }}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="6"><div class="empty"><i class="bi bi-signpost-2"></i><div class="t">No assignments yet.</div></div></td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Analysis -->
+<div class="pane" id="pane-analysis">
+  {% set total_placed = stats.values()|sum(attribute='placed') %}
+  {% set total_damaged = stats.values()|sum(attribute='damaged') %}
+  {% set total_lost = stats.values()|sum(attribute='lost') %}
+  <div class="stats">
+    <div class="stat accent"><div class="n">{{ standees|length }}</div><div class="l">Designs</div></div>
+    <div class="stat live"><div class="n">{{ total_placed }}</div><div class="l">Currently placed</div></div>
+    <div class="stat"><div class="n" style="color:var(--danger-fg);">{{ total_damaged }}</div><div class="l">Damaged</div></div>
+    <div class="stat"><div class="n" style="color:var(--danger-fg);">{{ total_lost }}</div><div class="l">Lost</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Where standees are right now</h2></div>
+    <div class="card-body flush">
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Apartment</th><th>Hub</th><th>Standee</th><th>Qty</th></tr></thead>
+          <tbody>
+            {% for p in active_placements %}
+            <tr><td class="strong">{{ p.apartment_name }}</td><td class="muted">{{ p.apartment_hub }}</td><td class="muted">{{ p.standee_name }}</td><td>{{ p.quantity }}</td></tr>
+            {% else %}
+            <tr><td colspan="4"><div class="empty"><i class="bi bi-geo-alt"></i><div class="t">Nothing placed right now.</div></div></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>Full history</h2>
+      <div style="display:flex; gap:8px;">
+        <select id="afStatus" style="width:auto; font-size:12.5px; padding:6px 26px 6px 10px;">
+          <option value="">All status</option><option>Assigned</option><option>Placed</option><option>Collected</option>
+        </select>
+      </div>
+    </div>
+    <div class="card-body flush">
+      <div class="tbl-wrap">
+        <table class="tbl" id="afTable">
+          <thead><tr><th>#</th><th>Standee</th><th>Apartment</th><th>Coordinator</th><th>Qty</th><th>Status</th><th>Returned</th><th>Damaged</th><th>Damage note</th><th>Drop location</th></tr></thead>
+          <tbody>
+            {% for a in assignments %}
+            <tr data-status="{{ a.status }}">
+              <td class="num">{{ a.id }}</td>
+              <td class="strong">{{ a.standee_name }}</td>
+              <td class="muted">{{ a.apartment_name }}</td>
+              <td class="muted">{{ a.assigned_to }}</td>
+              <td>{{ a.quantity }}</td>
+              <td>{{ status_badge(a.status) }}</td>
+              <td>{{ a.quantity_returned if a.status == 'Collected' else '—' }}</td>
+              <td>{% if a.quantity_damaged %}<span style="color:var(--danger-fg); font-weight:600;">{{ a.quantity_damaged }}</span>{% else %}—{% endif %}</td>
+              <td class="muted" style="font-size:12px;">{{ a.damage_note or '—' }}</td>
+              <td class="muted" style="font-size:12px;">{{ a.drop_location or '—' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="10"><div class="empty"><i class="bi bi-table"></i><div class="t">No assignments yet.</div></div></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% for s in standees %}
+<div class="modal fade" id="reprint{{ s.id }}" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="post" action="/marketing/standees/{{ s.id }}/reprint">
+      <div class="modal-header"><span class="modal-title">Reprint · {{ s.name }}</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <p class="muted" style="margin-top:0;">Currently {{ s.total_units }} units total. Adds to this design's inventory.</p>
+        <div class="field"><label>Units added</label><input type="number" name="added_units" min="1" required></div>
+        <div class="field mb-0"><label>Note <span class="hint">optional</span></label><input type="text" name="note" placeholder="e.g. 2nd print run, Sept batch"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-printer"></i>Add units</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.querySelectorAll('.seg button').forEach(function(b){
+    b.addEventListener('click', function(){
+      document.querySelectorAll('.seg button').forEach(function(x){ x.classList.remove('active'); });
+      document.querySelectorAll('.pane').forEach(function(p){ p.classList.remove('active'); });
+      b.classList.add('active');
+      document.getElementById('pane-' + b.dataset.pane).classList.add('active');
+    });
+  });
+  document.getElementById('afStatus').addEventListener('change', function(){
+    var v = this.value;
+    document.querySelectorAll('#afTable tbody tr').forEach(function(r){
+      if(!r.dataset.status) return;
+      r.style.display = (!v || r.dataset.status === v) ? '' : 'none';
+    });
+  });
+</script>
+{% endblock %}

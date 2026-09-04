@@ -60,6 +60,7 @@
             <td>{{ status_badge(apt) }}</td>
             <td>
               {% if col and col.outcome == 'number' %}
+                {% if col.contact_name %}<span class="strong">{{ col.contact_name }}</span> ·{% endif %}
                 <span class="strong">{{ col.phone }}</span>
                 <span class="subtle" style="font-size:12px;">· {{ col.designation }}</span>
               {% elif col and col.outcome == 'no_number' %}

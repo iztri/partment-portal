@@ -44,6 +44,7 @@
         <span>No number available{% if collection.no_number_reason %} — {{ collection.no_number_reason }}{% endif %}</span></div>
     {% else %}
       <div class="row-flex" style="margin-bottom:6px;">
+        <div class="field" style="flex:1; min-width:140px;"><label>Contact name</label><div class="strong">{{ collection.contact_name or '—' }}</div></div>
         <div class="field" style="flex:1; min-width:140px;"><label>Contact number</label><div class="strong">{{ collection.phone }}</div></div>
         <div class="field" style="flex:1; min-width:140px;"><label>Designation</label><div>{{ collection.designation }}</div></div>
       </div>

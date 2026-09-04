@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block title %}Standee Tracker · Apartment Portal{% endblock %}
+
+{% block extra_css %}
+<style>
+  .cal{border:1px solid var(--border); border-radius:var(--r); overflow:hidden;}
+  .cal-h,.cal-g{display:grid; grid-template-columns:repeat(7,1fr);}
+  .cal-h div{padding:10px 6px; text-align:center; font-size:11px; font-weight:600; text-transform:uppercase;
+    letter-spacing:.05em; color:var(--muted); background:var(--bg); border-bottom:1px solid var(--border);}
+  .cal-d{min-height:70px; padding:6px; border-right:1px solid var(--border); border-bottom:1px solid var(--border); font-size:12px;}
+  .cal-d:nth-child(7n){border-right:none;}
+  .cal-d .dn{font-weight:600; color:var(--text); margin-bottom:3px;}
+  .cal-d.today{background:var(--accent-soft);}
+  .cal-d.other{background:var(--bg);}
+  .cal-e{font-size:10.5px; padding:2px 5px; border-radius:4px; margin-bottom:2px; font-weight:600;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; background:var(--st-alt-bg);
+    color:var(--st-alt-fg); border:1px solid var(--st-alt-bd);}
+
+  .filters{display:flex; gap:8px; flex-wrap:wrap; margin:12px 0 14px;}
+  .filters button{padding:8px 14px; border-radius:20px; border:1px solid var(--border-strong);
+    background:var(--surface); font-family:inherit; font-size:13px; font-weight:600; color:var(--muted); cursor:pointer;}
+  .filters button.on{background:var(--text); border-color:var(--text); color:#fff;}
+
+  .st{background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--border-strong);
+    border-radius:var(--r); padding:16px 18px; margin-bottom:12px; box-shadow:var(--shadow);}
+  .st[data-status="Assigned"]{border-left-color:var(--st-live-fg);}
+  .st[data-status="Placed"]{border-left-color:var(--accent);}
+  .st[data-status="Collected"]{border-left-color:var(--st-off-fg);}
+  .st-top{display:flex; justify-content:space-between; align-items:flex-start; gap:10px;}
+  .st h3{font-size:15px;}
+  .st .meta{font-size:12.5px; color:var(--muted); margin-top:4px;}
+  .st-cta{margin-top:14px;}
+  .st-cta .btn{width:100%; justify-content:center; padding:11px;}
+  @media(min-width:721px){
+    .st-inner{display:flex; justify-content:space-between; align-items:center; gap:16px;}
+    .st-cta{margin-top:0; flex-shrink:0;}
+    .st-cta .btn{width:auto; padding:9px 15px;}
+  }
+  @media(max-width:560px){
+    .cal-d{min-height:44px; padding:4px; font-size:11px;}
+    .cal-h div{padding:7px 2px; font-size:10px;}
+    .cal-e{font-size:9px; padding:1px 3px;}
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1>Standee Tracker</h1>
+  <p>Where to place standees, and when to collect them back.</p>
+</div>
+
+{% set due_today = assignments|selectattr('status','equalto','Placed')|selectattr('collect_by','equalto',today)|list %}
+{% if due_today %}
+<div class="card" style="border-left:3px solid var(--warn-fg); margin-bottom:18px;">
+  <div class="card-head"><h2><i class="bi bi-calendar-check"></i> Collect today</h2></div>
+  <div class="card-body flush">
+    <div class="tbl-wrap">
+      <table class="tbl"><tbody>
+        {% for a in due_today %}
+        <tr>
+          <td class="strong">{{ a.standee_name }}</td>
+          <td class="muted">{{ a.apartment_name }} · {{ a.quantity }} unit{{ '' if a.quantity == 1 else 's' }}</td>
+          <td style="text-align:right;"><a href="/btl/standees/{{ a.id }}" class="btn btn-primary btn-sm">Collect</a></td>
+        </tr>
+        {% endfor %}
+      </tbody></table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-head">
+    <h2 id="calLabel"></h2>
+    <div style="display:flex; gap:6px; align-items:center;">
+      <button class="btn btn-default btn-icon" onclick="calMove(-1)"><i class="bi bi-chevron-left"></i></button>
+      <button class="btn btn-default btn-icon" onclick="calMove(1)"><i class="bi bi-chevron-right"></i></button>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="cal">
+      <div class="cal-h"><div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div></div>
+      <div class="cal-g" id="calGrid"></div>
+    </div>
+  </div>
+</div>
+
+<div class="stats section-gap" style="max-width:600px;">
+  <div class="stat"><div class="n">{{ counts.all }}</div><div class="l">All</div></div>
+  <div class="stat live"><div class="n">{{ counts.Assigned }}</div><div class="l">To place</div></div>
+  <div class="stat accent"><div class="n">{{ counts.Placed }}</div><div class="l">Placed</div></div>
+  <div class="stat off"><div class="n">{{ counts.Collected }}</div><div class="l">Collected</div></div>
+</div>
+
+<input type="text" id="q" placeholder="Search apartment or standee…" style="max-width:100%; width:340px;">
+<div class="filters">
+  <button class="on" data-f="all">All</button>
+  <button data-f="Assigned">To place</button>
+  <button data-f="Placed">Placed</button>
+  <button data-f="Collected">Collected</button>
+</div>
+
+{% for a in assignments %}
+<div class="st" data-status="{{ a.status }}" data-name="{{ (a.standee_name ~ ' ' ~ a.apartment_name)|lower }}">
+  <div class="st-inner">
+    <div style="min-width:0;">
+      <div class="st-top">
+        <h3>{{ a.standee_name }} <span class="subtle" style="font-weight:500;">× {{ a.quantity }}</span></h3>
+        {% if a.status == 'Assigned' %}<span class="badge badge-live">To place</span>
+        {% elif a.status == 'Placed' %}<span class="badge badge-alt">Placed</span>
+        {% else %}<span class="badge badge-ok">Collected</span>{% endif %}
+      </div>
+      <div class="meta"><i class="bi bi-building"></i> {{ a.apartment_name }} · {{ a.apartment_hub }}</div>
+      {% if a.status == 'Placed' %}<div class="meta">Collect by <strong>{{ a.collect_by }}</strong></div>{% endif %}
+      {% if a.status == 'Collected' %}<div class="meta">Returned {{ a.quantity_returned }}{% if a.quantity_damaged %} · {{ a.quantity_damaged }} damaged{% endif %}</div>{% endif %}
+    </div>
+    <div class="st-cta">
+      <a href="/btl/standees/{{ a.id }}" class="btn {{ 'btn-primary' if a.status != 'Collected' else 'btn-default' }}">
+        <i class="bi bi-{{ 'camera' if a.status == 'Assigned' else 'box-arrow-in-down' if a.status == 'Placed' else 'eye' }}"></i>
+        {{ 'Confirm placement' if a.status == 'Assigned' else 'Collect back' if a.status == 'Placed' else 'View' }}
+      </a>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="card"><div class="empty"><i class="bi bi-signpost-2"></i><div class="t">No standees assigned to you yet.</div></div></div>
+{% endfor %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  var A = {{ assignments | tojson | safe }};
+  var cy = {{ today[:4] }}, cm = {{ today[5:7]|int }};
+  function calRender(){
+    var dim = new Date(cy, cm, 0).getDate();
+    var first = new Date(cy, cm - 1, 1).getDay();
+    var todayStr = "{{ today }}";
+    var ms = cy + '-' + String(cm).padStart(2,'0');
+    document.getElementById('calLabel').textContent = new Date(cy, cm-1, 1).toLocaleDateString('en',{month:'long',year:'numeric'});
+    var h = '';
+    for(var i=0; i<42; i++){
+      var day = i - first + 1;
+      if(day < 1 || day > dim){ h += '<div class="cal-d other"></div>'; continue; }
+      var ds = ms + '-' + String(day).padStart(2,'0');
+      h += '<div class="cal-d' + (ds === todayStr ? ' today' : '') + '"><div class="dn">' + day + '</div>';
+      A.filter(function(a){ return a.status === 'Placed' && a.collect_by === ds; }).forEach(function(a){
+        h += '<div class="cal-e">' + a.standee_name + '</div>';
+      });
+      h += '</div>';
+    }
+    document.getElementById('calGrid').innerHTML = h;
+  }
+  function calMove(d){ cm += d; if(cm > 12){ cm = 1; cy++; } else if(cm < 1){ cm = 12; cy--; } calRender(); }
+  calRender();
+
+  var q = document.getElementById('q');
+  function apply(){
+    var t = q.value.toLowerCase().trim();
+    var f = document.querySelector('.filters button.on').dataset.f;
+    document.querySelectorAll('.st').forEach(function(c){
+      var ok = (!t || c.dataset.name.indexOf(t) !== -1) && (f === 'all' || c.dataset.status === f);
+      c.style.display = ok ? '' : 'none';
+    });
+  }
+  q.addEventListener('input', apply);
+  document.querySelectorAll('.filters button').forEach(function(b){
+    b.addEventListener('click', function(){
+      document.querySelectorAll('.filters button').forEach(function(x){ x.classList.remove('on'); });
+      b.classList.add('on'); apply();
+    });
+  });
+</script>
+{% endblock %}

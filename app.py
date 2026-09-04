@@ -4,6 +4,8 @@ Run locally:  PORT=5055 python3 app.py
 """
 
 import os
+import uuid
+from datetime import date
 from io import BytesIO
 
 from flask import (
@@ -20,9 +22,12 @@ from config import (
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET", "dev-only-change-me")
+app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024  # 20MB, generous for phone-camera photos
 
 db = get_db()
 ensure_seed_admin()
+
+ALLOWED_IMAGE_EXT = {"jpg", "jpeg", "png", "webp", "gif", "heic"}
 
 
 # ── helpers ──────────────────────────────────────────────────────────────
@@ -59,6 +64,37 @@ def _apartment_stats(apartments):
         "collected": len([a for a in assigned if a["status"] == STATUS_COLLECTED]),
         "no_number": len([a for a in assigned if a["status"] == STATUS_NO_NUMBER]),
     }
+
+
+def _save_photos(files, subdir):
+    """Save uploaded image files under static/uploads/standees/<subdir>/.
+    Returns the list of saved paths, relative to the static folder."""
+    saved = []
+    folder = os.path.join(app.static_folder, "uploads", "standees", str(subdir))
+    for f in files or []:
+        if not f or not f.filename:
+            continue
+        ext = f.filename.rsplit(".", 1)[-1].lower() if "." in f.filename else ""
+        if ext not in ALLOWED_IMAGE_EXT:
+            continue
+        os.makedirs(folder, exist_ok=True)
+        fname = f"{uuid.uuid4().hex}.{ext}"
+        f.save(os.path.join(folder, fname))
+        saved.append(f"uploads/standees/{subdir}/{fname}")
+    return saved
+
+
+def _resolve_location_pair(select_name, detail_name):
+    """hub-or-active-placement-or-custom pattern used by the standee location pickers."""
+    hub = request.form.get(select_name, "").strip()
+    detail = request.form.get(detail_name, "").strip()
+    if hub == "__custom__":
+        return detail
+    if hub.startswith("apt:"):
+        return hub[4:]
+    if hub:
+        return (hub + " - " + detail).strip(" -") if detail else hub
+    return detail
 
 
 # ── auth ─────────────────────────────────────────────────────────────────
@@ -148,6 +184,37 @@ def marketing_bulk_upload():
     if errors:
         msg += f" · skipped {len(errors)} (bad name/hub): " + "; ".join(errors[:3])
     flash(msg, "success" if rows and not errors else "warning")
+    return redirect(url_for("marketing_add_page"))
+
+
+@app.route("/marketing/contacts/bulk-upload", methods=["POST"])
+@role_required("marketing")
+def marketing_contacts_bulk_upload():
+    raw = request.form.get("contacts_data", "").strip()
+    if not raw:
+        flash("Nothing to upload", "danger")
+        return redirect(url_for("marketing_add_page"))
+    apts_by_name = {a["name"].strip().lower(): a for a in db.list_apartments()}
+    updated, errors = 0, []
+    for i, line in enumerate((l for l in raw.splitlines() if l.strip()), 1):
+        parts = [p.strip() for p in line.split(",")]
+        if len(parts) < 4:
+            errors.append(f"Row {i}: need 4 fields — '{line}'")
+            continue
+        apt_name, contact_name, designation, phone = parts[0], parts[1], parts[2], parts[3]
+        apt = apts_by_name.get(apt_name.lower())
+        if not apt:
+            errors.append(f"Row {i}: no apartment named '{apt_name}'")
+            continue
+        if designation not in DESIGNATIONS:
+            errors.append(f"Row {i}: invalid designation '{designation}'")
+            continue
+        db.upsert_contact(apt["id"], contact_name, designation, phone, session["user"])
+        updated += 1
+    msg = f"Updated {updated} contact(s)"
+    if errors:
+        msg += f" · skipped {len(errors)}: " + "; ".join(errors[:3])
+    flash(msg, "success" if updated and not errors else "warning")
     return redirect(url_for("marketing_add_page"))
 
 
@@ -287,7 +354,7 @@ def marketing_export_xlsx():
     ws = wb.active
     ws.title = "Apartments"
     headers = ["ID", "Apartment", "Hub", "Location Link", "Assigned To", "Status",
-               "Contact Number", "Designation", "No-number Reason",
+               "Contact Name", "Contact Number", "Designation", "No-number Reason",
                "Campaigns Available", "Collected By", "Collected At"]
     ws.append(headers)
     for a in apartments:
@@ -301,6 +368,7 @@ def marketing_export_xlsx():
             a["id"], a["name"], a["hub"], a["location_link"],
             a["assigned_to"] or "—",
             "Unassigned" if not a["assigned_to"] else a["status"],
+            (c["contact_name"] if c else "") or "",
             (c["phone"] if c else "") or "",
             (c["designation"] if c else "") or "",
             (c["no_number_reason"] if c else "") or "",
@@ -388,6 +456,86 @@ def marketing_team_reset_password(user_id):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+#  Marketing · Standee tracker
+# ═══════════════════════════════════════════════════════════════════════════
+@app.route("/marketing/standees")
+@role_required("marketing")
+def marketing_standees_page():
+    return render_template(
+        "marketing/standees.html",
+        active="standees",
+        standees=db.list_standees(),
+        stats=db.standee_stats(),
+        apartments=db.list_apartments(),
+        btl_users=db.btl_users(),
+        assignments=db.list_standee_assignments(),
+        active_placements=db.active_standee_placements(),
+        hub_names=HUB_NAMES,
+    )
+
+
+@app.route("/marketing/standees/add", methods=["POST"])
+@role_required("marketing")
+def marketing_standee_add():
+    name = request.form.get("name", "").strip()
+    total = request.form.get("total_units", "0").strip()
+    loc = request.form.get("storage_location", "").strip()
+    if not name:
+        flash("Standee name is required", "danger")
+        return redirect(url_for("marketing_standees_page"))
+    try:
+        total_units = int(total)
+    except ValueError:
+        total_units = 0
+    saved = _save_photos([request.files.get("photo")], "designs")
+    standee_id = db.add_standee(name, saved[0] if saved else "", total_units, loc, session["user"])
+    if standee_id is None:
+        flash(f"Standee '{name}' already exists", "danger")
+    else:
+        flash(f"Added standee '{name}'", "success")
+    return redirect(url_for("marketing_standees_page"))
+
+
+@app.route("/marketing/standees/<int:standee_id>/reprint", methods=["POST"])
+@role_required("marketing")
+def marketing_standee_reprint(standee_id):
+    try:
+        added = int(request.form.get("added_units", "0"))
+    except ValueError:
+        added = 0
+    note = request.form.get("note", "").strip()
+    if added <= 0:
+        flash("Enter a positive number of units", "danger")
+    else:
+        db.reprint_standee(standee_id, added, note, session["user"])
+        flash(f"Added {added} unit(s)", "success")
+    return redirect(url_for("marketing_standees_page"))
+
+
+@app.route("/marketing/standees/assign", methods=["POST"])
+@role_required("marketing")
+def marketing_standee_assign():
+    standee_id = request.form.get("standee_id", "").strip()
+    apartment_id = request.form.get("apartment_id", "").strip()
+    assigned_to = request.form.get("assigned_to", "").strip()
+    quantity = request.form.get("quantity", "").strip()
+    duration_days = request.form.get("duration_days", "").strip()
+    valid_btl = {u["username"] for u in db.btl_users()}
+    if not all([standee_id, apartment_id, assigned_to, quantity, duration_days]) or assigned_to not in valid_btl:
+        flash("Standee, apartment, BTL coordinator, quantity and duration are all required", "danger")
+        return redirect(url_for("marketing_standees_page"))
+    try:
+        qty, days = int(quantity), int(duration_days)
+    except ValueError:
+        flash("Quantity and duration must be numbers", "danger")
+        return redirect(url_for("marketing_standees_page"))
+    loc = _resolve_location_pair("collection_location", "collection_location_detail")
+    db.create_standee_assignment(standee_id, apartment_id, assigned_to, qty, days, loc, session["user"])
+    flash("Standee assigned", "success")
+    return redirect(url_for("marketing_standees_page"))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 #  BTL
 # ═══════════════════════════════════════════════════════════════════════════
 @app.route("/btl")
@@ -436,6 +584,7 @@ def btl_collect(apt_id):
     number_available = request.form.get("number_available") == "yes"
 
     if number_available:
+        contact_name = request.form.get("contact_name", "").strip()
         phone = request.form.get("phone", "").strip()
         designation = request.form.get("designation", "").strip()
         if not phone:
@@ -445,16 +594,93 @@ def btl_collect(apt_id):
             flash("Select a valid designation", "danger")
             return redirect(url_for("btl_collection_form", apt_id=apt_id))
         db.save_collection(
-            apt_id, "number", phone, designation, "",
+            apt_id, "number", contact_name, phone, designation, "",
             _campaigns_from_form(), session["user"],
         )
         flash("Collection saved", "success")
     else:
         reason = request.form.get("no_number_reason", "").strip()
-        db.save_collection(apt_id, "no_number", "", "", reason, [], session["user"])
+        db.save_collection(apt_id, "no_number", "", "", "", reason, [], session["user"])
         flash("Marked as no number available", "success")
 
     return redirect(url_for("btl_dashboard"))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  BTL · Standee tracker
+# ═══════════════════════════════════════════════════════════════════════════
+@app.route("/btl/standees")
+@role_required("btl")
+def btl_standees_page():
+    assignments = db.list_standee_assignments_for_btl(session["user"])
+    return render_template(
+        "btl/standees.html",
+        active="standees",
+        assignments=assignments,
+        today=date.today().isoformat(),
+        counts={
+            "all": len(assignments),
+            "Assigned": len([a for a in assignments if a["status"] == "Assigned"]),
+            "Placed": len([a for a in assignments if a["status"] == "Placed"]),
+            "Collected": len([a for a in assignments if a["status"] == "Collected"]),
+        },
+    )
+
+
+@app.route("/btl/standees/<int:assignment_id>")
+@role_required("btl")
+def btl_standee_detail(assignment_id):
+    a = db.get_standee_assignment(assignment_id)
+    if not a or a["assigned_to"] != session["user"]:
+        flash("That task is not assigned to you", "danger")
+        return redirect(url_for("btl_standees_page"))
+    return render_template(
+        "btl/standee_detail.html",
+        a=a,
+        collection=db.get_collection(a["apartment_id"]),
+        photos=db.photos_for(assignment_id),
+        hub_names=HUB_NAMES,
+        active_placements=db.active_standee_placements(),
+    )
+
+
+@app.route("/btl/standees/<int:assignment_id>/place", methods=["POST"])
+@role_required("btl")
+def btl_standee_place(assignment_id):
+    a = db.get_standee_assignment(assignment_id)
+    if not a or a["assigned_to"] != session["user"] or a["status"] != "Assigned":
+        flash("This task can't be placed right now", "danger")
+        return redirect(url_for("btl_standees_page"))
+    saved = _save_photos(request.files.getlist("photos"), assignment_id)
+    if not saved:
+        flash("Add at least one photo to confirm placement", "danger")
+        return redirect(url_for("btl_standee_detail", assignment_id=assignment_id))
+    db.confirm_placement(assignment_id, session["user"], saved)
+    flash("Placement confirmed", "success")
+    return redirect(url_for("btl_standees_page"))
+
+
+@app.route("/btl/standees/<int:assignment_id>/collect", methods=["POST"])
+@role_required("btl")
+def btl_standee_collect(assignment_id):
+    a = db.get_standee_assignment(assignment_id)
+    if not a or a["assigned_to"] != session["user"] or a["status"] != "Placed":
+        flash("This task can't be collected right now", "danger")
+        return redirect(url_for("btl_standees_page"))
+    try:
+        returned = int(request.form.get("quantity_returned", "0"))
+    except ValueError:
+        returned = 0
+    try:
+        damaged = int(request.form.get("quantity_damaged", "0"))
+    except ValueError:
+        damaged = 0
+    note = request.form.get("damage_note", "").strip()
+    loc = _resolve_location_pair("drop_location", "drop_location_detail")
+    saved = _save_photos(request.files.getlist("damage_photos"), assignment_id) if damaged > 0 else []
+    db.collect_standee_assignment(assignment_id, returned, damaged, note, loc, session["user"], saved)
+    flash("Standee collected", "success")
+    return redirect(url_for("btl_standees_page"))
 
 
 # ── errors ───────────────────────────────────────────────────────────────

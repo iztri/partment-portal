@@ -44,6 +44,28 @@
       </form>
     </div>
   </div>
+
+  <div class="card" style="flex:1; min-width:300px; max-width:520px;">
+    <div class="card-head"><h2>Bulk contact upload</h2></div>
+    <div class="card-body">
+      <p class="muted" style="margin-top:0; font-size:12.5px;">
+        One per line: <code>Apartment Name, Contact Name, Designation, Phone</code>.
+        Apartment must already exist (matched by name); designation must be one of
+        Security, Apartment Manager, Association Member. Updates the contact on that
+        apartment's collection without touching any campaigns already saved there.
+      </p>
+      <form method="post" action="/marketing/contacts/bulk-upload">
+        <div class="field">
+          <textarea name="contacts_data" id="contacts" rows="7" style="font-family:ui-monospace,Menlo,monospace; font-size:12.5px;"
+            placeholder="Prestige Sunrise Park, Ramesh Kumar, Security, 9876543210&#10;Sattva Misty Charm, Anita Rao, Apartment Manager, 9123456780"></textarea>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="btn btn-default btn-sm" id="sampleContacts"><i class="bi bi-file-text"></i>Insert sample</button>
+          <button type="submit" class="btn btn-primary btn-sm" style="margin-left:auto;"><i class="bi bi-upload"></i>Upload</button>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 {% endblock %}
 
@@ -53,6 +75,11 @@
     document.getElementById('bulk').value =
       "Prestige Sunrise Park, Arekere, https://maps.google.com/\n" +
       "Sattva Misty Charm, Koramangala";
+  });
+  document.getElementById('sampleContacts').addEventListener('click', function(){
+    document.getElementById('contacts').value =
+      "Prestige Sunrise Park, Ramesh Kumar, Security, 9876543210\n" +
+      "Sattva Misty Charm, Anita Rao, Apartment Manager, 9123456780";
   });
 </script>
 {% endblock %}

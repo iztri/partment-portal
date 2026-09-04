@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% block title %}{{ a.standee_name }} · {{ a.apartment_name }}{% endblock %}
+
+{% macro location_picker(select_name, detail_name) %}
+<select name="{{ select_name }}" style="margin-bottom:8px;">
+  <option value="">— Select hub or active placement —</option>
+  {% if active_placements %}
+  <optgroup label="Active placements">
+    {% for p in active_placements %}
+    <option value="apt:{{ p.apartment_name }} ({{ p.apartment_hub }})">{{ p.standee_name }} → {{ p.apartment_name }}</option>
+    {% endfor %}
+  </optgroup>
+  {% endif %}
+  <optgroup label="Hubs">
+    {% for h in hub_names %}<option value="{{ h }}">{{ h }}</option>{% endfor %}
+  </optgroup>
+  <option value="__custom__">Other (type below)</option>
+</select>
+<input type="text" name="{{ detail_name }}" placeholder="Floor, block, room…">
+{% endmacro %}
+
+{% block extra_css %}
+<style>
+  .photo-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(88px,1fr)); gap:8px; margin-bottom:10px;}
+  .photo-thumb{position:relative; aspect-ratio:1; border-radius:var(--r-sm); overflow:hidden; border:1px solid var(--border);}
+  .photo-thumb img{width:100%; height:100%; object-fit:cover; display:block;}
+  .photo-thumb button{position:absolute; top:3px; right:3px; width:22px; height:22px; border-radius:50%;
+    border:none; background:rgba(16,24,40,.65); color:#fff; font-size:12px; line-height:1; cursor:pointer;}
+  .copy-row{display:flex; align-items:center; gap:8px;}
+  .save-bar{position:sticky; bottom:0; z-index:10; padding-top:12px; margin-top:6px;}
+  .save-bar .btn{width:100%; padding:13px; font-size:14px;}
+  @media(max-width:560px){.save-bar{margin:0 -16px; padding:12px 16px; background:var(--surface); border-top:1px solid var(--border);}}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head" style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+  <div>
+    <h1>{{ a.standee_name }} <span class="subtle" style="font-weight:500;">× {{ a.quantity }}</span></h1>
+    <p>{{ a.apartment_name }} · {{ a.apartment_hub }}{% if a.apartment_location_link %} · <a href="{{ a.apartment_location_link }}" target="_blank">Map</a>{% endif %}</p>
+  </div>
+  <a href="/btl/standees" class="btn btn-default btn-sm"><i class="bi bi-arrow-left"></i>Back</a>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Contact</h2></div>
+  <div class="card-body">
+    {% if collection and collection.outcome == 'number' %}
+      <div class="row-flex">
+        <div class="field" style="flex:1; min-width:140px;"><label>Name</label><div class="strong">{{ collection.contact_name or '—' }}</div></div>
+        <div class="field" style="flex:1; min-width:140px;"><label>Designation</label><div>{{ collection.designation or '—' }}</div></div>
+        <div class="field" style="flex:1; min-width:180px;"><label>Phone</label>
+          <div class="copy-row">
+            <span class="strong">{{ collection.phone }}</span>
+            <button type="button" class="btn btn-default btn-icon" onclick="copyPhone(this,'{{ collection.phone }}')" title="Copy"><i class="bi bi-clipboard"></i></button>
+          </div>
+        </div>
+      </div>
+    {% else %}
+      <div class="alert alert-info mb-0"><i class="bi bi-info-circle-fill"></i><span>This apartment hasn't been through Apartment Detail Collection yet — no contact on file.</span></div>
+    {% endif %}
+    {% if a.collection_location %}
+    <div class="alert alert-success" style="margin-top:12px; margin-bottom:0;"><i class="bi bi-geo-alt-fill"></i><span>Pickup: {{ a.collection_location }}</span></div>
+    {% endif %}
+  </div>
+</div>
+
+{% if a.status == 'Assigned' %}
+<form method="post" action="/btl/standees/{{ a.id }}/place" enctype="multipart/form-data">
+  <div class="card">
+    <div class="card-head"><h2>Confirm placement</h2><span class="sub">add at least one photo</span></div>
+    <div class="card-body">
+      <div id="photoGrid" class="photo-grid"></div>
+      <button type="button" class="btn btn-default btn-block" id="addPhotoBtn"><i class="bi bi-camera"></i>Add photo</button>
+      <input type="file" id="photoPicker" accept="image/*" capture="environment" hidden>
+      <input type="file" name="photos" id="photosReal" multiple hidden>
+    </div>
+  </div>
+  <div class="save-bar"><button type="submit" class="btn btn-primary"><i class="bi bi-check2-circle"></i>Confirm placed</button></div>
+</form>
+
+{% elif a.status == 'Placed' %}
+<div class="card">
+  <div class="card-head"><h2>Placement</h2></div>
+  <div class="card-body">
+    <div class="row-flex">
+      <div class="field" style="flex:1; min-width:140px;"><label>Placed on</label><div>{{ a.placed_at[:10] if a.placed_at else '—' }}</div></div>
+      <div class="field" style="flex:1; min-width:140px;"><label>Collect by</label><div class="strong">{{ a.collect_by }}</div></div>
+    </div>
+    {% if photos %}
+    <div class="divider"></div>
+    <div class="field mb-0"><label>Placement photos</label>
+      <div class="photo-grid">{% for p in photos if p.kind == 'placement' %}<div class="photo-thumb"><img src="/static/{{ p.path }}"></div>{% endfor %}</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<form method="post" action="/btl/standees/{{ a.id }}/collect" enctype="multipart/form-data">
+  <div class="card">
+    <div class="card-head"><h2>Collect back</h2></div>
+    <div class="card-body">
+      <div class="grid-2">
+        <div class="field"><label>Units returned</label><input type="number" name="quantity_returned" id="qtyReturned" min="0" max="{{ a.quantity }}" value="{{ a.quantity }}" required></div>
+        <div class="field"><label>Units damaged <span class="hint">optional</span></label><input type="number" name="quantity_damaged" id="qtyDamaged" min="0" max="{{ a.quantity }}" value="0"></div>
+      </div>
+      <div id="damageBlock" hidden>
+        <div class="field"><label>Damage note <span class="hint">optional</span></label><textarea name="damage_note" rows="2" placeholder="e.g. torn base, water damage"></textarea></div>
+        <div class="field">
+          <label>Damage photos</label>
+          <div id="dmgGrid" class="photo-grid"></div>
+          <button type="button" class="btn btn-default btn-block" id="addDmgBtn"><i class="bi bi-camera"></i>Add photo</button>
+          <input type="file" id="dmgPicker" accept="image/*" capture="environment" hidden>
+          <input type="file" name="damage_photos" id="dmgReal" multiple hidden>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="field mb-0">
+        <label>Where are you keeping it now?</label>
+        {{ location_picker('drop_location', 'drop_location_detail') }}
+      </div>
+    </div>
+  </div>
+  <div class="save-bar"><button type="submit" class="btn btn-primary"><i class="bi bi-box-arrow-in-down"></i>Mark collected</button></div>
+</form>
+
+{% else %}
+<div class="card">
+  <div class="card-head"><h2>Collected</h2></div>
+  <div class="card-body">
+    <div class="row-flex">
+      <div class="field" style="flex:1; min-width:120px;"><label>Placed</label><div>{{ a.placed_at[:10] if a.placed_at else '—' }}</div></div>
+      <div class="field" style="flex:1; min-width:120px;"><label>Collected</label><div>{{ a.collected_at[:10] if a.collected_at else '—' }}</div></div>
+      <div class="field" style="flex:1; min-width:100px;"><label>Returned</label><div class="strong">{{ a.quantity_returned }} / {{ a.quantity }}</div></div>
+      <div class="field" style="flex:1; min-width:100px;"><label>Damaged</label><div>{{ a.quantity_damaged or 0 }}</div></div>
+    </div>
+    {% if a.damage_note %}<div class="alert alert-warning" style="margin-top:4px;"><i class="bi bi-exclamation-triangle-fill"></i><span>{{ a.damage_note }}</span></div>{% endif %}
+    {% if a.drop_location %}<div class="alert alert-success" style="margin-top:8px;"><i class="bi bi-geo-alt-fill"></i><span>Kept at: {{ a.drop_location }}</span></div>{% endif %}
+    {% if photos %}
+    <div class="divider"></div>
+    <div class="field mb-0"><label>Photos</label>
+      <div class="photo-grid">{% for p in photos %}<div class="photo-thumb"><img src="/static/{{ p.path }}"></div>{% endfor %}</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function copyPhone(btn, phone){
+    navigator.clipboard.writeText(phone).then(function(){
+      var icon = btn.querySelector('i');
+      icon.className = 'bi bi-check-lg';
+      setTimeout(function(){ icon.className = 'bi bi-clipboard'; }, 1200);
+    });
+  }
+
+  function photoPicker(pickBtnId, pickerId, gridId, realInputId){
+    var files = [];
+    var pickBtn = document.getElementById(pickBtnId);
+    if(!pickBtn) return;
+    var picker = document.getElementById(pickerId), grid = document.getElementById(gridId), real = document.getElementById(realInputId);
+    function render(){
+      grid.innerHTML = files.map(function(f, i){
+        return '<div class="photo-thumb"><img src="' + URL.createObjectURL(f) + '">' +
+          '<button type="button" data-i="' + i + '">&times;</button></div>';
+      }).join('');
+      grid.querySelectorAll('button').forEach(function(b){
+        b.addEventListener('click', function(){ files.splice(parseInt(b.dataset.i), 1); render(); sync(); });
+      });
+    }
+    function sync(){
+      var dt = new DataTransfer();
+      files.forEach(function(f){ dt.items.add(f); });
+      real.files = dt.files;
+    }
+    pickBtn.addEventListener('click', function(){ picker.click(); });
+    picker.addEventListener('change', function(){
+      if(picker.files[0]){ files.push(picker.files[0]); render(); sync(); }
+      picker.value = '';
+    });
+  }
+  photoPicker('addPhotoBtn', 'photoPicker', 'photoGrid', 'photosReal');
+  photoPicker('addDmgBtn', 'dmgPicker', 'dmgGrid', 'dmgReal');
+
+  var qtyDamaged = document.getElementById('qtyDamaged');
+  if(qtyDamaged){
+    qtyDamaged.addEventListener('input', function(){
+      document.getElementById('damageBlock').hidden = !(parseInt(this.value) > 0);
+    });
+  }
+</script>
+{% endblock %}

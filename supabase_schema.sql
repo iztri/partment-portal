@@ -28,6 +28,7 @@ create table if not exists collections (
     id               bigint generated always as identity primary key,
     apartment_id     bigint not null unique references apartments (id) on delete cascade,
     outcome          text not null default 'number' check (outcome in ('number','no_number')),
+    contact_name     text not null default '',
     phone            text not null default '',
     designation      text not null default '',
     no_number_reason text not null default '',
@@ -44,3 +45,57 @@ create table if not exists collection_campaigns (
     days          integer not null default 0
 );
 create index if not exists collection_campaigns_collection_idx on collection_campaigns (collection_id);
+
+-- ── Standee tracker ─────────────────────────────────────────────────────
+create table if not exists standees (
+    id                bigint generated always as identity primary key,
+    name              text not null unique,
+    photo_path        text not null default '',
+    total_units       integer not null default 0,
+    storage_location  text not null default '',
+    created_by        text not null default '',
+    created_at        text not null default ''
+);
+
+create table if not exists standee_reprints (
+    id           bigint generated always as identity primary key,
+    standee_id   bigint not null references standees (id) on delete cascade,
+    added_units  integer not null default 0,
+    note         text not null default '',
+    added_by     text not null default '',
+    added_at     text not null default ''
+);
+create index if not exists standee_reprints_standee_idx on standee_reprints (standee_id);
+
+create table if not exists standee_assignments (
+    id                   bigint generated always as identity primary key,
+    standee_id           bigint not null references standees (id),
+    apartment_id         bigint not null references apartments (id),
+    assigned_to          text not null default '',
+    quantity             integer not null default 0,
+    duration_days        integer not null default 0,
+    collection_location  text not null default '',
+    status               text not null default 'Assigned' check (status in ('Assigned','Placed','Collected')),
+    placed_at            text not null default '',
+    placed_by            text not null default '',
+    collect_by           text not null default '',
+    collected_at         text not null default '',
+    collected_by         text not null default '',
+    quantity_returned    integer not null default 0,
+    quantity_damaged     integer not null default 0,
+    damage_note          text not null default '',
+    drop_location        text not null default '',
+    created_by           text not null default '',
+    created_at           text not null default ''
+);
+create index if not exists standee_assignments_assigned_to_idx on standee_assignments (assigned_to);
+create index if not exists standee_assignments_status_idx on standee_assignments (status);
+
+create table if not exists standee_photos (
+    id              bigint generated always as identity primary key,
+    assignment_id   bigint not null references standee_assignments (id) on delete cascade,
+    kind            text not null default 'placement' check (kind in ('placement','damage')),
+    path            text not null,
+    uploaded_at     text not null default ''
+);
+create index if not exists standee_photos_assignment_idx on standee_photos (assignment_id);
