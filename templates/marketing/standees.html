@@ -75,14 +75,17 @@
       <div class="card-body flush">
         <div class="tbl-wrap">
           <table class="tbl">
-            <thead><tr><th>Design</th><th>Total</th><th>Placed</th><th>Available</th><th>Damaged</th><th>Lost</th><th>Storage</th><th style="width:90px;"></th></tr></thead>
+            <thead><tr><th>Design</th><th>Total</th><th>Placed</th><th>Available</th><th>Damaged</th><th>Lost</th><th>Storage</th><th style="width:190px;"></th></tr></thead>
             <tbody>
               {% for s in standees %}
               {% set st = stats.get(s.id, {'placed':0,'damaged':0,'lost':0,'available':s.total_units}) %}
+              {% set replacement = standees_by_id.get(s.replaced_by) if s.replaced_by else None %}
               <tr>
                 <td>
                   {% if s.photo_path %}<img class="thumb" src="/static/{{ s.photo_path }}">{% endif %}
                   <span class="strong">{{ s.name }}</span>
+                  {% if not s.active %}<span class="badge badge-off" style="margin-left:6px;">Discontinued</span>{% endif %}
+                  {% if replacement %}<div class="subtle" style="font-size:11px; margin-top:2px;">→ replaced by {{ replacement.name }}</div>{% endif %}
                 </td>
                 <td>{{ s.total_units }}</td>
                 <td style="color:var(--st-live-fg);">{{ st.placed }}</td>
@@ -90,7 +93,14 @@
                 <td>{% if st.damaged %}<span style="color:var(--danger-fg);">{{ st.damaged }}</span>{% else %}<span class="subtle">—</span>{% endif %}</td>
                 <td>{% if st.lost %}<span style="color:var(--danger-fg);">{{ st.lost }}</span>{% else %}<span class="subtle">—</span>{% endif %}</td>
                 <td class="muted">{{ s.storage_location or '—' }}</td>
-                <td><button class="btn btn-default btn-sm" data-bs-toggle="modal" data-bs-target="#reprint{{ s.id }}"><i class="bi bi-printer"></i>Reprint</button></td>
+                <td>
+                  <div style="display:flex; gap:4px;">
+                    {% if s.active %}
+                    <button class="btn btn-default btn-sm" data-bs-toggle="modal" data-bs-target="#reprint{{ s.id }}"><i class="bi bi-printer"></i>Reprint</button>
+                    <button class="btn btn-default btn-sm" data-bs-toggle="modal" data-bs-target="#replace{{ s.id }}"><i class="bi bi-arrow-repeat"></i>Replace</button>
+                    {% else %}<span class="subtle" style="font-size:12px;">—</span>{% endif %}
+                  </div>
+                </td>
               </tr>
               {% else %}
               <tr><td colspan="8"><div class="empty"><i class="bi bi-signpost-2"></i><div class="t">No standees yet.</div></div></td></tr>
@@ -121,7 +131,7 @@
           <div class="field"><label>Standee</label>
             <select name="standee_id" required>
               <option value="">— Select —</option>
-              {% for s in standees %}<option value="{{ s.id }}">{{ s.name }} — {{ stats.get(s.id, {}).get('available', s.total_units) }} available</option>{% endfor %}
+              {% for s in standees if s.active %}<option value="{{ s.id }}">{{ s.name }} — {{ stats.get(s.id, {}).get('available', s.total_units) }} available</option>{% endfor %}
             </select></div>
           <div class="field"><label>BTL coordinator</label>
             <select name="assigned_to" required {{ 'disabled' if not btl_users }}>
@@ -150,7 +160,7 @@
               {% for a in assignments %}
               <tr>
                 <td class="strong">{{ a.apartment_name }}</td>
-                <td class="muted">{{ a.standee_name }}</td>
+                <td class="muted">{% if a.standee_photo %}<img class="thumb" src="/static/{{ a.standee_photo }}">{% endif %}{{ a.standee_name }}</td>
                 <td>{{ a.quantity }}</td>
                 <td class="muted">{{ a.assigned_to }}</td>
                 <td>{{ status_badge(a.status) }}</td>
@@ -189,7 +199,9 @@
           <thead><tr><th>Apartment</th><th>Hub</th><th>Standee</th><th>Qty</th></tr></thead>
           <tbody>
             {% for p in active_placements %}
-            <tr><td class="strong">{{ p.apartment_name }}</td><td class="muted">{{ p.apartment_hub }}</td><td class="muted">{{ p.standee_name }}</td><td>{{ p.quantity }}</td></tr>
+            <tr><td class="strong">{{ p.apartment_name }}</td><td class="muted">{{ p.apartment_hub }}</td>
+              <td class="muted">{% if p.standee_photo %}<img class="thumb" src="/static/{{ p.standee_photo }}">{% endif %}{{ p.standee_name }}</td>
+              <td>{{ p.quantity }}</td></tr>
             {% else %}
             <tr><td colspan="4"><div class="empty"><i class="bi bi-geo-alt"></i><div class="t">Nothing placed right now.</div></div></td></tr>
             {% endfor %}
@@ -216,7 +228,7 @@
             {% for a in assignments %}
             <tr data-status="{{ a.status }}">
               <td class="num">{{ a.id }}</td>
-              <td class="strong">{{ a.standee_name }}</td>
+              <td class="strong">{% if a.standee_photo %}<img class="thumb" src="/static/{{ a.standee_photo }}">{% endif %}{{ a.standee_name }}</td>
               <td class="muted">{{ a.apartment_name }}</td>
               <td class="muted">{{ a.assigned_to }}</td>
               <td>{{ a.quantity }}</td>
@@ -255,6 +267,27 @@
     </form>
   </div>
 </div>
+
+<div class="modal fade" id="replace{{ s.id }}" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="post" action="/marketing/standees/{{ s.id }}/replace" enctype="multipart/form-data">
+      <div class="modal-header"><span class="modal-title">Replace · {{ s.name }}</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="alert alert-warning" style="margin-top:0;"><i class="bi bi-exclamation-triangle-fill"></i>
+          <span>New creative? '{{ s.name }}' will be marked discontinued (kept for history, can't be assigned again) and a new standee is created below.</span></div>
+        <div class="field"><label>New standee name</label><input type="text" name="new_name" placeholder="e.g. Diwali Offer Standee v2" required></div>
+        <div class="field"><label>Total units printed</label><input type="number" name="new_total_units" min="0" placeholder="0" required></div>
+        <div class="field"><label>Storage location <span class="hint">optional, defaults to same as before</span></label>
+          <input type="text" name="new_storage_location" placeholder="{{ s.storage_location or 'e.g. Koramangala office store' }}"></div>
+        <div class="field mb-0"><label>New design photo <span class="hint">optional</span></label><input type="file" name="new_photo" accept="image/*"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-arrow-repeat"></i>Retire &amp; add new</button>
+      </div>
+    </form>
+  </div>
+</div>
 {% endfor %}
 
 <div class="modal fade" id="asgDetail" tabindex="-1">
@@ -264,8 +297,11 @@
       <div class="modal-body">
         <div id="adLoading" class="empty" style="padding:24px;"><i class="bi bi-hourglass-split"></i><div class="t">Loading…</div></div>
         <div id="adContent" hidden>
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
+            <img id="adStandeePhoto" src="" hidden style="width:48px; height:48px; border-radius:8px; object-fit:cover; border:1px solid var(--border);">
+            <div style="font-size:16px; font-weight:700;" id="adStandeeName"></div>
+          </div>
           <div class="grid-2">
-            <div class="field"><label>Standee</label><div class="strong" id="adStandee"></div></div>
             <div class="field"><label>Apartment</label><div id="adApt"></div></div>
             <div class="field"><label>Coordinator</label><div id="adUser"></div></div>
             <div class="field"><label>Quantity</label><div id="adQty"></div></div>
@@ -320,7 +356,9 @@
         document.getElementById('adLoading').hidden = true;
         document.getElementById('adContent').hidden = false;
         document.getElementById('adId').textContent = '#' + d.id;
-        document.getElementById('adStandee').textContent = d.standee_name;
+        document.getElementById('adStandeeName').textContent = d.standee_name;
+        var photoEl = document.getElementById('adStandeePhoto');
+        if(d.standee_photo){ photoEl.src = '/static/' + d.standee_photo; photoEl.hidden = false; } else { photoEl.hidden = true; }
         document.getElementById('adApt').textContent = d.apartment_name + ' (' + d.apartment_hub + ')';
         document.getElementById('adUser').textContent = d.assigned_to;
         document.getElementById('adQty').textContent = d.quantity;

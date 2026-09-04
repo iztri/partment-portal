@@ -462,10 +462,12 @@ def marketing_team_reset_password(user_id):
 @app.route("/marketing/standees")
 @role_required("marketing")
 def marketing_standees_page():
+    standees = db.list_standees()
     return render_template(
         "marketing/standees.html",
         active="standees",
-        standees=db.list_standees(),
+        standees=standees,
+        standees_by_id={s["id"]: s for s in standees},
         stats=db.standee_stats(),
         apartments=db.list_apartments(),
         btl_users=db.btl_users(),
@@ -510,6 +512,36 @@ def marketing_standee_reprint(standee_id):
     else:
         db.reprint_standee(standee_id, added, note, session["user"])
         flash(f"Added {added} unit(s)", "success")
+    return redirect(url_for("marketing_standees_page"))
+
+
+@app.route("/marketing/standees/<int:standee_id>/replace", methods=["POST"])
+@role_required("marketing")
+def marketing_standee_replace(standee_id):
+    old = db.get_standee(standee_id)
+    new_name = request.form.get("new_name", "").strip()
+    new_total = request.form.get("new_total_units", "0").strip()
+    new_storage = request.form.get("new_storage_location", "").strip()
+    if not old:
+        flash("Standee not found", "danger")
+        return redirect(url_for("marketing_standees_page"))
+    if not new_name:
+        flash("New creative needs a name", "danger")
+        return redirect(url_for("marketing_standees_page"))
+    try:
+        new_total_units = int(new_total)
+    except ValueError:
+        new_total_units = 0
+    saved = _save_photos([request.files.get("new_photo")], "designs")
+    new_id = db.add_standee(
+        new_name, saved[0] if saved else "", new_total_units,
+        new_storage or old["storage_location"], session["user"],
+    )
+    if new_id is None:
+        flash(f"A standee named '{new_name}' already exists", "danger")
+        return redirect(url_for("marketing_standees_page"))
+    db.retire_standee(standee_id, replaced_by=new_id)
+    flash(f"'{old['name']}' retired · new creative '{new_name}' added", "success")
     return redirect(url_for("marketing_standees_page"))
 
 

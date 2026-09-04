@@ -13,8 +13,11 @@
   .cal-d.today{background:var(--accent-soft);}
   .cal-d.other{background:var(--bg);}
   .cal-e{font-size:10.5px; padding:2px 5px; border-radius:4px; margin-bottom:2px; font-weight:600;
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; background:var(--st-alt-bg);
-    color:var(--st-alt-fg); border:1px solid var(--st-alt-bd);}
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border:1px solid transparent;}
+  .cal-e.place{background:#e3f2fd; color:#1565c0; border-color:#90caf9;}
+  .cal-e.remove{background:#ffebee; color:#c62828; border-color:#ffcdd2;}
+  .cal-legend{display:flex; gap:16px; align-items:center; padding:10px 14px; font-size:12px; color:var(--muted); border-top:1px solid var(--border);}
+  .cal-legend .dot{display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; vertical-align:middle;}
 
   .filters{display:flex; gap:8px; flex-wrap:wrap; margin:12px 0 14px;}
   .filters button{padding:8px 14px; border-radius:20px; border:1px solid var(--border-strong);
@@ -27,6 +30,8 @@
   .st[data-status="Placed"]{border-left-color:var(--accent);}
   .st[data-status="Collected"]{border-left-color:var(--st-off-fg);}
   .st-top{display:flex; justify-content:space-between; align-items:flex-start; gap:10px;}
+  .st-name{display:flex; align-items:center; gap:8px;}
+  .st-name img{width:34px; height:34px; border-radius:8px; object-fit:cover; border:1px solid var(--border); flex-shrink:0;}
   .st h3{font-size:15px;}
   .st .meta{font-size:12.5px; color:var(--muted); margin-top:4px;}
   .st-cta{margin-top:14px;}
@@ -82,6 +87,10 @@
     <div class="cal">
       <div class="cal-h"><div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div></div>
       <div class="cal-g" id="calGrid"></div>
+      <div class="cal-legend">
+        <span><span class="dot" style="background:#1565c0;"></span>Placed</span>
+        <span><span class="dot" style="background:#c62828;"></span>Removed / due for removal</span>
+      </div>
     </div>
   </div>
 </div>
@@ -106,7 +115,10 @@
   <div class="st-inner">
     <div style="min-width:0;">
       <div class="st-top">
-        <h3>{{ a.standee_name }} <span class="subtle" style="font-weight:500;">× {{ a.quantity }}</span></h3>
+        <div class="st-name">
+          {% if a.standee_photo %}<img src="/static/{{ a.standee_photo }}">{% endif %}
+          <h3>{{ a.standee_name }} <span class="subtle" style="font-weight:500;">× {{ a.quantity }}</span></h3>
+        </div>
         {% if a.status == 'Assigned' %}<span class="badge badge-live">To place</span>
         {% elif a.status == 'Placed' %}<span class="badge badge-alt">Placed</span>
         {% else %}<span class="badge badge-ok">Collected</span>{% endif %}
@@ -144,8 +156,14 @@
       if(day < 1 || day > dim){ h += '<div class="cal-d other"></div>'; continue; }
       var ds = ms + '-' + String(day).padStart(2,'0');
       h += '<div class="cal-d' + (ds === todayStr ? ' today' : '') + '"><div class="dn">' + day + '</div>';
-      A.filter(function(a){ return a.status === 'Placed' && a.collect_by === ds; }).forEach(function(a){
-        h += '<div class="cal-e">' + a.standee_name + '</div>';
+      A.filter(function(a){ return a.placed_at && a.placed_at.slice(0,10) === ds; }).forEach(function(a){
+        h += '<div class="cal-e place" title="Placed">' + a.standee_name + '</div>';
+      });
+      A.filter(function(a){
+        return (a.status === 'Collected' && a.collected_at && a.collected_at.slice(0,10) === ds) ||
+               (a.status === 'Placed' && a.collect_by === ds);
+      }).forEach(function(a){
+        h += '<div class="cal-e remove" title="Removed / due">' + a.standee_name + '</div>';
       });
       h += '</div>';
     }

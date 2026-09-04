@@ -90,6 +90,8 @@ class SQLiteDatabase:
                 photo_path TEXT NOT NULL DEFAULT '',
                 total_units INTEGER NOT NULL DEFAULT 0,
                 storage_location TEXT NOT NULL DEFAULT '',
+                active INTEGER NOT NULL DEFAULT 1,
+                replaced_by INTEGER REFERENCES standees(id),
                 created_by TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL DEFAULT ''
             );
@@ -135,10 +137,12 @@ class SQLiteDatabase:
             """
         )
         self.conn.commit()
-        # migrate: add columns to a pre-existing collections table
+        # migrate: add columns to pre-existing tables
         for stmt in (
             "ALTER TABLE collections ADD COLUMN contact_name TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE collections ADD COLUMN total_units INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE standees ADD COLUMN active INTEGER NOT NULL DEFAULT 1",
+            "ALTER TABLE standees ADD COLUMN replaced_by INTEGER REFERENCES standees(id)",
         ):
             try:
                 self.conn.execute(stmt)
@@ -396,6 +400,13 @@ class SQLiteDatabase:
         r = self.conn.execute("SELECT * FROM standees WHERE id=?", (int(standee_id),)).fetchone()
         return dict(r) if r else None
 
+    def retire_standee(self, standee_id, replaced_by=None):
+        self.conn.execute(
+            "UPDATE standees SET active=0, replaced_by=? WHERE id=?",
+            (int(replaced_by) if replaced_by else None, int(standee_id)),
+        )
+        self.conn.commit()
+
     def reprint_standee(self, standee_id, added_units, note, added_by):
         standee_id = int(standee_id)
         added_units = int(added_units)
@@ -442,8 +453,8 @@ class SQLiteDatabase:
 
     def active_standee_placements(self):
         rows = self.conn.execute(
-            """SELECT sa.standee_id, s.name AS standee_name, sa.apartment_id,
-                      a.name AS apartment_name, a.hub AS apartment_hub, sa.quantity
+            """SELECT sa.standee_id, s.name AS standee_name, s.photo_path AS standee_photo,
+                      sa.apartment_id, a.name AS apartment_name, a.hub AS apartment_hub, sa.quantity
                FROM standee_assignments sa
                JOIN standees s ON s.id = sa.standee_id
                JOIN apartments a ON a.id = sa.apartment_id
@@ -465,7 +476,8 @@ class SQLiteDatabase:
 
     def list_standee_assignments(self):
         rows = self.conn.execute(
-            """SELECT sa.*, s.name AS standee_name, a.name AS apartment_name, a.hub AS apartment_hub
+            """SELECT sa.*, s.name AS standee_name, s.photo_path AS standee_photo,
+                      a.name AS apartment_name, a.hub AS apartment_hub
                FROM standee_assignments sa
                JOIN standees s ON s.id = sa.standee_id
                JOIN apartments a ON a.id = sa.apartment_id
@@ -475,7 +487,8 @@ class SQLiteDatabase:
 
     def list_standee_assignments_for_btl(self, username):
         rows = self.conn.execute(
-            """SELECT sa.*, s.name AS standee_name, a.name AS apartment_name, a.hub AS apartment_hub,
+            """SELECT sa.*, s.name AS standee_name, s.photo_path AS standee_photo,
+                      a.name AS apartment_name, a.hub AS apartment_hub,
                       a.location_link AS apartment_location_link
                FROM standee_assignments sa
                JOIN standees s ON s.id = sa.standee_id
@@ -487,7 +500,8 @@ class SQLiteDatabase:
 
     def get_standee_assignment(self, assignment_id):
         r = self.conn.execute(
-            """SELECT sa.*, s.name AS standee_name, a.name AS apartment_name, a.hub AS apartment_hub,
+            """SELECT sa.*, s.name AS standee_name, s.photo_path AS standee_photo,
+                      a.name AS apartment_name, a.hub AS apartment_hub,
                       a.location_link AS apartment_location_link
                FROM standee_assignments sa
                JOIN standees s ON s.id = sa.standee_id
@@ -752,6 +766,11 @@ class SupabaseDatabase:
         r = self.sb.table("standees").select("*").eq("id", int(standee_id)).limit(1).execute()
         return r.data[0] if r.data else None
 
+    def retire_standee(self, standee_id, replaced_by=None):
+        self.sb.table("standees").update({
+            "active": False, "replaced_by": int(replaced_by) if replaced_by else None,
+        }).eq("id", int(standee_id)).execute()
+
     def reprint_standee(self, standee_id, added_units, note, added_by):
         standee_id = int(standee_id)
         added_units = int(added_units)
@@ -791,12 +810,13 @@ class SupabaseDatabase:
     def active_standee_placements(self):
         try:
             rows = self.sb.table("standee_assignments").select(
-                "standee_id, quantity, standees!inner(name), apartment_id, apartments!inner(name,hub)"
+                "standee_id, quantity, standees!inner(name,photo_path), apartment_id, apartments!inner(name,hub)"
             ).eq("status", "Placed").execute().data
         except Exception:
             return []
         out = [{
             "standee_id": r["standee_id"], "standee_name": r["standees"]["name"],
+            "standee_photo": r["standees"].get("photo_path", ""),
             "apartment_id": r["apartment_id"], "apartment_name": r["apartments"]["name"],
             "apartment_hub": r["apartments"]["hub"], "quantity": r["quantity"],
         } for r in rows]
@@ -817,7 +837,9 @@ class SupabaseDatabase:
         out = []
         for r in rows:
             d = dict(r)
-            d["standee_name"] = r.get("standees", {}).get("name", "") if r.get("standees") else ""
+            std = r.get("standees") or {}
+            d["standee_name"] = std.get("name", "")
+            d["standee_photo"] = std.get("photo_path", "")
             apt = r.get("apartments") or {}
             d["apartment_name"] = apt.get("name", "")
             d["apartment_hub"] = apt.get("hub", "")
@@ -827,19 +849,19 @@ class SupabaseDatabase:
 
     def list_standee_assignments(self):
         rows = self.sb.table("standee_assignments").select(
-            "*, standees!inner(name), apartments!inner(name,hub)"
+            "*, standees!inner(name,photo_path), apartments!inner(name,hub)"
         ).order("id", desc=True).execute().data
         return self._join_assignment_rows(rows)
 
     def list_standee_assignments_for_btl(self, username):
         rows = self.sb.table("standee_assignments").select(
-            "*, standees!inner(name), apartments!inner(name,hub,location_link)"
+            "*, standees!inner(name,photo_path), apartments!inner(name,hub,location_link)"
         ).eq("assigned_to", username).order("id", desc=True).execute().data
         return self._join_assignment_rows(rows)
 
     def get_standee_assignment(self, assignment_id):
         rows = self.sb.table("standee_assignments").select(
-            "*, standees!inner(name), apartments!inner(name,hub,location_link)"
+            "*, standees!inner(name,photo_path), apartments!inner(name,hub,location_link)"
         ).eq("id", int(assignment_id)).limit(1).execute().data
         joined = self._join_assignment_rows(rows)
         return joined[0] if joined else None

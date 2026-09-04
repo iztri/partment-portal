@@ -37,9 +37,12 @@
 
 {% block content %}
 <div class="page-head" style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
-  <div>
-    <h1>{{ a.standee_name }} <span class="subtle" style="font-weight:500;">× {{ a.quantity }}</span></h1>
-    <p>{{ a.apartment_name }} · {{ a.apartment_hub }}{% if a.apartment_location_link %} · <a href="{{ a.apartment_location_link }}" target="_blank">Map</a>{% endif %}</p>
+  <div style="display:flex; align-items:center; gap:12px;">
+    {% if a.standee_photo %}<img src="/static/{{ a.standee_photo }}" style="width:44px; height:44px; border-radius:9px; object-fit:cover; border:1px solid var(--border); flex-shrink:0;">{% endif %}
+    <div>
+      <h1>{{ a.standee_name }} <span class="subtle" style="font-weight:500;">× {{ a.quantity }}</span></h1>
+      <p>{{ a.apartment_name }} · {{ a.apartment_hub }}{% if a.apartment_location_link %} · <a href="{{ a.apartment_location_link }}" target="_blank">Map</a>{% endif %}</p>
+    </div>
   </div>
   <a href="/btl/standees" class="btn btn-default btn-sm"><i class="bi bi-arrow-left"></i>Back</a>
 </div>
