@@ -173,6 +173,22 @@
       .toggle-sidebar{display:flex;}
       .backdrop.show{display:block;}
     }
+    @media(max-width:560px){
+      /* 16px inputs stop iOS auto-zoom on focus; keep each control's own horizontal padding */
+      input:not([type=checkbox]):not([type=radio]),select,textarea,.form-control,.form-select{
+        font-size:16px; padding-top:11px; padding-bottom:11px;
+      }
+      .btn{padding:11px 15px;}
+      .btn-sm{padding:9px 13px; font-size:13px;}
+      .btn-icon{width:40px; height:40px; padding:0;}
+      .page-head{margin-bottom:16px;}
+      .page-head h1{font-size:19px;}
+      .card-head{padding:14px 16px;}
+      .card-body{padding:16px;}
+      .stats{grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:16px;}
+      .stat .n{font-size:20px;}
+      .modal-body{padding:16px;}
+    }
   </style>
   {% block extra_css %}{% endblock %}
 </head>

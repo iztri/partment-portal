@@ -4,12 +4,29 @@
 {% block extra_css %}
 <style>
   .switch{display:flex; gap:10px;}
-  .switch label{flex:1; display:flex; align-items:center; gap:8px; padding:12px 14px;
-    border:1px solid var(--border-strong); border-radius:var(--r-sm); cursor:pointer; font-weight:600; font-size:13px;}
+  .switch label{flex:1; display:flex; align-items:center; gap:9px; padding:13px 14px;
+    border:1px solid var(--border-strong); border-radius:var(--r-sm); cursor:pointer; font-weight:600; font-size:13.5px;}
   .switch label.sel{border-color:var(--accent); background:var(--accent-soft); color:var(--accent-deep);}
-  .crow{display:grid; grid-template-columns:1fr 120px 90px 34px; gap:8px; margin-bottom:8px; align-items:center;}
-  .crow input, .crow select{padding:8px 10px; font-size:12.5px;}
-  @media(max-width:560px){.crow{grid-template-columns:1fr 1fr; }.crow .rm{grid-column:2; justify-self:end;}}
+  .switch input{flex-shrink:0;}
+
+  .crow{background:var(--bg); border:1px solid var(--border); border-radius:var(--r-sm);
+    padding:10px; margin-bottom:10px; display:grid; gap:8px; align-items:center;
+    grid-template-columns:1fr 120px 92px 40px;}
+  .crow input, .crow select{padding:9px 10px;}
+
+  .save-bar{position:sticky; bottom:0; z-index:10; padding-top:12px; margin-top:6px;}
+  .save-bar .btn{width:100%; padding:13px; font-size:14px;}
+
+  @media(max-width:560px){
+    .switch{flex-direction:column;}
+    .crow{grid-template-columns:1fr 1fr auto;
+      grid-template-areas:"camp camp camp" "price days rm";}
+    .crow .camp{grid-area:camp;}
+    .crow .price{grid-area:price;}
+    .crow .days{grid-area:days;}
+    .crow .rm{grid-area:rm; align-self:stretch;}
+    .save-bar{margin:0 -16px; padding:12px 16px; background:var(--surface); border-top:1px solid var(--border);}
+  }
 </style>
 {% endblock %}
 
@@ -37,10 +54,10 @@
   <div class="card" id="yesBlock">
     <div class="card-head"><h2>Contact</h2></div>
     <div class="card-body">
-      <div class="row-flex">
-        <div class="field" style="flex:1; min-width:180px;"><label>Contact number</label>
-          <input type="tel" name="phone" value="{{ collection.phone if collection and collection.outcome=='number' else '' }}" placeholder="e.g. 9876543210"></div>
-        <div class="field" style="flex:1; min-width:180px;"><label>Designation</label>
+      <div class="grid-2">
+        <div class="field"><label>Contact number</label>
+          <input type="tel" name="phone" inputmode="tel" value="{{ collection.phone if collection and collection.outcome=='number' else '' }}" placeholder="e.g. 9876543210"></div>
+        <div class="field"><label>Designation</label>
           <select name="designation">
             <option value="">— Select —</option>
             {% for d in designations %}<option {{ 'selected' if collection and collection.outcome=='number' and collection.designation == d }}>{{ d }}</option>{% endfor %}
@@ -50,7 +67,7 @@
       <div class="field mb-0">
         <label>Campaigns available <span class="hint">add each with its price and no. of days</span></label>
         <div id="rows"></div>
-        <button type="button" class="btn btn-default btn-sm" id="addRow"><i class="bi bi-plus-lg"></i>Add campaign</button>
+        <button type="button" class="btn btn-default btn-sm" id="addRow" style="width:100%; justify-content:center;"><i class="bi bi-plus-lg"></i>Add campaign</button>
       </div>
     </div>
   </div>
@@ -63,9 +80,9 @@
     </div>
   </div>
 
-  <button type="submit" class="btn btn-primary btn-block" style="margin-top:6px; padding:12px;">
-    <i class="bi bi-check2-circle"></i>Save
-  </button>
+  <div class="save-bar">
+    <button type="submit" class="btn btn-primary"><i class="bi bi-check2-circle"></i>Save</button>
+  </div>
 </form>
 {% endblock %}
 
@@ -84,10 +101,10 @@
     var row = document.createElement('div');
     row.className = 'crow';
     row.innerHTML =
-      '<select name="campaign[]">' + optionList(data.campaign) + '</select>' +
-      '<input type="number" name="price[]" min="0" step="1" placeholder="Price ₹" value="' + (data.price === 0 ? 0 : (data.price || '')) + '">' +
-      '<input type="number" name="days[]" min="0" step="1" placeholder="Days" value="' + (data.days === 0 ? 0 : (data.days || '')) + '">' +
-      '<button type="button" class="btn btn-danger btn-icon rm"><i class="bi bi-x-lg"></i></button>';
+      '<select class="camp" name="campaign[]">' + optionList(data.campaign) + '</select>' +
+      '<input class="price" type="number" inputmode="numeric" name="price[]" min="0" step="1" placeholder="Price ₹" value="' + (data.price === 0 ? 0 : (data.price || '')) + '">' +
+      '<input class="days" type="number" inputmode="numeric" name="days[]" min="0" step="1" placeholder="Days" value="' + (data.days === 0 ? 0 : (data.days || '')) + '">' +
+      '<button type="button" class="btn btn-danger btn-icon rm" aria-label="Remove"><i class="bi bi-x-lg"></i></button>';
     row.querySelector('.rm').addEventListener('click', function(){ row.remove(); });
     document.getElementById('rows').appendChild(row);
   }

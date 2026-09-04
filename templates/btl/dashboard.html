@@ -3,34 +3,48 @@
 
 {% block extra_css %}
 <style>
-  .filters{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;}
-  .filters button{padding:6px 13px; border-radius:20px; border:1px solid var(--border-strong);
-    background:var(--surface); font-family:inherit; font-size:12.5px; font-weight:600; color:var(--muted); cursor:pointer;}
+  .btl-stats{max-width:600px;}
+  .filters{display:flex; gap:8px; flex-wrap:wrap; margin:12px 0 14px;}
+  .filters button{padding:8px 14px; border-radius:20px; border:1px solid var(--border-strong);
+    background:var(--surface); font-family:inherit; font-size:13px; font-weight:600; color:var(--muted); cursor:pointer;}
   .filters button.on{background:var(--text); border-color:var(--text); color:#fff;}
+
   .apt{background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--border-strong);
     border-radius:var(--r); padding:16px 18px; margin-bottom:12px; box-shadow:var(--shadow);}
   .apt[data-status="Pending"]{border-left-color:var(--st-live-fg);}
   .apt[data-status="Collected"]{border-left-color:var(--accent);}
   .apt[data-status="No Number"]{border-left-color:var(--st-off-fg);}
+  .apt-top{display:flex; justify-content:space-between; align-items:flex-start; gap:10px;}
+  .apt h3{font-size:15px;}
+  .apt .meta{font-size:12.5px; color:var(--muted); margin-top:4px;}
+  .apt .meta a{white-space:nowrap;}
+  .apt .said{font-size:12.5px; color:var(--muted); margin-top:6px;}
+  .apt-cta{margin-top:14px;}
+  .apt-cta .btn{width:100%; justify-content:center; padding:11px;}
+
+  @media(min-width:721px){
+    .apt-top{align-items:center;}
+    .apt-cta{margin-top:0; width:auto; flex-shrink:0;}
+    .apt-cta .btn{width:auto; padding:9px 15px;}
+    .apt-inner{display:flex; justify-content:space-between; align-items:center; gap:16px;}
+  }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="page-head">
   <h1>Apartment Detail Collection</h1>
-  <p>Apartments assigned to you. Open one to collect a number and campaigns.</p>
+  <p>Apartments assigned to you. Tap one to record the contact and campaigns.</p>
 </div>
 
-<div class="stats" style="grid-template-columns:repeat(4,minmax(90px,1fr)); max-width:560px;">
+<div class="stats btl-stats">
   <div class="stat"><div class="n">{{ counts.all }}</div><div class="l">All</div></div>
   <div class="stat live"><div class="n">{{ counts.Pending }}</div><div class="l">Pending</div></div>
   <div class="stat accent"><div class="n">{{ counts.Collected }}</div><div class="l">Collected</div></div>
   <div class="stat off"><div class="n">{{ counts['No Number'] }}</div><div class="l">No number</div></div>
 </div>
 
-<div style="margin-bottom:10px;">
-  <input type="text" id="q" placeholder="Search name…" style="max-width:260px; padding:8px 12px; font-size:13px;">
-</div>
+<input type="text" id="q" placeholder="Search name…" style="max-width:100%; width:340px;">
 <div class="filters">
   <button class="on" data-f="all">All</button>
   <button data-f="Pending">Pending</button>
@@ -39,27 +53,28 @@
 </div>
 
 {% for apt in apartments %}
+{% set col = collections.get(apt.id) %}
 <div class="apt" data-name="{{ apt.name|lower }}" data-status="{{ apt.status }}">
-  <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
-    <div>
-      <h3 style="font-size:15px;">{{ apt.name }}</h3>
-      <div class="muted" style="font-size:12.5px; margin-top:3px;">
-        <i class="bi bi-building"></i> {{ apt.hub }}
+  <div class="apt-inner">
+    <div style="min-width:0;">
+      <div class="apt-top">
+        <h3>{{ apt.name }}</h3>
+        {% if apt.status == 'Collected' %}<span class="badge badge-ok">Collected</span>
+        {% elif apt.status == 'No Number' %}<span class="badge badge-alt">No number</span>
+        {% else %}<span class="badge badge-live">Pending</span>{% endif %}
+      </div>
+      <div class="meta"><i class="bi bi-building"></i> {{ apt.hub }}
         {% if apt.location_link %} · <a href="{{ apt.location_link }}" target="_blank"><i class="bi bi-geo-alt"></i> Map</a>{% endif %}
       </div>
-      {% set col = collections.get(apt.id) %}
       {% if col and col.outcome == 'number' %}
-        <div class="muted" style="font-size:12.5px; margin-top:4px;">{{ col.phone }} · {{ col.designation }} · {{ col.campaign_count }} campaign(s)</div>
+        <div class="said">{{ col.phone }} · {{ col.designation }} · {{ col.campaign_count }} campaign(s)</div>
       {% elif col and col.outcome == 'no_number' %}
-        <div class="muted" style="font-size:12.5px; margin-top:4px;">No number{% if col.no_number_reason %} — {{ col.no_number_reason }}{% endif %}</div>
+        <div class="said">No number{% if col.no_number_reason %} — {{ col.no_number_reason }}{% endif %}</div>
       {% endif %}
     </div>
-    <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end; flex-shrink:0;">
-      {% if apt.status == 'Collected' %}<span class="badge badge-ok">Collected</span>
-      {% elif apt.status == 'No Number' %}<span class="badge badge-alt">No number</span>
-      {% else %}<span class="badge badge-live">Pending</span>{% endif %}
-      <a href="/btl/apartment/{{ apt.id }}" class="btn {{ 'btn-default' if apt.status != 'Pending' else 'btn-primary' }} btn-sm">
-        <i class="bi bi-{{ 'pencil' if apt.status != 'Pending' else 'clipboard-check' }}"></i>{{ 'Edit' if apt.status != 'Pending' else 'Collect' }}
+    <div class="apt-cta">
+      <a href="/btl/apartment/{{ apt.id }}" class="btn {{ 'btn-primary' if apt.status == 'Pending' else 'btn-default' }}">
+        <i class="bi bi-{{ 'clipboard-check' if apt.status == 'Pending' else 'pencil' }}"></i>{{ 'Collect' if apt.status == 'Pending' else 'Edit' }}
       </a>
     </div>
   </div>
