@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Trash · Apartment Portal{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1>Trash</h1>
+  <p>Deleted apartments. Restoring keeps their status and any collection.</p>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Deleted apartments</h2><span class="sub">{{ apartments|length }}</span></div>
+  <div class="card-body flush">
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>#</th><th>Apartment</th><th>Hub</th><th>Was assigned to</th><th style="width:120px;"></th></tr></thead>
+        <tbody>
+          {% for apt in apartments %}
+          <tr>
+            <td class="num">{{ apt.id }}</td>
+            <td class="strong">{{ apt.name }}</td>
+            <td><span class="chip"><i class="bi bi-building"></i>{{ apt.hub }}</span></td>
+            <td class="muted">{{ apt.assigned_to or '—' }}</td>
+            <td>
+              <form method="post" action="/marketing/apartment/{{ apt.id }}/restore">
+                <button class="btn btn-default btn-sm"><i class="bi bi-arrow-counterclockwise"></i>Restore</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5"><div class="empty"><i class="bi bi-check2-circle"></i><div class="t">Trash is empty.</div></div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

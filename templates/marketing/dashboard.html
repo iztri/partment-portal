@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · Apartment Portal{% endblock %}
+
+{% macro status_badge(apt) %}
+  {% if not apt.assigned_to %}<span class="badge badge-off">Unassigned</span>
+  {% elif apt.status == 'Collected' %}<span class="badge badge-ok">Collected</span>
+  {% elif apt.status == 'No Number' %}<span class="badge badge-alt">No number</span>
+  {% else %}<span class="badge badge-live">Pending</span>{% endif %}
+{% endmacro %}
+
+{% block content %}
+<div class="page-head">
+  <h1>Dashboard</h1>
+  <p>Every apartment, who it's assigned to, and what BTL collected.</p>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="n">{{ stats.total }}</div><div class="l">Total</div></div>
+  <div class="stat off"><div class="n">{{ stats.unassigned }}</div><div class="l">Unassigned</div></div>
+  <div class="stat live"><div class="n">{{ stats.pending }}</div><div class="l">Pending</div></div>
+  <div class="stat accent"><div class="n">{{ stats.collected }}</div><div class="l">Collected</div></div>
+  <div class="stat off"><div class="n">{{ stats.no_number }}</div><div class="l">No number</div></div>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <h2>Apartments</h2>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <input type="text" id="q" placeholder="Search name…" style="width:170px; padding:7px 12px; font-size:13px;">
+      <select id="fHub" style="width:auto; font-size:12.5px; padding:7px 28px 7px 10px;">
+        <option value="">All hubs</option>
+        {% for h in hub_names %}<option value="{{ h }}">{{ h }}</option>{% endfor %}
+      </select>
+      <select id="fStatus" style="width:auto; font-size:12.5px; padding:7px 28px 7px 10px;">
+        <option value="">All statuses</option>
+        <option>Unassigned</option><option>Pending</option><option>Collected</option><option>No Number</option>
+      </select>
+      <a href="/marketing/add" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i>Add</a>
+    </div>
+  </div>
+  <div class="card-body flush">
+    <div class="tbl-wrap">
+      <table class="tbl" id="tbl">
+        <thead><tr>
+          <th>#</th><th>Apartment</th><th>Hub</th><th>BTL user</th><th>Status</th>
+          <th>Contact</th><th>Campaigns</th><th style="width:120px;"></th>
+        </tr></thead>
+        <tbody>
+          {% for apt in apartments %}
+          {% set col = collections.get(apt.id) %}
+          {% set eff_status = 'Unassigned' if not apt.assigned_to else apt.status %}
+          <tr data-name="{{ apt.name|lower }}" data-hub="{{ apt.hub }}" data-status="{{ eff_status }}">
+            <td class="num">{{ apt.id }}</td>
+            <td>
+              <a href="/marketing/apartment/{{ apt.id }}" class="strong">{{ apt.name }}</a>
+              {% if apt.location_link %}<a href="{{ apt.location_link }}" target="_blank" style="margin-left:6px; font-size:12px;"><i class="bi bi-geo-alt"></i></a>{% endif %}
+            </td>
+            <td><span class="chip"><i class="bi bi-building"></i>{{ apt.hub }}</span></td>
+            <td>{% if apt.assigned_to %}<span class="chip"><i class="bi bi-person"></i>{{ apt.assigned_to }}</span>{% else %}<span class="subtle">—</span>{% endif %}</td>
+            <td>{{ status_badge(apt) }}</td>
+            <td>
+              {% if col and col.outcome == 'number' %}
+                <span class="strong">{{ col.phone }}</span>
+                <span class="subtle" style="font-size:12px;">· {{ col.designation }}</span>
+              {% elif col and col.outcome == 'no_number' %}
+                <span class="subtle">No number{% if col.no_number_reason %} — {{ col.no_number_reason }}{% endif %}</span>
+              {% else %}<span class="subtle">—</span>{% endif %}
+            </td>
+            <td>{% if col and col.campaign_count %}<span class="chip">{{ col.campaign_count }}</span>{% else %}<span class="subtle">—</span>{% endif %}</td>
+            <td>
+              <div style="display:flex; gap:4px;">
+                <a href="/marketing/apartment/{{ apt.id }}" class="btn btn-default btn-icon" title="Details"><i class="bi bi-eye"></i></a>
+                <button class="btn btn-default btn-icon" title="Edit" data-bs-toggle="modal" data-bs-target="#edit{{ apt.id }}"><i class="bi bi-pencil"></i></button>
+                <button class="btn btn-danger btn-icon" title="Delete" data-bs-toggle="modal" data-bs-target="#del{{ apt.id }}"><i class="bi bi-trash3"></i></button>
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="8"><div class="empty"><i class="bi bi-inbox"></i><div class="t">No apartments yet.</div></div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% for apt in apartments %}
+<div class="modal fade" id="edit{{ apt.id }}" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="post" action="/marketing/apartment/{{ apt.id }}/edit">
+      <input type="hidden" name="next" value="/marketing">
+      <div class="modal-header"><span class="modal-title">Edit #{{ apt.id }}</span>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="field"><label>Apartment name</label><input type="text" name="name" value="{{ apt.name }}" required></div>
+        <div class="field"><label>Hub</label>
+          <select name="hub" required>{% for h in hub_names %}<option {{ 'selected' if h == apt.hub }}>{{ h }}</option>{% endfor %}</select>
+        </div>
+        <div class="field"><label>Location link <span class="hint">optional</span></label>
+          <input type="url" name="location_link" value="{{ apt.location_link }}" placeholder="https://maps.google.com/…"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+<div class="modal fade" id="del{{ apt.id }}" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="post" action="/marketing/apartment/{{ apt.id }}/delete">
+      <div class="modal-header"><span class="modal-title">Move to trash?</span>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body"><p class="mb-0"><span class="strong">{{ apt.name }}</span> <span class="subtle">(#{{ apt.id }})</span> will be hidden. It can be restored from Trash.</p></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-danger"><i class="bi bi-trash3"></i>Move to trash</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  var q = document.getElementById('q'), fh = document.getElementById('fHub'), fs = document.getElementById('fStatus');
+  function apply(){
+    var t = q.value.toLowerCase().trim(), h = fh.value, s = fs.value;
+    document.querySelectorAll('#tbl tbody tr').forEach(function(tr){
+      if(!tr.dataset.name) return;
+      var ok = (!t || tr.dataset.name.indexOf(t) !== -1)
+        && (!h || tr.dataset.hub === h)
+        && (!s || tr.dataset.status === s);
+      tr.style.display = ok ? '' : 'none';
+    });
+  }
+  [q, fh, fs].forEach(function(el){ el.addEventListener('input', apply); el.addEventListener('change', apply); });
+</script>
+{% endblock %}

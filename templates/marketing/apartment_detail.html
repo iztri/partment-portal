@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}{{ apt.name }} · Apartment Portal{% endblock %}
+
+{% block content %}
+<div class="page-head" style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+  <div>
+    <h1>{{ apt.name }}</h1>
+    <p>{{ apt.hub }}{% if apt.location_link %} · <a href="{{ apt.location_link }}" target="_blank">Open map</a>{% endif %}</p>
+  </div>
+  <div style="display:flex; gap:8px;">
+    <a href="/marketing" class="btn btn-default btn-sm"><i class="bi bi-arrow-left"></i>Back</a>
+    {% if not apt.deleted %}<button class="btn btn-default btn-sm" data-bs-toggle="modal" data-bs-target="#edit"><i class="bi bi-pencil"></i>Edit</button>{% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Apartment</h2></div>
+  <div class="card-body">
+    <div class="row-flex">
+      <div class="field" style="flex:1; min-width:140px;"><label>Assigned BTL user</label>
+        <div>{{ apt.assigned_to or '—' }}</div></div>
+      <div class="field" style="flex:1; min-width:140px;"><label>Status</label>
+        <div>
+          {% if not apt.assigned_to %}<span class="badge badge-off">Unassigned</span>
+          {% elif apt.status == 'Collected' %}<span class="badge badge-ok">Collected</span>
+          {% elif apt.status == 'No Number' %}<span class="badge badge-alt">No number</span>
+          {% else %}<span class="badge badge-live">Pending</span>{% endif %}
+        </div></div>
+      <div class="field" style="flex:1; min-width:140px;"><label>Added by</label>
+        <div class="muted">{{ apt.created_by }} · {{ (apt.created_at or '')[:10] }}</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Collection</h2>
+    {% if collection %}<span class="sub">by {{ collection.collected_by }} · {{ (collection.updated_at or collection.collected_at or '')[:16] }}</span>{% endif %}
+  </div>
+  <div class="card-body">
+    {% if not collection %}
+      <div class="empty" style="padding:28px;"><i class="bi bi-hourglass-split"></i><div class="t">BTL hasn't recorded anything yet.</div></div>
+    {% elif collection.outcome == 'no_number' %}
+      <div class="alert alert-warning mb-0"><i class="bi bi-x-circle-fill"></i>
+        <span>No number available{% if collection.no_number_reason %} — {{ collection.no_number_reason }}{% endif %}</span></div>
+    {% else %}
+      <div class="row-flex" style="margin-bottom:6px;">
+        <div class="field" style="flex:1; min-width:140px;"><label>Contact number</label><div class="strong">{{ collection.phone }}</div></div>
+        <div class="field" style="flex:1; min-width:140px;"><label>Designation</label><div>{{ collection.designation }}</div></div>
+      </div>
+      <div class="divider"></div>
+      <div class="field mb-0">
+        <label>Campaigns available ({{ collection.campaigns|length }})</label>
+        {% if collection.campaigns %}
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead><tr><th>Campaign</th><th style="width:140px;">Price (₹)</th><th style="width:90px;">Days</th></tr></thead>
+            <tbody>
+              {% for c in collection.campaigns %}
+              <tr><td class="strong">{{ c.campaign }}</td><td>₹ {{ '%g'|format(c.price) }}</td><td>{{ c.days }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}<div class="muted">None marked available.</div>{% endif %}
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="modal fade" id="edit" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="post" action="/marketing/apartment/{{ apt.id }}/edit">
+      <input type="hidden" name="next" value="/marketing/apartment/{{ apt.id }}">
+      <div class="modal-header"><span class="modal-title">Edit apartment</span>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="field"><label>Apartment name</label><input type="text" name="name" value="{{ apt.name }}" required></div>
+        <div class="field"><label>Hub</label>
+          <select name="hub" required>{% for h in hub_names %}<option {{ 'selected' if h == apt.hub }}>{{ h }}</option>{% endfor %}</select></div>
+        <div class="field"><label>Location link <span class="hint">optional</span></label>
+          <input type="url" name="location_link" value="{{ apt.location_link }}"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign in · Apartment Portal</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#f6f7f9; --surface:#fff; --border:#e4e7ec; --border-strong:#d0d5dd;
+      --text:#1a1d23; --subtle:#98a2b3;
+      --accent:#018b9b; --accent-hover:#01727f; --accent-soft:#e5f4f6;
+      --danger-fg:#b42318; --danger-bg:#fef3f2; --danger-bd:#fecdca;
+      --ok-fg:#015a66; --ok-bg:#e0f2f4; --ok-bd:#a8dde2;
+    }
+    *{box-sizing:border-box;}
+    body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif; background:var(--bg);
+      color:var(--text); margin:0; font-size:14px; min-height:100vh; display:flex;
+      align-items:center; justify-content:center; padding:24px; -webkit-font-smoothing:antialiased;}
+    .card{background:var(--surface); border:1px solid var(--border); border-radius:16px;
+      box-shadow:0 4px 24px rgba(16,24,40,.06); width:100%; max-width:380px; padding:32px;}
+    .brand{display:flex; align-items:center; gap:11px; margin-bottom:24px;}
+    .brand .mark{width:36px; height:36px; border-radius:9px; background:var(--accent); color:#fff;
+      display:flex; align-items:center; justify-content:center; font-size:18px;}
+    .brand h1{margin:0; font-size:16px; font-weight:700;}
+    .brand p{margin:1px 0 0; font-size:12px; color:var(--subtle);}
+    label{display:block; font-size:12.5px; font-weight:600; margin-bottom:6px;}
+    .field{margin-bottom:16px; position:relative;}
+    .field i{position:absolute; left:12px; top:34px; color:var(--subtle); font-size:15px;}
+    input{width:100%; padding:10px 12px 10px 36px; font-family:inherit; font-size:13.5px;
+      border:1px solid var(--border-strong); border-radius:8px; background:var(--surface); color:var(--text);}
+    input:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft);}
+    button{width:100%; padding:11px; margin-top:4px; border:none; border-radius:8px; background:var(--accent);
+      color:#fff; font-family:inherit; font-size:13.5px; font-weight:600; cursor:pointer;}
+    button:hover{background:var(--accent-hover);}
+    .alert{display:flex; align-items:center; gap:8px; padding:10px 12px; border-radius:8px;
+      font-size:12.5px; font-weight:500; margin-bottom:16px; border:1px solid transparent;}
+    .alert-danger{background:var(--danger-bg); color:var(--danger-fg); border-color:var(--danger-bd);}
+    .alert-success{background:var(--ok-bg); color:var(--ok-fg); border-color:var(--ok-bd);}
+  </style>
+</head>
+<body>
+  <form class="card" method="post">
+    <div class="brand">
+      <span class="mark"><i class="bi bi-building"></i></span>
+      <div><h1>Apartment Portal</h1><p>Sign in to continue</p></div>
+    </div>
+    {% with msgs = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in msgs %}
+        <div class="alert alert-{{ 'success' if cat=='success' else 'danger' }}">
+          <i class="bi bi-{{ 'check-circle-fill' if cat=='success' else 'exclamation-triangle-fill' }}"></i>{{ msg }}
+        </div>
+      {% endfor %}
+    {% endwith %}
+    <div class="field">
+      <label for="u">Username</label>
+      <i class="bi bi-person"></i>
+      <input id="u" type="text" name="username" placeholder="Enter username" required autofocus autocomplete="username">
+    </div>
+    <div class="field">
+      <label for="p">Password</label>
+      <i class="bi bi-lock"></i>
+      <input id="p" type="password" name="password" placeholder="Enter password" required autocomplete="current-password">
+    </div>
+    <button type="submit">Sign in</button>
+  </form>
+</body>
+</html>

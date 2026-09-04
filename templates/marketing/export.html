@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Export · Apartment Portal{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1>Export</h1>
+  <p>Download apartments and their collected contact + campaign pricing as Excel.</p>
+</div>
+
+<div class="card" style="max-width:440px;">
+  <div class="card-head"><h2>Filters</h2></div>
+  <div class="card-body">
+    <form method="get" action="/marketing/export.xlsx" target="_blank">
+      <div class="field"><label>Hub</label>
+        <select name="hub"><option value="">All hubs</option>{% for h in hub_names %}<option>{{ h }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Status</label>
+        <select name="status">
+          <option value="">All statuses</option>
+          <option>Unassigned</option><option>Pending</option><option>Collected</option><option>No Number</option>
+        </select></div>
+      <button type="submit" class="btn btn-primary btn-block"><i class="bi bi-file-earmark-spreadsheet"></i>Download Excel</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

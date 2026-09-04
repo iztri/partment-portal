@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Collect · {{ apt.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .switch{display:flex; gap:10px;}
+  .switch label{flex:1; display:flex; align-items:center; gap:8px; padding:12px 14px;
+    border:1px solid var(--border-strong); border-radius:var(--r-sm); cursor:pointer; font-weight:600; font-size:13px;}
+  .switch label.sel{border-color:var(--accent); background:var(--accent-soft); color:var(--accent-deep);}
+  .crow{display:grid; grid-template-columns:1fr 120px 90px 34px; gap:8px; margin-bottom:8px; align-items:center;}
+  .crow input, .crow select{padding:8px 10px; font-size:12.5px;}
+  @media(max-width:560px){.crow{grid-template-columns:1fr 1fr; }.crow .rm{grid-column:2; justify-self:end;}}
+</style>
+{% endblock %}
+
+{% block content %}
+{% set is_no = collection and collection.outcome == 'no_number' %}
+<div class="page-head" style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+  <div>
+    <h1>{{ 'Edit collection' if collection else 'Collect' }}</h1>
+    <p>{{ apt.name }} · {{ apt.hub }}{% if apt.location_link %} · <a href="{{ apt.location_link }}" target="_blank">Map</a>{% endif %}</p>
+  </div>
+  <a href="/btl" class="btn btn-default btn-sm"><i class="bi bi-arrow-left"></i>Back</a>
+</div>
+
+<form method="post" action="/btl/apartment/{{ apt.id }}/collect">
+  <div class="card">
+    <div class="card-head"><h2>Is a contact number available?</h2></div>
+    <div class="card-body">
+      <div class="switch" id="switch">
+        <label class="{{ '' if is_no else 'sel' }}"><input type="radio" name="number_available" value="yes" {{ 'checked' if not is_no }}> Yes, I have a number</label>
+        <label class="{{ 'sel' if is_no else '' }}"><input type="radio" name="number_available" value="no" {{ 'checked' if is_no }}> No number available</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="yesBlock">
+    <div class="card-head"><h2>Contact</h2></div>
+    <div class="card-body">
+      <div class="row-flex">
+        <div class="field" style="flex:1; min-width:180px;"><label>Contact number</label>
+          <input type="tel" name="phone" value="{{ collection.phone if collection and collection.outcome=='number' else '' }}" placeholder="e.g. 9876543210"></div>
+        <div class="field" style="flex:1; min-width:180px;"><label>Designation</label>
+          <select name="designation">
+            <option value="">— Select —</option>
+            {% for d in designations %}<option {{ 'selected' if collection and collection.outcome=='number' and collection.designation == d }}>{{ d }}</option>{% endfor %}
+          </select></div>
+      </div>
+      <div class="divider"></div>
+      <div class="field mb-0">
+        <label>Campaigns available <span class="hint">add each with its price and no. of days</span></label>
+        <div id="rows"></div>
+        <button type="button" class="btn btn-default btn-sm" id="addRow"><i class="bi bi-plus-lg"></i>Add campaign</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="noBlock" hidden>
+    <div class="card-head"><h2>Reason <span class="sub">optional</span></h2></div>
+    <div class="card-body">
+      <div class="field mb-0"><label>Why is no number available?</label>
+        <textarea name="no_number_reason" rows="3" placeholder="e.g. Security refused to share, manager not reachable">{{ collection.no_number_reason if is_no else '' }}</textarea></div>
+    </div>
+  </div>
+
+  <button type="submit" class="btn btn-primary btn-block" style="margin-top:6px; padding:12px;">
+    <i class="bi bi-check2-circle"></i>Save
+  </button>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  var CAMPAIGNS = {{ campaigns | tojson }};
+  var EXISTING = {{ (collection.campaigns if collection and collection.outcome == 'number' else []) | tojson }};
+
+  function optionList(sel){
+    return '<option value="">— Campaign —</option>' + CAMPAIGNS.map(function(c){
+      return '<option ' + (c === sel ? 'selected' : '') + '>' + c + '</option>';
+    }).join('');
+  }
+  function addRow(data){
+    data = data || {campaign:'', price:'', days:''};
+    var row = document.createElement('div');
+    row.className = 'crow';
+    row.innerHTML =
+      '<select name="campaign[]">' + optionList(data.campaign) + '</select>' +
+      '<input type="number" name="price[]" min="0" step="1" placeholder="Price ₹" value="' + (data.price === 0 ? 0 : (data.price || '')) + '">' +
+      '<input type="number" name="days[]" min="0" step="1" placeholder="Days" value="' + (data.days === 0 ? 0 : (data.days || '')) + '">' +
+      '<button type="button" class="btn btn-danger btn-icon rm"><i class="bi bi-x-lg"></i></button>';
+    row.querySelector('.rm').addEventListener('click', function(){ row.remove(); });
+    document.getElementById('rows').appendChild(row);
+  }
+
+  document.getElementById('addRow').addEventListener('click', function(){ addRow(); });
+  if(EXISTING.length){ EXISTING.forEach(addRow); } else { addRow(); }
+
+  var yes = document.getElementById('yesBlock'), no = document.getElementById('noBlock');
+  function sync(){
+    var val = document.querySelector('input[name=number_available]:checked').value;
+    yes.hidden = val !== 'yes';
+    no.hidden = val === 'yes';
+    document.querySelectorAll('#switch label').forEach(function(l){
+      l.classList.toggle('sel', l.querySelector('input').checked);
+    });
+  }
+  document.querySelectorAll('input[name=number_available]').forEach(function(r){ r.addEventListener('change', sync); });
+  sync();
+</script>
+{% endblock %}

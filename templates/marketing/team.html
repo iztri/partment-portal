@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Team · Apartment Portal{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1>Team</h1>
+  <p>Marketing and BTL accounts. Deactivated users can't sign in.</p>
+</div>
+
+<div class="row-flex" style="align-items:flex-start;">
+  <div class="card" style="flex:1; min-width:280px; max-width:360px;">
+    <div class="card-head"><h2>Add user</h2></div>
+    <div class="card-body">
+      <form method="post" action="/marketing/team/add">
+        <div class="field"><label>Username</label><input type="text" name="username" required placeholder="e.g. btl1"></div>
+        <div class="field"><label>Display name <span class="hint">optional</span></label><input type="text" name="name" placeholder="e.g. Ravi (BTL)"></div>
+        <div class="field"><label>Password</label><input type="text" name="password" required placeholder="temporary password"></div>
+        <div class="field"><label>Workspace</label>
+          <select name="workspace" required>
+            <option value="btl">BTL</option>
+            <option value="marketing">Marketing</option>
+          </select></div>
+        <button type="submit" class="btn btn-primary btn-block"><i class="bi bi-person-plus"></i>Add user</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card" style="flex:1; min-width:320px;">
+    <div class="card-head"><h2>Users</h2><span class="sub">{{ users|length }}</span></div>
+    <div class="card-body flush">
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Username</th><th>Name</th><th>Workspace</th><th>Status</th><th style="width:180px;"></th></tr></thead>
+          <tbody>
+            {% for u in users %}
+            <tr>
+              <td class="strong">{{ u.username }}{% if u.username == session.user %} <span class="subtle">(you)</span>{% endif %}</td>
+              <td class="muted">{{ u.name }}</td>
+              <td><span class="chip">{{ workspace_labels[u.workspace] }}</span></td>
+              <td>{% if u.active %}<span class="badge badge-ok">Active</span>{% else %}<span class="badge badge-off">Inactive</span>{% endif %}</td>
+              <td>
+                <div style="display:flex; gap:4px;">
+                  <button class="btn btn-default btn-sm" data-bs-toggle="modal" data-bs-target="#pw{{ u.id }}"><i class="bi bi-key"></i>Password</button>
+                  {% if u.username != session.user %}
+                  <form method="post" action="/marketing/team/{{ u.id }}/toggle">
+                    <button class="btn btn-default btn-sm">{{ 'Deactivate' if u.active else 'Activate' }}</button>
+                  </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% for u in users %}
+<div class="modal fade" id="pw{{ u.id }}" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="post" action="/marketing/team/{{ u.id }}/reset-password">
+      <div class="modal-header"><span class="modal-title">Reset password · {{ u.username }}</span>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body"><div class="field mb-0"><label>New password</label>
+        <input type="text" name="password" required placeholder="new password"></div></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Set password</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

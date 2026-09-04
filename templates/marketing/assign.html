@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Assign · Apartment Portal{% endblock %}
+
+{% block extra_css %}
+<style>
+  .seg{display:inline-flex; background:var(--bg); border:1px solid var(--border); border-radius:var(--r-sm); padding:3px; margin-bottom:18px;}
+  .seg button{border:none; background:none; padding:7px 16px; border-radius:6px; font-family:inherit;
+    font-size:13px; font-weight:600; color:var(--muted); cursor:pointer;}
+  .seg button.active{background:var(--surface); color:var(--text); box-shadow:var(--shadow);}
+  .pane{display:none;} .pane.active{display:block;}
+  .assign-grid{display:grid; grid-template-columns:1fr 320px; gap:18px; align-items:start;}
+  @media(max-width:960px){.assign-grid{grid-template-columns:1fr;}}
+  .pick{max-height:60vh; overflow-y:auto;}
+  .side{position:sticky; top:20px;}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1>Assign apartments</h1>
+  <p>Send apartments to a BTL user. Reassigning just changes the owner.</p>
+</div>
+
+{% if not btl_users %}
+<div class="alert alert-warning" style="margin-bottom:18px;">
+  <i class="bi bi-exclamation-triangle-fill"></i>
+  <span>No BTL users yet. Add one on the <a href="/marketing/team">Team</a> page first.</span>
+</div>
+{% endif %}
+
+<div class="seg">
+  <button class="active" data-pane="un">Unassigned · {{ unassigned|length }}</button>
+  <button data-pane="as">Assigned · {{ assigned|length }}</button>
+</div>
+
+{% macro picker(rows, form_id, show_owner) %}
+<div class="card">
+  <div class="card-head"><h2>{{ 'Currently assigned' if show_owner else 'Pick apartments' }}</h2>
+    <span class="sub" id="c_{{ form_id }}">0 selected</span></div>
+  <div class="card-body flush pick">
+    <table class="tbl">
+      <thead><tr>
+        <th style="width:36px;"><input type="checkbox" class="all" data-form="{{ form_id }}"></th>
+        <th>#</th><th>Apartment</th><th>Hub</th>{% if show_owner %}<th>BTL user</th><th>Status</th>{% else %}<th>Created</th>{% endif %}
+      </tr></thead>
+      <tbody>
+        {% for apt in rows %}
+        <tr>
+          <td><input type="checkbox" class="ck" data-form="{{ form_id }}" name="apartment_ids[]" value="{{ apt.id }}" form="{{ form_id }}"></td>
+          <td class="num">{{ apt.id }}</td>
+          <td class="strong">{{ apt.name }}</td>
+          <td><span class="chip"><i class="bi bi-building"></i>{{ apt.hub }}</span></td>
+          {% if show_owner %}
+            <td><span class="chip"><i class="bi bi-person"></i>{{ apt.assigned_to }}</span></td>
+            <td><span class="badge {{ 'badge-ok' if apt.status=='Collected' else 'badge-alt' if apt.status=='No Number' else 'badge-live' }}">{{ apt.status }}</span></td>
+          {% else %}
+            <td class="muted">{{ (apt.created_at or '')[:10] }}</td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr><td colspan="{{ 6 if show_owner else 5 }}"><div class="empty"><i class="bi bi-inbox"></i><div class="t">Nothing here.</div></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endmacro %}
+
+{% macro side_form(form_id, verb) %}
+<div class="side">
+  <div class="card">
+    <div class="card-head"><h2>{{ verb }}</h2></div>
+    <div class="card-body">
+      <form method="post" action="/marketing/assign" id="{{ form_id }}">
+        <div class="field"><label>BTL user</label>
+          <select name="assigned_to" required {{ 'disabled' if not btl_users }}>
+            <option value="">— Select —</option>
+            {% for u in btl_users %}<option value="{{ u.username }}">{{ u.name }} ({{ u.username }})</option>{% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" {{ 'disabled' if not btl_users }}>
+          <i class="bi bi-send"></i>{{ verb }} selected
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+<div class="pane active" id="pane-un">
+  <div class="assign-grid">{{ picker(unassigned, 'formUn', false) }}{{ side_form('formUn', 'Assign') }}</div>
+</div>
+<div class="pane" id="pane-as">
+  <div class="assign-grid">{{ picker(assigned, 'formAs', true) }}{{ side_form('formAs', 'Reassign') }}</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.querySelectorAll('.seg button').forEach(function(b){
+    b.addEventListener('click', function(){
+      document.querySelectorAll('.seg button').forEach(function(x){ x.classList.remove('active'); });
+      document.querySelectorAll('.pane').forEach(function(p){ p.classList.remove('active'); });
+      b.classList.add('active');
+      document.getElementById('pane-' + b.dataset.pane).classList.add('active');
+    });
+  });
+  function count(form){
+    var n = document.querySelectorAll('.ck[data-form="' + form + '"]:checked').length;
+    document.getElementById('c_' + form).textContent = n + ' selected';
+  }
+  document.querySelectorAll('.all').forEach(function(a){
+    a.addEventListener('change', function(){
+      document.querySelectorAll('.ck[data-form="' + a.dataset.form + '"]').forEach(function(c){ c.checked = a.checked; });
+      count(a.dataset.form);
+    });
+  });
+  document.querySelectorAll('.ck').forEach(function(c){
+    c.addEventListener('change', function(){ count(c.dataset.form); });
+  });
+</script>
+{% endblock %}

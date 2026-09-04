@@ -1,0 +1,9 @@
+local_dev.db
+local_dev.db-wal
+local_dev.db-shm
+__pycache__/
+*.pyc
+.env
+.DS_Store
+.venv/
+venv/
