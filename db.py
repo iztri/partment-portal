@@ -69,6 +69,7 @@ class SQLiteDatabase:
                 contact_name TEXT NOT NULL DEFAULT '',
                 phone TEXT NOT NULL DEFAULT '',
                 designation TEXT NOT NULL DEFAULT '',
+                total_units INTEGER NOT NULL DEFAULT 0,
                 no_number_reason TEXT NOT NULL DEFAULT '',
                 collected_by TEXT NOT NULL DEFAULT '',
                 collected_at TEXT NOT NULL DEFAULT '',
@@ -134,12 +135,16 @@ class SQLiteDatabase:
             """
         )
         self.conn.commit()
-        # migrate: add contact_name to a pre-existing collections table
-        try:
-            self.conn.execute("ALTER TABLE collections ADD COLUMN contact_name TEXT NOT NULL DEFAULT ''")
-            self.conn.commit()
-        except sqlite3.OperationalError:
-            pass
+        # migrate: add columns to a pre-existing collections table
+        for stmt in (
+            "ALTER TABLE collections ADD COLUMN contact_name TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE collections ADD COLUMN total_units INTEGER NOT NULL DEFAULT 0",
+        ):
+            try:
+                self.conn.execute(stmt)
+                self.conn.commit()
+            except sqlite3.OperationalError:
+                pass
 
     # ── users ──────────────────────────────────────────────────────────────
     def count_users(self):
@@ -304,9 +309,10 @@ class SQLiteDatabase:
         return out
 
     def save_collection(self, apartment_id, outcome, contact_name, phone, designation,
-                        no_number_reason, campaigns, collected_by):
+                        total_units, no_number_reason, campaigns, collected_by):
         apartment_id = int(apartment_id)
         now = _now()
+        total_units = int(total_units or 0)
         existing = self.conn.execute(
             "SELECT id, collected_at FROM collections WHERE apartment_id=?", (apartment_id,)
         ).fetchone()
@@ -314,16 +320,17 @@ class SQLiteDatabase:
             cid = existing["id"]
             self.conn.execute(
                 "UPDATE collections SET outcome=?, contact_name=?, phone=?, designation=?, "
-                "no_number_reason=?, collected_by=?, updated_at=? WHERE id=?",
-                (outcome, contact_name, phone, designation, no_number_reason, collected_by, now, cid),
+                "total_units=?, no_number_reason=?, collected_by=?, updated_at=? WHERE id=?",
+                (outcome, contact_name, phone, designation, total_units, no_number_reason,
+                 collected_by, now, cid),
             )
         else:
             cur = self.conn.execute(
                 "INSERT INTO collections (apartment_id, outcome, contact_name, phone, designation, "
-                "no_number_reason, collected_by, collected_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (apartment_id, outcome, contact_name, phone, designation, no_number_reason,
-                 collected_by, now, now),
+                "total_units, no_number_reason, collected_by, collected_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (apartment_id, outcome, contact_name, phone, designation, total_units,
+                 no_number_reason, collected_by, now, now),
             )
             cid = cur.lastrowid
 
@@ -682,13 +689,14 @@ class SupabaseDatabase:
         return out
 
     def save_collection(self, apartment_id, outcome, contact_name, phone, designation,
-                        no_number_reason, campaigns, collected_by):
+                        total_units, no_number_reason, campaigns, collected_by):
         apartment_id = int(apartment_id)
         now = _now()
         existing = self.sb.table("collections").select("id").eq("apartment_id", apartment_id).limit(1).execute()
         row = {
             "outcome": outcome, "contact_name": contact_name, "phone": phone,
-            "designation": designation, "no_number_reason": no_number_reason,
+            "designation": designation, "total_units": int(total_units or 0),
+            "no_number_reason": no_number_reason,
             "collected_by": collected_by, "updated_at": now,
         }
         if existing.data:

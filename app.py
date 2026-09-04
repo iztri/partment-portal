@@ -354,7 +354,7 @@ def marketing_export_xlsx():
     ws = wb.active
     ws.title = "Apartments"
     headers = ["ID", "Apartment", "Hub", "Location Link", "Assigned To", "Status",
-               "Contact Name", "Contact Number", "Designation", "No-number Reason",
+               "Contact Name", "Contact Number", "Designation", "Total Units", "No-number Reason",
                "Campaigns Available", "Collected By", "Collected At"]
     ws.append(headers)
     for a in apartments:
@@ -371,6 +371,7 @@ def marketing_export_xlsx():
             (c["contact_name"] if c else "") or "",
             (c["phone"] if c else "") or "",
             (c["designation"] if c else "") or "",
+            (c["total_units"] if c else "") or "",
             (c["no_number_reason"] if c else "") or "",
             camps,
             (c["collected_by"] if c else "") or "",
@@ -535,6 +536,19 @@ def marketing_standee_assign():
     return redirect(url_for("marketing_standees_page"))
 
 
+@app.route("/marketing/standees/assignment/<int:assignment_id>")
+@role_required("marketing")
+def marketing_standee_assignment_detail(assignment_id):
+    a = db.get_standee_assignment(assignment_id)
+    if not a:
+        return {"error": "not found"}, 404
+    a["photos"] = [
+        {"kind": p["kind"], "url": f"/static/{p['path']}", "uploaded_at": p["uploaded_at"]}
+        for p in db.photos_for(assignment_id)
+    ]
+    return a
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 #  BTL
 # ═══════════════════════════════════════════════════════════════════════════
@@ -587,6 +601,10 @@ def btl_collect(apt_id):
         contact_name = request.form.get("contact_name", "").strip()
         phone = request.form.get("phone", "").strip()
         designation = request.form.get("designation", "").strip()
+        try:
+            total_units = int(request.form.get("total_units", "0") or 0)
+        except ValueError:
+            total_units = 0
         if not phone:
             flash("Contact number is required", "danger")
             return redirect(url_for("btl_collection_form", apt_id=apt_id))
@@ -594,13 +612,13 @@ def btl_collect(apt_id):
             flash("Select a valid designation", "danger")
             return redirect(url_for("btl_collection_form", apt_id=apt_id))
         db.save_collection(
-            apt_id, "number", contact_name, phone, designation, "",
+            apt_id, "number", contact_name, phone, designation, total_units, "",
             _campaigns_from_form(), session["user"],
         )
         flash("Collection saved", "success")
     else:
         reason = request.form.get("no_number_reason", "").strip()
-        db.save_collection(apt_id, "no_number", "", "", "", reason, [], session["user"])
+        db.save_collection(apt_id, "no_number", "", "", "", 0, reason, [], session["user"])
         flash("Marked as no number available", "success")
 
     return redirect(url_for("btl_dashboard"))

@@ -65,6 +65,8 @@
             {% for d in designations %}<option {{ 'selected' if collection and collection.outcome=='number' and collection.designation == d }}>{{ d }}</option>{% endfor %}
           </select></div>
       </div>
+      <div class="field"><label>Total units <span class="hint">no. of flats in this apartment, optional</span></label>
+        <input type="number" name="total_units" inputmode="numeric" min="0" value="{{ collection.total_units if collection and collection.outcome=='number' and collection.total_units else '' }}" placeholder="e.g. 120"></div>
       <div class="divider"></div>
       <div class="field mb-0">
         <label>Campaigns available <span class="hint">add each with its price and no. of days</span></label>

@@ -31,6 +31,7 @@ create table if not exists collections (
     contact_name     text not null default '',
     phone            text not null default '',
     designation      text not null default '',
+    total_units      integer not null default 0,
     no_number_reason text not null default '',
     collected_by     text not null default '',
     collected_at     text not null default '',

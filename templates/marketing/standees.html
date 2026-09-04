@@ -35,6 +35,11 @@
   .split{display:grid; grid-template-columns:360px 1fr; gap:18px; align-items:start;}
   @media(max-width:1000px){.split{grid-template-columns:1fr;}}
   .thumb{width:32px; height:32px; border-radius:6px; object-fit:cover; border:1px solid var(--border); vertical-align:middle; margin-right:8px;}
+  .photo-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:8px;}
+  .photo-thumb{position:relative; aspect-ratio:1; border-radius:var(--r-sm); overflow:hidden; border:1px solid var(--border);}
+  .photo-thumb img{width:100%; height:100%; object-fit:cover; display:block; cursor:zoom-in;}
+  .photo-thumb .kind{position:absolute; left:4px; bottom:4px; font-size:9.5px; font-weight:700; text-transform:uppercase;
+    letter-spacing:.03em; padding:2px 6px; border-radius:4px; background:rgba(16,24,40,.65); color:#fff;}
 </style>
 {% endblock %}
 
@@ -140,7 +145,7 @@
       <div class="card-body flush" style="max-height:65vh; overflow-y:auto;">
         <div class="tbl-wrap">
           <table class="tbl">
-            <thead><tr><th>Apartment</th><th>Standee</th><th>Qty</th><th>Coordinator</th><th>Status</th><th>Collect by</th></tr></thead>
+            <thead><tr><th>Apartment</th><th>Standee</th><th>Qty</th><th>Coordinator</th><th>Status</th><th>Placed</th><th>Collect by</th><th style="width:40px;"></th></tr></thead>
             <tbody>
               {% for a in assignments %}
               <tr>
@@ -149,10 +154,12 @@
                 <td>{{ a.quantity }}</td>
                 <td class="muted">{{ a.assigned_to }}</td>
                 <td>{{ status_badge(a.status) }}</td>
+                <td class="muted" style="font-size:12px;">{{ a.placed_at[:16] if a.placed_at else '—' }}</td>
                 <td class="muted" style="font-size:12px;">{{ a.collect_by or '—' }}</td>
+                <td><button class="btn btn-default btn-icon" onclick="openAssignmentDetail({{ a.id }})" title="View"><i class="bi bi-eye"></i></button></td>
               </tr>
               {% else %}
-              <tr><td colspan="6"><div class="empty"><i class="bi bi-signpost-2"></i><div class="t">No assignments yet.</div></div></td></tr>
+              <tr><td colspan="8"><div class="empty"><i class="bi bi-signpost-2"></i><div class="t">No assignments yet.</div></div></td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -204,7 +211,7 @@
     <div class="card-body flush">
       <div class="tbl-wrap">
         <table class="tbl" id="afTable">
-          <thead><tr><th>#</th><th>Standee</th><th>Apartment</th><th>Coordinator</th><th>Qty</th><th>Status</th><th>Returned</th><th>Damaged</th><th>Damage note</th><th>Drop location</th></tr></thead>
+          <thead><tr><th>#</th><th>Standee</th><th>Apartment</th><th>Coordinator</th><th>Qty</th><th>Status</th><th>Placed</th><th>Returned</th><th>Damaged</th><th>Damage note</th><th>Drop location</th><th style="width:40px;"></th></tr></thead>
           <tbody>
             {% for a in assignments %}
             <tr data-status="{{ a.status }}">
@@ -214,13 +221,15 @@
               <td class="muted">{{ a.assigned_to }}</td>
               <td>{{ a.quantity }}</td>
               <td>{{ status_badge(a.status) }}</td>
+              <td class="muted" style="font-size:12px;">{{ a.placed_at[:16] if a.placed_at else '—' }}</td>
               <td>{{ a.quantity_returned if a.status == 'Collected' else '—' }}</td>
               <td>{% if a.quantity_damaged %}<span style="color:var(--danger-fg); font-weight:600;">{{ a.quantity_damaged }}</span>{% else %}—{% endif %}</td>
               <td class="muted" style="font-size:12px;">{{ a.damage_note or '—' }}</td>
               <td class="muted" style="font-size:12px;">{{ a.drop_location or '—' }}</td>
+              <td><button class="btn btn-default btn-icon" onclick="openAssignmentDetail({{ a.id }})" title="View"><i class="bi bi-eye"></i></button></td>
             </tr>
             {% else %}
-            <tr><td colspan="10"><div class="empty"><i class="bi bi-table"></i><div class="t">No assignments yet.</div></div></td></tr>
+            <tr><td colspan="12"><div class="empty"><i class="bi bi-table"></i><div class="t">No assignments yet.</div></div></td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -247,6 +256,39 @@
   </div>
 </div>
 {% endfor %}
+
+<div class="modal fade" id="asgDetail" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header"><span class="modal-title">Assignment <span id="adId" class="subtle"></span></span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div id="adLoading" class="empty" style="padding:24px;"><i class="bi bi-hourglass-split"></i><div class="t">Loading…</div></div>
+        <div id="adContent" hidden>
+          <div class="grid-2">
+            <div class="field"><label>Standee</label><div class="strong" id="adStandee"></div></div>
+            <div class="field"><label>Apartment</label><div id="adApt"></div></div>
+            <div class="field"><label>Coordinator</label><div id="adUser"></div></div>
+            <div class="field"><label>Quantity</label><div id="adQty"></div></div>
+            <div class="field"><label>Status</label><div id="adStatus"></div></div>
+            <div class="field"><label>Pickup location</label><div id="adPickup"></div></div>
+            <div class="field"><label>Placed on</label><div id="adPlaced"></div></div>
+            <div class="field"><label>Collect by</label><div id="adCollectBy"></div></div>
+            <div class="field"><label>Collected on</label><div id="adCollected"></div></div>
+            <div class="field"><label>Returned / Damaged</label><div id="adReturned"></div></div>
+            <div class="field" style="grid-column:1/-1;"><label>Drop location</label><div id="adDrop"></div></div>
+          </div>
+          <div id="adDamageNoteWrap" class="alert alert-warning mb-0" hidden style="margin-top:6px;"><i class="bi bi-exclamation-triangle-fill"></i><span id="adDamageNote"></span></div>
+          <div class="divider"></div>
+          <div class="field mb-0">
+            <label>Photos</label>
+            <div id="adPhotos" class="photo-grid"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-default" data-bs-dismiss="modal">Close</button></div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -266,5 +308,52 @@
       r.style.display = (!v || r.dataset.status === v) ? '' : 'none';
     });
   });
+
+  function openAssignmentDetail(id){
+    var modal = new bootstrap.Modal(document.getElementById('asgDetail'));
+    document.getElementById('adLoading').hidden = false;
+    document.getElementById('adContent').hidden = true;
+    modal.show();
+    fetch('/marketing/standees/assignment/' + id)
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        document.getElementById('adLoading').hidden = true;
+        document.getElementById('adContent').hidden = false;
+        document.getElementById('adId').textContent = '#' + d.id;
+        document.getElementById('adStandee').textContent = d.standee_name;
+        document.getElementById('adApt').textContent = d.apartment_name + ' (' + d.apartment_hub + ')';
+        document.getElementById('adUser').textContent = d.assigned_to;
+        document.getElementById('adQty').textContent = d.quantity;
+        document.getElementById('adStatus').innerHTML =
+          d.status === 'Placed' ? '<span class="badge badge-alt">Placed</span>' :
+          d.status === 'Collected' ? '<span class="badge badge-ok">Collected</span>' :
+          '<span class="badge badge-live">Assigned</span>';
+        document.getElementById('adPickup').textContent = d.collection_location || '—';
+        document.getElementById('adPlaced').textContent = d.placed_at
+          ? d.placed_at.slice(0,16) + (d.placed_by ? ' · by ' + d.placed_by : '') : '—';
+        document.getElementById('adCollectBy').textContent = d.collect_by || '—';
+        document.getElementById('adCollected').textContent = d.collected_at
+          ? d.collected_at.slice(0,16) + (d.collected_by ? ' · by ' + d.collected_by : '') : '—';
+        document.getElementById('adReturned').textContent = d.status === 'Collected'
+          ? d.quantity_returned + ' returned' + (d.quantity_damaged ? ', ' + d.quantity_damaged + ' damaged' : '')
+          : '—';
+        document.getElementById('adDrop').textContent = d.drop_location || '—';
+        var dn = document.getElementById('adDamageNoteWrap');
+        if(d.damage_note){ dn.hidden = false; document.getElementById('adDamageNote').textContent = d.damage_note; }
+        else { dn.hidden = true; }
+        var grid = document.getElementById('adPhotos');
+        if(d.photos && d.photos.length){
+          grid.innerHTML = d.photos.map(function(p){
+            return '<a href="' + p.url + '" target="_blank" class="photo-thumb"><img src="' + p.url + '">' +
+              '<span class="kind">' + p.kind + '</span></a>';
+          }).join('');
+        } else {
+          grid.innerHTML = '<div class="muted" style="font-size:13px;">No photos yet.</div>';
+        }
+      })
+      .catch(function(){
+        document.getElementById('adLoading').innerHTML = '<div class="t">Failed to load.</div>';
+      });
+  }
 </script>
 {% endblock %}

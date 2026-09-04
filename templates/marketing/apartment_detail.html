@@ -33,9 +33,7 @@
 </div>
 
 <div class="card">
-  <div class="card-head"><h2>Collection</h2>
-    {% if collection %}<span class="sub">by {{ collection.collected_by }} · {{ (collection.updated_at or collection.collected_at or '')[:16] }}</span>{% endif %}
-  </div>
+  <div class="card-head"><h2>Collection</h2></div>
   <div class="card-body">
     {% if not collection %}
       <div class="empty" style="padding:28px;"><i class="bi bi-hourglass-split"></i><div class="t">BTL hasn't recorded anything yet.</div></div>
@@ -47,6 +45,11 @@
         <div class="field" style="flex:1; min-width:140px;"><label>Contact name</label><div class="strong">{{ collection.contact_name or '—' }}</div></div>
         <div class="field" style="flex:1; min-width:140px;"><label>Contact number</label><div class="strong">{{ collection.phone }}</div></div>
         <div class="field" style="flex:1; min-width:140px;"><label>Designation</label><div>{{ collection.designation }}</div></div>
+        <div class="field" style="flex:1; min-width:120px;"><label>Total units</label><div>{{ collection.total_units or '—' }}</div></div>
+      </div>
+      <div class="muted" style="font-size:12px; margin-bottom:6px;"><i class="bi bi-clock-history"></i>
+        Entered by {{ collection.collected_by }} on {{ (collection.collected_at or '')[:16] }}
+        {% if collection.updated_at and collection.updated_at != collection.collected_at %} · last updated {{ collection.updated_at[:16] }}{% endif %}
       </div>
       <div class="divider"></div>
       <div class="field mb-0">
