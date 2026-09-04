@@ -502,16 +502,23 @@ def marketing_standee_add():
 @app.route("/marketing/standees/<int:standee_id>/reprint", methods=["POST"])
 @role_required("marketing")
 def marketing_standee_reprint(standee_id):
+    s = db.get_standee(standee_id)
     try:
         added = int(request.form.get("added_units", "0"))
     except ValueError:
         added = 0
     note = request.form.get("note", "").strip()
-    if added <= 0:
+    resolve_damaged = request.form.get("resolve_damaged") == "1"
+    if not s or not s.get("active"):
+        flash("Discontinued standees can't be reprinted — replace instead", "danger")
+    elif added <= 0:
         flash("Enter a positive number of units", "danger")
     else:
-        db.reprint_standee(standee_id, added, note, session["user"])
-        flash(f"Added {added} unit(s)", "success")
+        db.reprint_standee(standee_id, added, note, session["user"], resolve_damaged=resolve_damaged)
+        msg = f"Added {added} unit(s)"
+        if resolve_damaged:
+            msg += " · damaged count updated"
+        flash(msg, "success")
     return redirect(url_for("marketing_standees_page"))
 
 
@@ -543,6 +550,37 @@ def marketing_standee_replace(standee_id):
     db.retire_standee(standee_id, replaced_by=new_id)
     flash(f"'{old['name']}' retired · new creative '{new_name}' added", "success")
     return redirect(url_for("marketing_standees_page"))
+
+
+@app.route("/marketing/standees/<int:standee_id>/detail")
+@role_required("marketing")
+def marketing_standee_detail(standee_id):
+    s = db.get_standee(standee_id)
+    if not s:
+        return {"error": "not found"}, 404
+    all_standees = db.list_standees()
+    replaced_by = next((x for x in all_standees if x["id"] == s.get("replaced_by")), None)
+    replaces = next((x for x in all_standees if x.get("replaced_by") == standee_id), None)
+    history = [
+        a for a in db.list_standee_assignments() if a["standee_id"] == standee_id
+    ]
+    s["photo_url"] = f"/static/{s['photo_path']}" if s.get("photo_path") else ""
+    s["stats"] = db.standee_stats().get(standee_id, {})
+    s["replaced_by_name"] = replaced_by["name"] if replaced_by else None
+    s["replaced_by_id"] = replaced_by["id"] if replaced_by else None
+    s["replaces_name"] = replaces["name"] if replaces else None
+    s["replaces_id"] = replaces["id"] if replaces else None
+    s["reprints"] = db.reprint_history(standee_id)
+    s["assignments"] = [
+        {
+            "id": a["id"], "apartment_name": a["apartment_name"], "assigned_to": a["assigned_to"],
+            "quantity": a["quantity"], "status": a["status"], "placed_at": a.get("placed_at"),
+            "collect_by": a.get("collect_by"), "collected_at": a.get("collected_at"),
+            "quantity_returned": a.get("quantity_returned"), "quantity_damaged": a.get("quantity_damaged"),
+        }
+        for a in sorted(history, key=lambda x: x["id"], reverse=True)
+    ]
+    return s
 
 
 @app.route("/marketing/standees/assign", methods=["POST"])

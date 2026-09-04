@@ -57,6 +57,16 @@
 
 <!-- Inventory -->
 <div class="pane active" id="pane-inv">
+  {% set inv_total = standees|sum(attribute='total_units') %}
+  {% set inv_active = stats.values()|sum(attribute='placed') %}
+  {% set inv_available = stats.values()|sum(attribute='available') %}
+  {% set inv_damaged = stats.values()|sum(attribute='damaged') %}
+  <div class="stats">
+    <div class="stat"><div class="n">{{ inv_total }}</div><div class="l">Total standees</div></div>
+    <div class="stat live"><div class="n">{{ inv_active }}</div><div class="l">On active placement</div></div>
+    <div class="stat accent"><div class="n">{{ inv_available }}</div><div class="l">Available to execute</div></div>
+    <div class="stat"><div class="n" style="color:var(--danger-fg);">{{ inv_damaged }}</div><div class="l">Damaged</div></div>
+  </div>
   <div class="split">
     <div class="card">
       <div class="card-head"><h2>Add standee</h2></div>
@@ -75,7 +85,7 @@
       <div class="card-body flush">
         <div class="tbl-wrap">
           <table class="tbl">
-            <thead><tr><th>Design</th><th>Total</th><th>Placed</th><th>Available</th><th>Damaged</th><th>Lost</th><th>Storage</th><th style="width:190px;"></th></tr></thead>
+            <thead><tr><th>Design</th><th>Total</th><th>Placed</th><th>Available</th><th>Damaged</th><th>Lost</th><th>Storage</th><th style="width:250px;"></th></tr></thead>
             <tbody>
               {% for s in standees %}
               {% set st = stats.get(s.id, {'placed':0,'damaged':0,'lost':0,'available':s.total_units}) %}
@@ -90,11 +100,20 @@
                 <td>{{ s.total_units }}</td>
                 <td style="color:var(--st-live-fg);">{{ st.placed }}</td>
                 <td><span class="badge {{ 'badge-ok' if st.available > 0 else 'badge-off' }}">{{ st.available }}</span></td>
-                <td>{% if st.damaged %}<span style="color:var(--danger-fg);">{{ st.damaged }}</span>{% else %}<span class="subtle">—</span>{% endif %}</td>
+                <td>
+                  {% if st.damaged %}
+                    <span style="color:var(--danger-fg); font-weight:600;">{{ st.damaged }}</span>
+                    {% if s.active %}
+                    <button type="button" class="btn btn-default btn-sm" style="padding:3px 8px; font-size:11px; margin-left:4px;"
+                      data-bs-toggle="modal" data-bs-target="#reprintDamaged{{ s.id }}"><i class="bi bi-printer"></i>Reprint</button>
+                    {% endif %}
+                  {% else %}<span class="subtle">—</span>{% endif %}
+                </td>
                 <td>{% if st.lost %}<span style="color:var(--danger-fg);">{{ st.lost }}</span>{% else %}<span class="subtle">—</span>{% endif %}</td>
                 <td class="muted">{{ s.storage_location or '—' }}</td>
                 <td>
                   <div style="display:flex; gap:4px;">
+                    <button class="btn btn-default btn-icon" onclick="openStandeeDetail({{ s.id }})" title="View details"><i class="bi bi-eye"></i></button>
                     {% if s.active %}
                     <button class="btn btn-default btn-sm" data-bs-toggle="modal" data-bs-target="#reprint{{ s.id }}"><i class="bi bi-printer"></i>Reprint</button>
                     <button class="btn btn-default btn-sm" data-bs-toggle="modal" data-bs-target="#replace{{ s.id }}"><i class="bi bi-arrow-repeat"></i>Replace</button>
@@ -288,7 +307,60 @@
     </form>
   </div>
 </div>
+
+{% set dst = stats.get(s.id, {'damaged':0}) %}
+<div class="modal fade" id="reprintDamaged{{ s.id }}" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="post" action="/marketing/standees/{{ s.id }}/reprint">
+      <input type="hidden" name="resolve_damaged" value="1">
+      <div class="modal-header"><span class="modal-title">Reprint for damaged · {{ s.name }}</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <p class="muted" style="margin-top:0;">{{ dst.damaged }} unit(s) currently marked damaged. Printing replacements clears them from the damaged count (they stay excluded from Available — the damaged ones themselves aren't fixed, just replaced).</p>
+        <div class="field"><label>Units to reprint</label><input type="number" name="added_units" min="1" value="{{ dst.damaged }}" required></div>
+        <div class="field mb-0"><label>Note <span class="hint">optional</span></label><input type="text" name="note" value="Replacing {{ dst.damaged }} damaged unit(s)"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-printer"></i>Reprint &amp; clear</button>
+      </div>
+    </form>
+  </div>
+</div>
 {% endfor %}
+
+<div class="modal fade" id="sDetail" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header"><span class="modal-title">Standee</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div id="sdLoading" class="empty" style="padding:24px;"><i class="bi bi-hourglass-split"></i><div class="t">Loading…</div></div>
+        <div id="sdContent" hidden>
+          <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+            <img id="sdPhoto" src="" hidden style="width:56px; height:56px; border-radius:10px; object-fit:cover; border:1px solid var(--border);">
+            <div>
+              <div style="font-size:17px; font-weight:700;" id="sdName"></div>
+              <div id="sdBadges" style="margin-top:4px;"></div>
+            </div>
+          </div>
+          <div id="sdChainWrap" hidden style="margin-bottom:14px;"></div>
+          <div class="stats" style="margin-bottom:16px;">
+            <div class="stat"><div class="n" id="sdTotal"></div><div class="l">Total</div></div>
+            <div class="stat live"><div class="n" id="sdPlaced"></div><div class="l">Placed</div></div>
+            <div class="stat accent"><div class="n" id="sdAvailable"></div><div class="l">Available</div></div>
+            <div class="stat"><div class="n" id="sdDamaged" style="color:var(--danger-fg);"></div><div class="l">Damaged</div></div>
+          </div>
+          <div class="field"><label>Storage location</label><div id="sdStorage"></div></div>
+          <div class="divider"></div>
+          <div class="strong" style="margin-bottom:8px;">Reprint / update history</div>
+          <div id="sdReprints" class="tbl-wrap" style="margin-bottom:16px;"></div>
+          <div class="strong" style="margin-bottom:8px;">Placement history</div>
+          <div id="sdAssignments" class="tbl-wrap"></div>
+        </div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-default" data-bs-dismiss="modal">Close</button></div>
+    </div>
+  </div>
+</div>
 
 <div class="modal fade" id="asgDetail" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -344,6 +416,76 @@
       r.style.display = (!v || r.dataset.status === v) ? '' : 'none';
     });
   });
+
+  function statusBadgeHtml(s){
+    if(s === 'Placed') return '<span class="badge badge-alt">Placed</span>';
+    if(s === 'Collected') return '<span class="badge badge-ok">Collected</span>';
+    return '<span class="badge badge-live">Assigned</span>';
+  }
+
+  function openStandeeDetail(id){
+    var modal = new bootstrap.Modal(document.getElementById('sDetail'));
+    document.getElementById('sdLoading').hidden = false;
+    document.getElementById('sdContent').hidden = true;
+    modal.show();
+    fetch('/marketing/standees/' + id + '/detail')
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        document.getElementById('sdLoading').hidden = true;
+        document.getElementById('sdContent').hidden = false;
+        document.getElementById('sdName').textContent = d.name;
+        var photo = document.getElementById('sdPhoto');
+        if(d.photo_url){ photo.src = d.photo_url; photo.hidden = false; } else { photo.hidden = true; }
+        document.getElementById('sdBadges').innerHTML = d.active
+          ? '<span class="badge badge-ok">Active</span>'
+          : '<span class="badge badge-off">Discontinued</span>';
+
+        var chain = document.getElementById('sdChainWrap');
+        var chainHtml = '';
+        if(d.replaces_name){ chainHtml += '<div class="alert alert-info mb-0" style="margin-bottom:6px;"><i class="bi bi-arrow-left-circle"></i><span>Replaces <a href="javascript:void(0)" onclick="openStandeeDetail(' + d.replaces_id + ')">' + d.replaces_name + '</a></span></div>'; }
+        if(d.replaced_by_name){ chainHtml += '<div class="alert alert-warning mb-0"><i class="bi bi-arrow-right-circle"></i><span>Replaced by <a href="javascript:void(0)" onclick="openStandeeDetail(' + d.replaced_by_id + ')">' + d.replaced_by_name + '</a></span></div>'; }
+        chain.innerHTML = chainHtml;
+        chain.hidden = !chainHtml;
+
+        var st = d.stats || {};
+        document.getElementById('sdTotal').textContent = d.total_units;
+        document.getElementById('sdPlaced').textContent = st.placed || 0;
+        document.getElementById('sdAvailable').textContent = st.available || 0;
+        document.getElementById('sdDamaged').textContent = st.damaged || 0;
+        document.getElementById('sdStorage').textContent = d.storage_location || '—';
+
+        var rp = document.getElementById('sdReprints');
+        if(d.reprints && d.reprints.length){
+          rp.innerHTML = '<table class="tbl"><thead><tr><th>Date</th><th>Units</th><th>By</th><th>Note</th></tr></thead><tbody>' +
+            d.reprints.map(function(r){
+              return '<tr><td class="muted" style="font-size:12px;">' + (r.added_at || '').slice(0,16) + '</td>' +
+                '<td>+' + r.added_units + '</td><td class="muted">' + (r.added_by || '') + '</td>' +
+                '<td class="muted" style="font-size:12px;">' + (r.note || '—') + '</td></tr>';
+            }).join('') + '</tbody></table>';
+        } else {
+          rp.innerHTML = '<div class="empty" style="padding:16px;"><div class="t">No reprints yet.</div></div>';
+        }
+
+        var asg = document.getElementById('sdAssignments');
+        if(d.assignments && d.assignments.length){
+          asg.innerHTML = '<table class="tbl"><thead><tr><th>Apartment</th><th>Coordinator</th><th>Qty</th><th>Status</th><th>Placed</th><th>Collect by / Returned</th></tr></thead><tbody>' +
+            d.assignments.map(function(a){
+              var second = a.status === 'Collected'
+                ? (a.quantity_returned + ' returned' + (a.quantity_damaged ? ', ' + a.quantity_damaged + ' damaged' : ''))
+                : (a.collect_by || '—');
+              return '<tr><td class="strong">' + a.apartment_name + '</td><td class="muted">' + a.assigned_to + '</td>' +
+                '<td>' + a.quantity + '</td><td>' + statusBadgeHtml(a.status) + '</td>' +
+                '<td class="muted" style="font-size:12px;">' + (a.placed_at ? a.placed_at.slice(0,16) : '—') + '</td>' +
+                '<td class="muted" style="font-size:12px;">' + second + '</td></tr>';
+            }).join('') + '</tbody></table>';
+        } else {
+          asg.innerHTML = '<div class="empty" style="padding:16px;"><div class="t">Never assigned.</div></div>';
+        }
+      })
+      .catch(function(){
+        document.getElementById('sdLoading').innerHTML = '<div class="t">Failed to load.</div>';
+      });
+  }
 
   function openAssignmentDetail(id){
     var modal = new bootstrap.Modal(document.getElementById('asgDetail'));

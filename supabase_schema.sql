@@ -56,6 +56,7 @@ create table if not exists standees (
     storage_location  text not null default '',
     active            boolean not null default true,
     replaced_by       bigint references standees (id),
+    damaged_resolved  integer not null default 0,
     created_by        text not null default '',
     created_at        text not null default ''
 );
