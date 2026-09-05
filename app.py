@@ -503,16 +503,13 @@ def marketing_standee_add():
 @app.route("/marketing/standees/<int:standee_id>/reprint", methods=["POST"])
 @role_required("marketing")
 def marketing_standee_reprint(standee_id):
-    s = db.get_standee(standee_id)
     try:
         added = int(request.form.get("added_units", "0"))
     except ValueError:
         added = 0
     note = request.form.get("note", "").strip()
     resolve_damaged = request.form.get("resolve_damaged") == "1"
-    if not s or not s.get("active"):
-        flash("Discontinued standees can't be reprinted — replace instead", "danger")
-    elif added <= 0:
+    if added <= 0:
         flash("Enter a positive number of units", "danger")
     else:
         db.reprint_standee(standee_id, added, note, session["user"], resolve_damaged=resolve_damaged)

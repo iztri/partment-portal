@@ -444,7 +444,10 @@ class SQLiteDatabase:
         by a "reprint to replace damaged" action) — a dismissible indicator.
         `available` is always computed off the raw damaged count: printing
         replacements doesn't un-damage the physical units still sitting around,
-        so it must not be double-counted into availability.
+        so it must not be double-counted into availability. A discontinued
+        (inactive) standee always reports `available: 0` — those units can
+        never be assigned again regardless of the arithmetic, so nothing about
+        it should look "ready to use" anywhere in the app.
         """
         placed, damaged_raw, lost = {}, {}, {}
         for r in self.conn.execute(
@@ -466,9 +469,10 @@ class SQLiteDatabase:
             sid = s["id"]
             p, d_raw, l = placed.get(sid, 0), damaged_raw.get(sid, 0), lost.get(sid, 0)
             resolved = min(s.get("damaged_resolved") or 0, d_raw)
+            available = (s["total_units"] - p - d_raw - l) if s.get("active") else 0
             out[sid] = {
                 "placed": p, "damaged": d_raw - resolved, "damaged_raw": d_raw, "lost": l,
-                "available": s["total_units"] - p - d_raw - l,
+                "available": available,
             }
         return out
 
@@ -832,9 +836,10 @@ class SupabaseDatabase:
             sid = s["id"]
             p, d_raw, l = placed.get(sid, 0), damaged_raw.get(sid, 0), lost.get(sid, 0)
             resolved = min(s.get("damaged_resolved") or 0, d_raw)
+            available = (s["total_units"] - p - d_raw - l) if s.get("active") else 0
             out[sid] = {
                 "placed": p, "damaged": d_raw - resolved, "damaged_raw": d_raw, "lost": l,
-                "available": s["total_units"] - p - d_raw - l,
+                "available": available,
             }
         return out
 

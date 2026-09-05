@@ -107,12 +107,10 @@
                 {% if st.damaged %}
                   <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                     <span style="color:var(--danger-fg); font-weight:700;">{{ st.damaged }}</span>
-                    {% if s.active %}
                     <button type="button" class="btn btn-default btn-sm" style="padding:3px 8px; font-size:11px;"
                       data-bs-toggle="modal" data-bs-target="#reprintDamaged{{ s.id }}"><i class="bi bi-printer"></i>Reprint</button>
                     <button type="button" class="btn btn-default btn-sm" style="padding:3px 8px; font-size:11px;"
                       data-bs-toggle="modal" data-bs-target="#replace{{ s.id }}"><i class="bi bi-arrow-repeat"></i>Replace</button>
-                    {% else %}<span class="subtle" style="font-size:11px;">discontinued</span>{% endif %}
                   </div>
                 {% else %}<span class="subtle">—</span>{% endif %}
               </td>
@@ -121,10 +119,8 @@
               <td>
                 <div style="display:flex; gap:4px;">
                   <button class="btn btn-default btn-icon" onclick="openStandeeDetail({{ s.id }})" title="View details"><i class="bi bi-eye"></i></button>
-                  {% if s.active %}
                   <button class="btn btn-default btn-icon" data-bs-toggle="modal" data-bs-target="#reprint{{ s.id }}" title="Reprint"><i class="bi bi-printer"></i></button>
                   <button class="btn btn-default btn-icon" data-bs-toggle="modal" data-bs-target="#replace{{ s.id }}" title="Replace"><i class="bi bi-arrow-repeat"></i></button>
-                  {% endif %}
                 </div>
               </td>
             </tr>
@@ -154,9 +150,12 @@
               {% for a in apartments %}<option value="{{ a.id }}">{{ a.name }} ({{ a.hub }})</option>{% endfor %}
             </select></div>
           <div class="field"><label>Standee</label>
-            <select name="standee_id" required>
+            <select name="standee_id" id="assignStandeeSelect" required>
               <option value="">— Select —</option>
-              {% for s in standees if s.active %}<option value="{{ s.id }}">{{ s.name }} — {{ stats.get(s.id, {}).get('available', s.total_units) }} available</option>{% endfor %}
+              {% for s in standees if s.active %}
+              {% set sav = stats.get(s.id, {}).get('available', s.total_units) %}
+              <option value="{{ s.id }}" data-available="{{ sav }}">{{ s.name }} — {{ sav }} available</option>
+              {% endfor %}
             </select></div>
           <div class="field"><label>BTL coordinator</label>
             <select name="assigned_to" required {{ 'disabled' if not btl_users }}>
@@ -164,7 +163,7 @@
               {% for u in btl_users %}<option value="{{ u.username }}">{{ u.name }} ({{ u.username }})</option>{% endfor %}
             </select></div>
           <div class="grid-2">
-            <div class="field"><label>Quantity</label><input type="number" name="quantity" min="1" required></div>
+            <div class="field"><label>Quantity <span class="hint" id="assignQtyHint"></span></label><input type="number" name="quantity" id="assignQtyInput" min="1" required></div>
             <div class="field"><label>Duration <span class="hint">days</span></label><input type="number" name="duration_days" min="1" placeholder="e.g. 7" required></div>
           </div>
           <div class="field">
@@ -407,6 +406,27 @@
 
 {% block extra_js %}
 <script>
+  (function(){
+    var sel = document.getElementById('assignStandeeSelect'),
+        qty = document.getElementById('assignQtyInput'),
+        hint = document.getElementById('assignQtyHint');
+    if(!sel) return;
+    sel.addEventListener('change', function(){
+      var opt = sel.options[sel.selectedIndex];
+      var avail = opt ? parseInt(opt.dataset.available || '0', 10) : 0;
+      if(opt && opt.value && avail > 0){
+        qty.max = avail;
+        hint.textContent = '— up to ' + avail + ' available';
+      } else if(opt && opt.value){
+        qty.removeAttribute('max');
+        hint.textContent = '— none available right now';
+      } else {
+        qty.removeAttribute('max');
+        hint.textContent = '';
+      }
+    });
+  })();
+
   document.querySelectorAll('.seg button').forEach(function(b){
     b.addEventListener('click', function(){
       document.querySelectorAll('.seg button').forEach(function(x){ x.classList.remove('active'); });
