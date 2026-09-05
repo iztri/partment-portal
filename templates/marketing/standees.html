@@ -25,6 +25,15 @@
   {% else %}<span class="badge badge-ok">Collected</span>{% endif %}
 {% endmacro %}
 
+{% macro stat_strip(label1, value1, label2, value2, color2='') %}
+<div style="background:var(--bg); border:1px solid var(--border); border-radius:var(--r-sm); padding:10px 14px; margin-bottom:14px; display:flex; gap:28px; flex-wrap:wrap;">
+  <div><div class="subtle" style="font-size:10.5px; text-transform:uppercase; letter-spacing:.04em;">{{ label1 }}</div>
+    <div style="font-size:19px; font-weight:700;">{{ value1 }}</div></div>
+  <div><div class="subtle" style="font-size:10.5px; text-transform:uppercase; letter-spacing:.04em;">{{ label2 }}</div>
+    <div style="font-size:19px; font-weight:700;{{ ' color:' + color2 + ';' if color2 }}">{{ value2 }}</div></div>
+</div>
+{% endmacro %}
+
 {% block extra_css %}
 <style>
   .seg{display:inline-flex; background:var(--bg); border:1px solid var(--border); border-radius:var(--r-sm); padding:3px; margin-bottom:18px;}
@@ -275,13 +284,14 @@
 </div>
 
 {% for s in standees %}
+{% set st = stats.get(s.id, {'placed':0,'damaged':0,'lost':0,'available':s.total_units}) %}
 <div class="modal fade" id="reprint{{ s.id }}" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <form class="modal-content" method="post" action="/marketing/standees/{{ s.id }}/reprint">
       <div class="modal-header"><span class="modal-title">Reprint · {{ s.name }}</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
       <div class="modal-body">
-        <p class="muted" style="margin-top:0;">Currently {{ s.total_units }} units total. Adds to this design's inventory.</p>
-        <div class="field"><label>Units added</label><input type="number" name="added_units" min="1" required></div>
+        {{ stat_strip('Current total', s.total_units, 'Available now', st.available, 'var(--accent)') }}
+        <div class="field"><label>Units to add</label><input type="number" name="added_units" min="1" required></div>
         <div class="field mb-0"><label>Note <span class="hint">optional</span></label><input type="text" name="note" placeholder="e.g. 2nd print run, Sept batch"></div>
       </div>
       <div class="modal-footer">
@@ -297,10 +307,11 @@
     <form class="modal-content" method="post" action="/marketing/standees/{{ s.id }}/replace" enctype="multipart/form-data">
       <div class="modal-header"><span class="modal-title">Replace · {{ s.name }}</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
       <div class="modal-body">
-        <div class="alert alert-warning" style="margin-top:0;"><i class="bi bi-exclamation-triangle-fill"></i>
+        {{ stat_strip('Current total (' + s.name + ')', s.total_units, 'Available now', st.available, 'var(--accent)') }}
+        <div class="alert alert-warning"><i class="bi bi-exclamation-triangle-fill"></i>
           <span>New creative? '{{ s.name }}' will be marked discontinued (kept for history, can't be assigned again) and a new standee is created below.</span></div>
         <div class="field"><label>New standee name</label><input type="text" name="new_name" placeholder="e.g. Diwali Offer Standee v2" required></div>
-        <div class="field"><label>Total units printed</label><input type="number" name="new_total_units" min="0" placeholder="0" required></div>
+        <div class="field"><label>Total units printed <span class="hint">for the new creative</span></label><input type="number" name="new_total_units" min="0" placeholder="0" required></div>
         <div class="field"><label>Storage location <span class="hint">optional, defaults to same as before</span></label>
           <input type="text" name="new_storage_location" placeholder="{{ s.storage_location or 'e.g. Koramangala office store' }}"></div>
         <div class="field mb-0"><label>New design photo <span class="hint">optional</span></label><input type="file" name="new_photo" accept="image/*"></div>
@@ -313,16 +324,16 @@
   </div>
 </div>
 
-{% set dst = stats.get(s.id, {'damaged':0}) %}
 <div class="modal fade" id="reprintDamaged{{ s.id }}" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <form class="modal-content" method="post" action="/marketing/standees/{{ s.id }}/reprint">
       <input type="hidden" name="resolve_damaged" value="1">
       <div class="modal-header"><span class="modal-title">Reprint for damaged · {{ s.name }}</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
       <div class="modal-body">
-        <p class="muted" style="margin-top:0;">{{ dst.damaged }} unit(s) currently marked damaged. Printing replacements clears them from the damaged count (they stay excluded from Available — the damaged ones themselves aren't fixed, just replaced).</p>
-        <div class="field"><label>Units to reprint</label><input type="number" name="added_units" min="1" value="{{ dst.damaged }}" required></div>
-        <div class="field mb-0"><label>Note <span class="hint">optional</span></label><input type="text" name="note" value="Replacing {{ dst.damaged }} damaged unit(s)"></div>
+        {{ stat_strip('Current total', s.total_units, 'Damaged now', st.damaged, 'var(--danger-fg)') }}
+        <p class="muted" style="margin-top:0;">Printing replacements clears these from the damaged count (they stay excluded from Available — the damaged ones themselves aren't fixed, just replaced).</p>
+        <div class="field"><label>Units to reprint</label><input type="number" name="added_units" min="1" value="{{ st.damaged }}" required></div>
+        <div class="field mb-0"><label>Note <span class="hint">optional</span></label><input type="text" name="note" value="Replacing {{ st.damaged }} damaged unit(s)"></div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-default" data-bs-dismiss="modal">Cancel</button>
