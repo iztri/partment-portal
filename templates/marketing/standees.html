@@ -68,102 +68,71 @@
     <div class="stat"><div class="n" style="color:var(--danger-fg);">{{ inv_damaged }}</div><div class="l">Damaged</div></div>
   </div>
 
-  {% if damaged_standees %}
-  <div class="card" style="border-left:3px solid var(--danger-fg); margin-bottom:18px;">
-    <div class="card-head"><h2><i class="bi bi-exclamation-triangle-fill" style="color:var(--danger-fg);"></i> Damaged standees</h2>
-      <span class="sub">{{ damaged_standees|length }} design{{ '' if damaged_standees|length == 1 else 's' }} need attention</span></div>
+  <div class="card" style="max-width:440px;">
+    <div class="card-head"><h2>Add standee</h2></div>
+    <div class="card-body">
+      <form method="post" action="/marketing/standees/add" enctype="multipart/form-data">
+        <div class="field"><label>Name</label><input type="text" name="name" placeholder="e.g. Diwali Offer Standee" required></div>
+        <div class="grid-2">
+          <div class="field"><label>Total units printed</label><input type="number" name="total_units" min="0" placeholder="0" required></div>
+          <div class="field"><label>Storage location <span class="hint">optional</span></label><input type="text" name="storage_location" placeholder="e.g. Koramangala office"></div>
+        </div>
+        <div class="field"><label>Design photo <span class="hint">optional</span></label><input type="file" name="photo" accept="image/*"></div>
+        <button type="submit" class="btn btn-primary btn-block"><i class="bi bi-plus-lg"></i>Add standee</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card section-gap">
+    <div class="card-head"><h2>Inventory</h2></div>
     <div class="card-body flush">
       <div class="tbl-wrap">
         <table class="tbl">
-          <thead><tr><th>Design</th><th>Damaged</th><th>Storage</th><th style="width:230px;"></th></tr></thead>
+          <thead><tr><th>Design</th><th>Total</th><th>Placed</th><th>Available</th><th style="min-width:170px;">Damaged</th><th>Lost</th><th>Storage</th><th style="width:190px;"></th></tr></thead>
           <tbody>
-            {% for s in damaged_standees %}
-            {% set dst = stats.get(s.id, {'damaged':0}) %}
+            {% for s in standees %}
+            {% set st = stats.get(s.id, {'placed':0,'damaged':0,'lost':0,'available':s.total_units}) %}
+            {% set replacement = standees_by_id.get(s.replaced_by) if s.replaced_by else None %}
             <tr>
               <td>
                 {% if s.photo_path %}<img class="thumb" src="/static/{{ s.photo_path }}">{% endif %}
                 <span class="strong">{{ s.name }}</span>
                 {% if not s.active %}<span class="badge badge-off" style="margin-left:6px;">Discontinued</span>{% endif %}
+                {% if replacement %}<div class="subtle" style="font-size:11px; margin-top:2px;">→ replaced by {{ replacement.name }}</div>{% endif %}
               </td>
-              <td><span style="color:var(--danger-fg); font-weight:700;">{{ dst.damaged }}</span></td>
+              <td>{{ s.total_units }}</td>
+              <td style="color:var(--st-live-fg);">{{ st.placed }}</td>
+              <td><span class="badge {{ 'badge-ok' if st.available > 0 else 'badge-off' }}">{{ st.available }}</span></td>
+              <td>
+                {% if st.damaged %}
+                  <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                    <span style="color:var(--danger-fg); font-weight:700;">{{ st.damaged }}</span>
+                    {% if s.active %}
+                    <button type="button" class="btn btn-default btn-sm" style="padding:3px 8px; font-size:11px;"
+                      data-bs-toggle="modal" data-bs-target="#reprintDamaged{{ s.id }}"><i class="bi bi-printer"></i>Reprint</button>
+                    <button type="button" class="btn btn-default btn-sm" style="padding:3px 8px; font-size:11px;"
+                      data-bs-toggle="modal" data-bs-target="#replace{{ s.id }}"><i class="bi bi-arrow-repeat"></i>Replace</button>
+                    {% else %}<span class="subtle" style="font-size:11px;">discontinued</span>{% endif %}
+                  </div>
+                {% else %}<span class="subtle">—</span>{% endif %}
+              </td>
+              <td>{% if st.lost %}<span style="color:var(--danger-fg);">{{ st.lost }}</span>{% else %}<span class="subtle">—</span>{% endif %}</td>
               <td class="muted">{{ s.storage_location or '—' }}</td>
               <td>
-                {% if s.active %}
                 <div style="display:flex; gap:4px;">
-                  <button type="button" class="btn btn-default btn-sm" data-bs-toggle="modal" data-bs-target="#reprintDamaged{{ s.id }}"><i class="bi bi-printer"></i>Reprint</button>
-                  <button type="button" class="btn btn-default btn-sm" data-bs-toggle="modal" data-bs-target="#replace{{ s.id }}"><i class="bi bi-arrow-repeat"></i>Replace</button>
+                  <button class="btn btn-default btn-icon" onclick="openStandeeDetail({{ s.id }})" title="View details"><i class="bi bi-eye"></i></button>
+                  {% if s.active %}
+                  <button class="btn btn-default btn-icon" data-bs-toggle="modal" data-bs-target="#reprint{{ s.id }}" title="Reprint"><i class="bi bi-printer"></i></button>
+                  <button class="btn btn-default btn-icon" data-bs-toggle="modal" data-bs-target="#replace{{ s.id }}" title="Replace"><i class="bi bi-arrow-repeat"></i></button>
+                  {% endif %}
                 </div>
-                {% else %}<span class="subtle" style="font-size:12px;">Discontinued — no action needed</span>{% endif %}
               </td>
             </tr>
+            {% else %}
+            <tr><td colspan="8"><div class="empty"><i class="bi bi-signpost-2"></i><div class="t">No standees yet.</div></div></td></tr>
             {% endfor %}
           </tbody>
         </table>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  <div class="split">
-    <div class="card">
-      <div class="card-head"><h2>Add standee</h2></div>
-      <div class="card-body">
-        <form method="post" action="/marketing/standees/add" enctype="multipart/form-data">
-          <div class="field"><label>Name</label><input type="text" name="name" placeholder="e.g. Diwali Offer Standee" required></div>
-          <div class="field"><label>Total units printed</label><input type="number" name="total_units" min="0" placeholder="0" required></div>
-          <div class="field"><label>Storage location <span class="hint">optional</span></label><input type="text" name="storage_location" placeholder="e.g. Koramangala office store"></div>
-          <div class="field"><label>Design photo <span class="hint">optional</span></label><input type="file" name="photo" accept="image/*"></div>
-          <button type="submit" class="btn btn-primary btn-block"><i class="bi bi-plus-lg"></i>Add standee</button>
-        </form>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-head"><h2>Inventory</h2></div>
-      <div class="card-body flush">
-        <div class="tbl-wrap">
-          <table class="tbl">
-            <thead><tr><th>Design</th><th>Total</th><th>Placed</th><th>Available</th><th>Damaged</th><th>Lost</th><th>Storage</th><th style="width:250px;"></th></tr></thead>
-            <tbody>
-              {% for s in standees %}
-              {% set st = stats.get(s.id, {'placed':0,'damaged':0,'lost':0,'available':s.total_units}) %}
-              {% set replacement = standees_by_id.get(s.replaced_by) if s.replaced_by else None %}
-              <tr>
-                <td>
-                  {% if s.photo_path %}<img class="thumb" src="/static/{{ s.photo_path }}">{% endif %}
-                  <span class="strong">{{ s.name }}</span>
-                  {% if not s.active %}<span class="badge badge-off" style="margin-left:6px;">Discontinued</span>{% endif %}
-                  {% if replacement %}<div class="subtle" style="font-size:11px; margin-top:2px;">→ replaced by {{ replacement.name }}</div>{% endif %}
-                </td>
-                <td>{{ s.total_units }}</td>
-                <td style="color:var(--st-live-fg);">{{ st.placed }}</td>
-                <td><span class="badge {{ 'badge-ok' if st.available > 0 else 'badge-off' }}">{{ st.available }}</span></td>
-                <td>
-                  {% if st.damaged %}
-                    <span style="color:var(--danger-fg); font-weight:600;">{{ st.damaged }}</span>
-                    {% if s.active %}
-                    <button type="button" class="btn btn-default btn-sm" style="padding:3px 8px; font-size:11px; margin-left:4px;"
-                      data-bs-toggle="modal" data-bs-target="#reprintDamaged{{ s.id }}"><i class="bi bi-printer"></i>Reprint</button>
-                    {% endif %}
-                  {% else %}<span class="subtle">—</span>{% endif %}
-                </td>
-                <td>{% if st.lost %}<span style="color:var(--danger-fg);">{{ st.lost }}</span>{% else %}<span class="subtle">—</span>{% endif %}</td>
-                <td class="muted">{{ s.storage_location or '—' }}</td>
-                <td>
-                  <div style="display:flex; gap:4px;">
-                    <button class="btn btn-default btn-icon" onclick="openStandeeDetail({{ s.id }})" title="View details"><i class="bi bi-eye"></i></button>
-                    {% if s.active %}
-                    <button class="btn btn-default btn-sm" data-bs-toggle="modal" data-bs-target="#reprint{{ s.id }}"><i class="bi bi-printer"></i>Reprint</button>
-                    <button class="btn btn-default btn-sm" data-bs-toggle="modal" data-bs-target="#replace{{ s.id }}"><i class="bi bi-arrow-repeat"></i>Replace</button>
-                    {% else %}<span class="subtle" style="font-size:12px;">—</span>{% endif %}
-                  </div>
-                </td>
-              </tr>
-              {% else %}
-              <tr><td colspan="8"><div class="empty"><i class="bi bi-signpost-2"></i><div class="t">No standees yet.</div></div></td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
       </div>
     </div>
   </div>

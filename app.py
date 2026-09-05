@@ -464,13 +464,11 @@ def marketing_team_reset_password(user_id):
 def marketing_standees_page():
     standees = db.list_standees()
     stats = db.standee_stats()
-    damaged_standees = [s for s in standees if stats.get(s["id"], {}).get("damaged", 0) > 0]
     return render_template(
         "marketing/standees.html",
         active="standees",
         standees=standees,
         standees_by_id={s["id"]: s for s in standees},
-        damaged_standees=damaged_standees,
         stats=stats,
         apartments=db.list_apartments(),
         btl_users=db.btl_users(),
