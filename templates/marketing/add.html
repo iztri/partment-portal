@@ -38,7 +38,7 @@
             placeholder="Prestige Sunrise Park, Arekere, https://maps.google.com/&#10;Sattva Misty Charm, Koramangala"></textarea>
         </div>
         <div style="display:flex; gap:8px;">
-          <button type="button" class="btn btn-default btn-sm" id="sample"><i class="bi bi-file-text"></i>Insert sample</button>
+          <a href="/static/samples/apartments_sample.csv" download class="btn btn-default btn-sm"><i class="bi bi-download"></i>Download sample</a>
           <button type="submit" class="btn btn-primary btn-sm" style="margin-left:auto;"><i class="bi bi-upload"></i>Upload</button>
         </div>
       </form>
@@ -60,26 +60,11 @@
             placeholder="Prestige Sunrise Park, Ramesh Kumar, Security, 9876543210&#10;Sattva Misty Charm, Anita Rao, Apartment Manager, 9123456780"></textarea>
         </div>
         <div style="display:flex; gap:8px;">
-          <button type="button" class="btn btn-default btn-sm" id="sampleContacts"><i class="bi bi-file-text"></i>Insert sample</button>
+          <a href="/static/samples/contacts_sample.csv" download class="btn btn-default btn-sm"><i class="bi bi-download"></i>Download sample</a>
           <button type="submit" class="btn btn-primary btn-sm" style="margin-left:auto;"><i class="bi bi-upload"></i>Upload</button>
         </div>
       </form>
     </div>
   </div>
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-  document.getElementById('sample').addEventListener('click', function(){
-    document.getElementById('bulk').value =
-      "Prestige Sunrise Park, Arekere, https://maps.google.com/\n" +
-      "Sattva Misty Charm, Koramangala";
-  });
-  document.getElementById('sampleContacts').addEventListener('click', function(){
-    document.getElementById('contacts').value =
-      "Prestige Sunrise Park, Ramesh Kumar, Security, 9876543210\n" +
-      "Sattva Misty Charm, Anita Rao, Apartment Manager, 9123456780";
-  });
-</script>
 {% endblock %}
