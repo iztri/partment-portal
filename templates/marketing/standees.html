@@ -67,6 +67,43 @@
     <div class="stat accent"><div class="n">{{ inv_available }}</div><div class="l">Available to execute</div></div>
     <div class="stat"><div class="n" style="color:var(--danger-fg);">{{ inv_damaged }}</div><div class="l">Damaged</div></div>
   </div>
+
+  {% if damaged_standees %}
+  <div class="card" style="border-left:3px solid var(--danger-fg); margin-bottom:18px;">
+    <div class="card-head"><h2><i class="bi bi-exclamation-triangle-fill" style="color:var(--danger-fg);"></i> Damaged standees</h2>
+      <span class="sub">{{ damaged_standees|length }} design{{ '' if damaged_standees|length == 1 else 's' }} need attention</span></div>
+    <div class="card-body flush">
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Design</th><th>Damaged</th><th>Storage</th><th style="width:230px;"></th></tr></thead>
+          <tbody>
+            {% for s in damaged_standees %}
+            {% set dst = stats.get(s.id, {'damaged':0}) %}
+            <tr>
+              <td>
+                {% if s.photo_path %}<img class="thumb" src="/static/{{ s.photo_path }}">{% endif %}
+                <span class="strong">{{ s.name }}</span>
+                {% if not s.active %}<span class="badge badge-off" style="margin-left:6px;">Discontinued</span>{% endif %}
+              </td>
+              <td><span style="color:var(--danger-fg); font-weight:700;">{{ dst.damaged }}</span></td>
+              <td class="muted">{{ s.storage_location or '—' }}</td>
+              <td>
+                {% if s.active %}
+                <div style="display:flex; gap:4px;">
+                  <button type="button" class="btn btn-default btn-sm" data-bs-toggle="modal" data-bs-target="#reprintDamaged{{ s.id }}"><i class="bi bi-printer"></i>Reprint</button>
+                  <button type="button" class="btn btn-default btn-sm" data-bs-toggle="modal" data-bs-target="#replace{{ s.id }}"><i class="bi bi-arrow-repeat"></i>Replace</button>
+                </div>
+                {% else %}<span class="subtle" style="font-size:12px;">Discontinued — no action needed</span>{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="split">
     <div class="card">
       <div class="card-head"><h2>Add standee</h2></div>
