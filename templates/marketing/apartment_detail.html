@@ -5,7 +5,7 @@
 <div class="page-head" style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
   <div>
     <h1>{{ apt.name }}</h1>
-    <p>{{ apt.hub }}{% if apt.location_link %} · <a href="{{ apt.location_link }}" target="_blank">Open map</a>{% endif %}</p>
+    <p>{% if hub_id %}Hub {{ hub_id }} · {% endif %}{{ apt.hub }}{% if apt.location_link %} · <a href="{{ apt.location_link }}" target="_blank">Open map</a>{% endif %}</p>
   </div>
   <div style="display:flex; gap:8px;">
     <a href="/marketing" class="btn btn-default btn-sm"><i class="bi bi-arrow-left"></i>Back</a>

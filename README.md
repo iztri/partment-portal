@@ -2,7 +2,8 @@
 
 Flask app for two teams:
 
-- **Marketing** — upload/assign apartments, manage the standee inventory, run reports.
+- **Marketing** — manage the hub list, upload/assign apartments, manage the standee
+  inventory, run reports.
 - **BTL** — record one contact "collection" per assigned apartment (phone, designation,
   total units, available marketing campaigns) and track standee placement / collection.
 

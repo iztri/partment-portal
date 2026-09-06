@@ -18,7 +18,8 @@
           <select name="hub" required>
             <option value="">— Select hub —</option>
             {% for h in hub_names %}<option>{{ h }}</option>{% endfor %}
-          </select></div>
+          </select>
+          <span class="hint">manage the list under <a href="/marketing/hubs">Hubs</a></span></div>
         <div class="field"><label>Location link <span class="hint">optional</span></label>
           <input type="url" name="location_link" placeholder="https://maps.google.com/…"></div>
         <button type="submit" class="btn btn-primary btn-block"><i class="bi bi-plus-lg"></i>Add apartment</button>

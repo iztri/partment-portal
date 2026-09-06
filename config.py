@@ -26,13 +26,26 @@ MARKETING_CAMPAIGNS = [
     "POST BOX", "Website (Apartment's)", "Stalls", "Telegram",
 ]
 
-# ── Hubs (fixed apartment grouping) ──────────────────────────────────────
-HUB_NAMES = [
-    "Arekere", "Brigade Meadows", "Brigade Omega", "Brigade Panorama",
-    "Elita Promenade", "Godrej E-city", "House of Hiranandani",
-    "Koramangala", "Nandi Citadel", "Prestige Jindal City",
-    "Prestige Sunrise Park", "Sattva Misty Charm", "Valmark CityVille",
+# ── Hubs (apartment grouping) ────────────────────────────────────────────
+# Master list lives in the `hubs` DB table (managed under Marketing › Hubs).
+# This is only the first-run seed — (hub_id, hub_name), IDs come from the
+# marketing team's own numbering, not necessarily sequential.
+HUBS_SEED = [
+    (1, "Arekere"),
+    (8, "Elita Promenade"),
+    (9, "Nandi Citadel"),
+    (12, "Godrej E-city"),
+    (11, "Sattva Misty Charm"),
+    (28, "Prestige Jindal City"),
+    (20, "Brigade Panorama"),
+    (31, "House of Hiranandani"),
+    (32, "Koramangala"),
+    (33, "Electronic City"),
+    (34, "Sobha Dream Acres"),
+    (37, "Adarsh Palm Retreat"),
 ]
+# Fallback name list (used only if the hubs table can't be read).
+HUB_NAMES = [name for _, name in HUBS_SEED]
 
 # ── Apartment status values ─────────────────────────────────────────────
 STATUS_PENDING = "Pending"

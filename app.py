@@ -14,9 +14,9 @@ from flask import (
 from auth import (
     login_required, role_required, authenticate, logout, ensure_seed_admin, hash_password,
 )
-from db import get_db
+from db import get_db, ensure_seed_hubs
 from config import (
-    HUB_NAMES, MARKETING_CAMPAIGNS, DESIGNATIONS, WORKSPACE_LABELS,
+    MARKETING_CAMPAIGNS, DESIGNATIONS, WORKSPACE_LABELS,
     STATUS_PENDING, STATUS_COLLECTED, STATUS_NO_NUMBER,
 )
 
@@ -26,6 +26,7 @@ app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024  # 20MB, generous for phone-
 
 db = get_db()
 ensure_seed_admin()
+ensure_seed_hubs()
 
 ALLOWED_IMAGE_EXT = {"jpg", "jpeg", "png", "webp", "gif", "heic"}
 
@@ -137,14 +138,14 @@ def marketing_dashboard():
         apartments=apartments,
         collections=collections,
         stats=_apartment_stats(apartments),
-        hub_names=HUB_NAMES,
+        hub_names=db.hub_names(),
     )
 
 
 @app.route("/marketing/add")
 @role_required("marketing")
 def marketing_add_page():
-    return render_template("marketing/add.html", active="add", hub_names=HUB_NAMES)
+    return render_template("marketing/add.html", active="add", hub_names=db.hub_names())
 
 
 @app.route("/marketing/add", methods=["POST"])
@@ -153,7 +154,7 @@ def marketing_add():
     name = request.form.get("name", "").strip()
     hub = request.form.get("hub", "").strip()
     link = request.form.get("location_link", "").strip()
-    if not name or hub not in HUB_NAMES:
+    if not name or hub not in set(db.hub_names()):
         flash("Apartment name and a valid hub are required", "danger")
         return redirect(url_for("marketing_add_page"))
     db.add_apartment(name, hub, link, session["user"])
@@ -169,12 +170,13 @@ def marketing_bulk_upload():
         flash("Nothing to upload", "danger")
         return redirect(url_for("marketing_add_page"))
     rows, errors = [], []
+    valid_hubs = set(db.hub_names())
     for i, line in enumerate((l for l in raw.splitlines() if l.strip()), 1):
         parts = [p.strip() for p in line.split(",")]
         name = parts[0] if parts else ""
         hub = parts[1] if len(parts) > 1 else ""
         link = parts[2] if len(parts) > 2 else ""
-        if not name or hub not in HUB_NAMES:
+        if not name or hub not in valid_hubs:
             errors.append(f"Row {i}: '{line}'")
             continue
         rows.append((name, hub, link))
@@ -218,6 +220,99 @@ def marketing_contacts_bulk_upload():
     return redirect(url_for("marketing_add_page"))
 
 
+# ── Hubs (master apartment-grouping list) ────────────────────────────────
+@app.route("/marketing/hubs")
+@role_required("marketing")
+def marketing_hubs_page():
+    hubs = db.list_hubs()
+    counts = {}
+    for a in db.list_apartments():
+        counts[a["hub"]] = counts.get(a["hub"], 0) + 1
+    return render_template(
+        "marketing/hubs.html", active="hubs",
+        hubs=hubs, counts=counts,
+    )
+
+
+@app.route("/marketing/hubs/add", methods=["POST"])
+@role_required("marketing")
+def marketing_hub_add():
+    raw_id = request.form.get("hub_id", "").strip()
+    hub_name = request.form.get("hub_name", "").strip()
+    try:
+        hub_id = int(raw_id)
+    except ValueError:
+        flash("Hub ID must be a whole number", "danger")
+        return redirect(url_for("marketing_hubs_page"))
+    if not hub_name:
+        flash("Hub name is required", "danger")
+    elif not db.add_hub(hub_id, hub_name):
+        flash(f"Hub ID {hub_id} or name '{hub_name}' already exists", "danger")
+    else:
+        flash(f"Added hub {hub_id} · {hub_name}", "success")
+    return redirect(url_for("marketing_hubs_page"))
+
+
+@app.route("/marketing/hubs/bulk-upload", methods=["POST"])
+@role_required("marketing")
+def marketing_hubs_bulk_upload():
+    raw = request.form.get("bulk_data", "").strip()
+    if not raw:
+        flash("Nothing to upload", "danger")
+        return redirect(url_for("marketing_hubs_page"))
+    added = updated = 0
+    errors = []
+    for i, line in enumerate((l for l in raw.splitlines() if l.strip()), 1):
+        if "\t" in line:
+            parts = line.split("\t")
+        elif "," in line:
+            parts = line.split(",")
+        else:
+            parts = line.split(None, 1)
+        parts = [p.strip() for p in parts if p.strip()]
+        if len(parts) < 2:
+            errors.append(f"Row {i}: '{line}'")
+            continue
+        try:
+            hub_id = int(parts[0])
+        except ValueError:
+            # tolerate a header row like "Hub ID, Hub Name"
+            if i == 1 and not parts[0][:1].isdigit():
+                continue
+            errors.append(f"Row {i}: bad ID '{parts[0]}'")
+            continue
+        hub_name = parts[1]
+        existed = db.get_hub(hub_id) is not None
+        try:
+            db.upsert_hub(hub_id, hub_name)
+        except Exception:
+            errors.append(f"Row {i}: name '{hub_name}' is used by another hub")
+            continue
+        updated += 1 if existed else 0
+        added += 0 if existed else 1
+    msg = f"Added {added}, updated {updated} hub(s)"
+    if errors:
+        msg += f" · skipped {len(errors)}: " + "; ".join(errors[:3])
+    flash(msg, "success" if (added or updated) and not errors else "warning")
+    return redirect(url_for("marketing_hubs_page"))
+
+
+@app.route("/marketing/hubs/<int:hub_id>/delete", methods=["POST"])
+@role_required("marketing")
+def marketing_hub_delete(hub_id):
+    hub = db.get_hub(hub_id)
+    if not hub:
+        flash("Hub not found", "danger")
+        return redirect(url_for("marketing_hubs_page"))
+    in_use = sum(1 for a in db.list_apartments(include_deleted=True) if a["hub"] == hub["hub_name"])
+    if in_use:
+        flash(f"Can't delete '{hub['hub_name']}' — {in_use} apartment(s) use it", "danger")
+    else:
+        db.delete_hub(hub_id)
+        flash(f"Deleted hub {hub_id} · {hub['hub_name']}", "success")
+    return redirect(url_for("marketing_hubs_page"))
+
+
 @app.route("/marketing/apartment/<int:apt_id>/edit", methods=["POST"])
 @role_required("marketing")
 def marketing_edit_apartment(apt_id):
@@ -228,7 +323,7 @@ def marketing_edit_apartment(apt_id):
     name = request.form.get("name", "").strip()
     hub = request.form.get("hub", "").strip()
     link = request.form.get("location_link", "").strip()
-    if not name or hub not in HUB_NAMES:
+    if not name or hub not in set(db.hub_names()):
         flash("Apartment name and a valid hub are required", "danger")
     else:
         db.update_apartment(apt_id, name=name, hub=hub, location_link=link)
@@ -270,12 +365,14 @@ def marketing_apartment_detail(apt_id):
     if not apt:
         flash("Apartment not found", "danger")
         return redirect(url_for("marketing_dashboard"))
+    hubs_by_name = {h["hub_name"]: h["hub_id"] for h in db.list_hubs()}
     return render_template(
         "marketing/apartment_detail.html",
         active="dashboard",
         apt=apt,
         collection=db.get_collection(apt_id),
-        hub_names=HUB_NAMES,
+        hub_names=db.hub_names(),
+        hub_id=hubs_by_name.get(apt["hub"]),
     )
 
 
@@ -307,7 +404,7 @@ def marketing_restore_apartment(apt_id):
 @app.route("/marketing/export")
 @role_required("marketing")
 def marketing_export_page():
-    return render_template("marketing/export.html", active="export", hub_names=HUB_NAMES)
+    return render_template("marketing/export.html", active="export", hub_names=db.hub_names())
 
 
 @app.route("/marketing/export.xlsx")
@@ -474,7 +571,7 @@ def marketing_standees_page():
         btl_users=db.btl_users(),
         assignments=db.list_standee_assignments(),
         active_placements=db.active_standee_placements(),
-        hub_names=HUB_NAMES,
+        hub_names=db.hub_names(),
     )
 
 
@@ -725,7 +822,7 @@ def btl_standee_detail(assignment_id):
         a=a,
         collection=db.get_collection(a["apartment_id"]),
         photos=db.photos_for(assignment_id),
-        hub_names=HUB_NAMES,
+        hub_names=db.hub_names(),
         active_placements=db.active_standee_placements(),
     )
 

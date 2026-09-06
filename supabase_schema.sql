@@ -10,6 +10,7 @@ drop table if exists standees cascade;
 drop table if exists collection_campaigns cascade;
 drop table if exists collections cascade;
 drop table if exists apartments cascade;
+drop table if exists hubs cascade;
 drop table if exists users cascade;
 
 -- 1. users
@@ -22,6 +23,27 @@ create table users (
     active        boolean not null default true,
     created_at    text not null default ''
 );
+
+-- hubs  (master apartment-grouping list; IDs are the marketing team's own)
+create table hubs (
+    hub_id     bigint primary key,
+    hub_name   text not null unique,
+    created_at text not null default ''
+);
+insert into hubs (hub_id, hub_name) values
+    (1, 'Arekere'),
+    (8, 'Elita Promenade'),
+    (9, 'Nandi Citadel'),
+    (12, 'Godrej E-city'),
+    (11, 'Sattva Misty Charm'),
+    (28, 'Prestige Jindal City'),
+    (20, 'Brigade Panorama'),
+    (31, 'House of Hiranandani'),
+    (32, 'Koramangala'),
+    (33, 'Electronic City'),
+    (34, 'Sobha Dream Acres'),
+    (37, 'Adarsh Palm Retreat')
+on conflict (hub_id) do nothing;
 
 -- 2. apartments
 create table apartments (

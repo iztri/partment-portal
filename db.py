@@ -50,6 +50,12 @@ class SQLiteDatabase:
                 created_at TEXT NOT NULL DEFAULT ''
             );
 
+            CREATE TABLE IF NOT EXISTS hubs (
+                hub_id INTEGER PRIMARY KEY,
+                hub_name TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL DEFAULT ''
+            );
+
             CREATE TABLE IF NOT EXISTS apartments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
@@ -200,6 +206,61 @@ class SQLiteDatabase:
         self.conn.execute(
             "UPDATE users SET password_hash=? WHERE id=?", (password_hash, int(user_id))
         )
+        self.conn.commit()
+
+    # ── hubs ─────────────────────────────────────────────────────────────
+    def list_hubs(self):
+        return [dict(r) for r in self.conn.execute(
+            "SELECT hub_id, hub_name FROM hubs ORDER BY hub_name"
+        ).fetchall()]
+
+    def hub_names(self):
+        return [r[0] for r in self.conn.execute(
+            "SELECT hub_name FROM hubs ORDER BY hub_name"
+        ).fetchall()]
+
+    def count_hubs(self):
+        return self.conn.execute("SELECT COUNT(*) FROM hubs").fetchone()[0]
+
+    def get_hub(self, hub_id):
+        r = self.conn.execute(
+            "SELECT * FROM hubs WHERE hub_id=?", (int(hub_id),)
+        ).fetchone()
+        return dict(r) if r else None
+
+    def add_hub(self, hub_id, hub_name):
+        try:
+            self.conn.execute(
+                "INSERT INTO hubs (hub_id, hub_name, created_at) VALUES (?, ?, ?)",
+                (int(hub_id), hub_name, _now()),
+            )
+            self.conn.commit()
+            return True
+        except sqlite3.IntegrityError:
+            return False
+
+    def upsert_hub(self, hub_id, hub_name):
+        """Insert, or rename an existing hub_id (also re-files apartments that
+        were under the old name). Raises IntegrityError if the name is already
+        taken by a different hub_id."""
+        hid = int(hub_id)
+        row = self.conn.execute("SELECT hub_name FROM hubs WHERE hub_id=?", (hid,)).fetchone()
+        if row:
+            old_name = row[0]
+            self.conn.execute("UPDATE hubs SET hub_name=? WHERE hub_id=?", (hub_name, hid))
+            if old_name != hub_name:
+                self.conn.execute(
+                    "UPDATE apartments SET hub=? WHERE hub=?", (hub_name, old_name)
+                )
+        else:
+            self.conn.execute(
+                "INSERT INTO hubs (hub_id, hub_name, created_at) VALUES (?, ?, ?)",
+                (hid, hub_name, _now()),
+            )
+        self.conn.commit()
+
+    def delete_hub(self, hub_id):
+        self.conn.execute("DELETE FROM hubs WHERE hub_id=?", (int(hub_id),))
         self.conn.commit()
 
     # ── apartments ───────────────────────────────────────────────────────
@@ -637,6 +698,45 @@ class SupabaseDatabase:
     def set_user_password(self, user_id, password_hash):
         self.sb.table("users").update({"password_hash": password_hash}).eq("id", int(user_id)).execute()
 
+    # ── hubs ──
+    def list_hubs(self):
+        return (
+            self.sb.table("hubs").select("hub_id,hub_name").order("hub_name").execute().data
+        )
+
+    def hub_names(self):
+        return [r["hub_name"] for r in self.list_hubs()]
+
+    def count_hubs(self):
+        r = self.sb.table("hubs").select("hub_id", count="exact").limit(1).execute()
+        return r.count or 0
+
+    def get_hub(self, hub_id):
+        r = self.sb.table("hubs").select("*").eq("hub_id", int(hub_id)).limit(1).execute()
+        return r.data[0] if r.data else None
+
+    def add_hub(self, hub_id, hub_name):
+        try:
+            self.sb.table("hubs").insert({
+                "hub_id": int(hub_id), "hub_name": hub_name, "created_at": _now(),
+            }).execute()
+            return True
+        except Exception:
+            return False
+
+    def upsert_hub(self, hub_id, hub_name):
+        existing = self.get_hub(int(hub_id))
+        self.sb.table("hubs").upsert(
+            {"hub_id": int(hub_id), "hub_name": hub_name}, on_conflict="hub_id"
+        ).execute()
+        if existing and existing.get("hub_name") not in (None, hub_name):
+            self.sb.table("apartments").update({"hub": hub_name}).eq(
+                "hub", existing["hub_name"]
+            ).execute()
+
+    def delete_hub(self, hub_id):
+        self.sb.table("hubs").delete().eq("hub_id", int(hub_id)).execute()
+
     # ── apartments ──
     def add_apartment(self, name, hub, location_link, created_by):
         r = self.sb.table("apartments").insert({
@@ -965,3 +1065,16 @@ def get_db():
         else:
             _db = SQLiteDatabase()
     return _db
+
+
+def ensure_seed_hubs():
+    """Populate the hubs table from config.HUBS_SEED on first run (empty table)."""
+    d = get_db()
+    try:
+        if d.count_hubs() > 0:
+            return
+    except Exception:
+        return
+    from config import HUBS_SEED
+    for hid, hname in HUBS_SEED:
+        d.add_hub(hid, hname)

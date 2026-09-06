@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Hubs · Apartment Portal{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1>Hubs</h1>
+  <p>The master list of hubs. Every apartment is filed under one, and standee
+    pickup / drop locations use it too. Add one, or paste a list.</p>
+</div>
+
+<div class="row-flex" style="align-items:flex-start;">
+  <div class="card" style="flex:1; min-width:280px; max-width:360px;">
+    <div class="card-head"><h2>Add hub</h2></div>
+    <div class="card-body">
+      <form method="post" action="/marketing/hubs/add">
+        <div class="field"><label>Hub ID</label>
+          <input type="number" name="hub_id" required placeholder="e.g. 37"></div>
+        <div class="field"><label>Hub name</label>
+          <input type="text" name="hub_name" required placeholder="e.g. Adarsh Palm Retreat"></div>
+        <button type="submit" class="btn btn-primary btn-block"><i class="bi bi-plus-lg"></i>Add hub</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card" style="flex:1; min-width:300px; max-width:520px;">
+    <div class="card-head"><h2>Bulk upload</h2></div>
+    <div class="card-body">
+      <p class="muted" style="margin-top:0; font-size:12.5px;">
+        One per line: <code>Hub ID, Hub Name</code> (comma or tab separated — a pasted
+        two-column table works). An existing Hub ID is renamed; a new one is added.
+      </p>
+      <form method="post" action="/marketing/hubs/bulk-upload">
+        <div class="field">
+          <textarea name="bulk_data" id="bulk" rows="8" style="font-family:ui-monospace,Menlo,monospace; font-size:12.5px;"
+            placeholder="1, Arekere&#10;8, Elita Promenade&#10;9, Nandi Citadel"></textarea>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <a href="/static/samples/hubs_sample.csv" download class="btn btn-default btn-sm"><i class="bi bi-download"></i>Download sample</a>
+          <button type="submit" class="btn btn-primary btn-sm" style="margin-left:auto;"><i class="bi bi-upload"></i>Upload</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:18px;">
+  <div class="card-head"><h2>All hubs</h2><span class="sub">{{ hubs|length }}</span></div>
+  <div class="card-body flush">
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th style="width:90px;">Hub ID</th><th>Hub name</th><th style="width:130px;">Apartments</th><th style="width:90px;"></th></tr></thead>
+        <tbody>
+          {% for h in hubs %}
+          {% set n = counts.get(h.hub_name, 0) %}
+          <tr>
+            <td class="strong">{{ h.hub_id }}</td>
+            <td>{{ h.hub_name }}</td>
+            <td>{% if n %}<span class="badge badge-live">{{ n }}</span>{% else %}<span class="subtle">0</span>{% endif %}</td>
+            <td>
+              <form method="post" action="/marketing/hubs/{{ h.hub_id }}/delete"
+                    onsubmit="return confirm('Delete hub {{ h.hub_id }} · {{ h.hub_name }}?');">
+                <button class="btn btn-default btn-sm"{% if n %} disabled title="{{ n }} apartment(s) use this hub"{% endif %}><i class="bi bi-trash3"></i></button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="muted" style="padding:18px; text-align:center;">No hubs yet — add one above.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
