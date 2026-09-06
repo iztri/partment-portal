@@ -121,3 +121,8 @@ create table standee_photos (
     uploaded_at     text not null default ''
 );
 create index standee_photos_assignment_idx on standee_photos (assignment_id);
+
+-- 9. Seed single admin user
+delete from users;
+insert into users (username, name, password_hash, workspace, active, created_at)
+values ('gowtham', 'Gowtham', 'pbkdf2:sha256:1000000$KDAxpOjN07lI4FMT$bc119260872e409c318b2f913395195178bd39c05bfb92fae606c1e648f8d85d', 'marketing', true, '');

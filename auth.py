@@ -61,8 +61,7 @@ def ensure_seed_admin():
     db = get_db()
     if db.count_users() > 0:
         return
-    username = os.environ.get("ADMIN_USERNAME", "admin").strip() or "admin"
-    password = os.environ.get("ADMIN_PASSWORD", "admin123")
-    db.create_user(username, "Admin", hash_password(password), "marketing")
-    print(f"  → Seeded marketing admin '{username}'. "
-          f"{'CHANGE THE DEFAULT PASSWORD.' if password == 'admin123' else ''}")
+    username = os.environ.get("ADMIN_USERNAME", "gowtham").strip() or "gowtham"
+    password = os.environ.get("ADMIN_PASSWORD", "iztri@123")
+    db.create_user(username, "Gowtham", hash_password(password), "marketing")
+    print(f"  → Seeded marketing admin '{username}'.")
