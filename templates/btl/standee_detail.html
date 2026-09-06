@@ -21,11 +21,15 @@
   .save-bar{position:sticky; bottom:0; z-index:10; padding-top:12px; margin-top:6px;}
   .save-bar .btn{width:100%; padding:13px; font-size:14px;}
   @media(max-width:560px){.save-bar{margin:0 -16px; padding:12px 16px; background:var(--surface); border-top:1px solid var(--border);}}
-  .range-row{display:flex; align-items:center; gap:12px;}
-  .range-row input[type=range]{flex:1; accent-color:var(--accent); height:28px;}
-  .range-val{min-width:44px; text-align:center; font-weight:700; font-size:17px; color:var(--accent-hover);
-    background:var(--accent-soft); border-radius:var(--r-sm); padding:4px 6px;}
-  .range-scale{display:flex; justify-content:space-between; font-size:11px; color:var(--subtle); margin-top:2px;}
+  .roll-btn{display:inline-flex; align-items:center; gap:5px; padding:9px 16px; border:1px solid var(--border-strong);
+    border-radius:var(--r-sm); background:var(--surface); cursor:pointer; font-family:inherit; font-weight:800;
+    color:var(--accent-hover); box-shadow:var(--shadow); user-select:none; -webkit-tap-highlight-color:transparent;}
+  .roll-btn:active{transform:scale(.97);}
+  .roll-digit{overflow:hidden; height:34px; width:22px; text-align:center;}
+  .roll-strip{display:block; transition:transform .38s cubic-bezier(.2,.85,.25,1);}
+  .roll-strip > span{display:block; height:34px; line-height:34px; font-size:28px;}
+  .roll-cta{display:inline-flex; align-items:center; font-size:14px; color:var(--muted); margin-left:6px;}
+  .roll-hint{font-size:12px; color:var(--subtle); margin-left:10px;}
 </style>
 {% endblock %}
 
@@ -138,12 +142,16 @@
         </div>
       </div>
       <div id="missingBlock" class="sub-block" hidden>
-        <div class="field mb-0"><label>Units missing <span class="hint">out of {{ a.quantity }} placed here</span></label>
-          <div class="range-row">
-            <input type="range" name="quantity_missing" id="qtyMissing" min="1" max="{{ a.quantity }}" step="1" value="1">
-            <span class="range-val" id="qtyMissingVal">1</span>
-          </div>
-          <div class="range-scale"><span>1</span><span>{{ a.quantity }}</span></div>
+        <div class="field mb-0"><label>Units missing <span class="hint">tap to change · out of {{ a.quantity }} placed here</span></label>
+          <input type="hidden" name="quantity_missing" id="qtyMissing" value="1">
+          <button type="button" class="roll-btn" id="rollMissing" aria-label="Units missing — tap to change">
+            {% if a.quantity >= 10 %}
+            <span class="roll-digit"><span class="roll-strip" id="rollTens"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span></span></span>
+            {% endif %}
+            <span class="roll-digit"><span class="roll-strip" id="rollOnes"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span></span></span>
+            <span class="roll-cta"><i class="bi bi-arrow-repeat"></i></span>
+          </button>
+          <span class="roll-hint" id="rollHint">of {{ a.quantity }}</span>
         </div>
       </div>
 
@@ -260,13 +268,25 @@
   bindYesNo('damaged_flag', 'damageBlock');
   bindYesNo('missing_flag', 'missingBlock');
 
-  var qtyMissing = document.getElementById('qtyMissing');
-  var qtyMissingVal = document.getElementById('qtyMissingVal');
-  if(qtyMissing && qtyMissingVal){
-    var showMissing = function(){ qtyMissingVal.textContent = qtyMissing.value; };
-    qtyMissing.addEventListener('input', showMissing);
-    showMissing();
-  }
+  (function(){
+    var btn = document.getElementById('rollMissing');
+    var hidden = document.getElementById('qtyMissing');
+    if(!btn || !hidden) return;
+    var rollMax = Math.max(1, {{ a.quantity|int }});
+    var ones = document.getElementById('rollOnes');
+    var tens = document.getElementById('rollTens');
+    var cur = 1;
+    function setRoll(v){
+      cur = v;
+      hidden.value = v;
+      ones.style.transform = 'translateY(-' + ((v % 10) * 34) + 'px)';
+      if(tens) tens.style.transform = 'translateY(-' + ((Math.floor(v / 10) % 10) * 34) + 'px)';
+    }
+    btn.addEventListener('click', function(){
+      setRoll(cur >= rollMax ? 1 : cur + 1);
+    });
+    setRoll(1);
+  })();
 
   var dropType = document.getElementById('dropType');
   if(dropType){
