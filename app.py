@@ -183,7 +183,13 @@ def marketing_dashboard():
 @app.route("/marketing/add")
 @feature_required("apartments", "edit")
 def marketing_add_page():
-    return render_template("marketing/add.html", active="add", hub_names=db.hub_names())
+    apartments = db.list_apartments()
+    return render_template(
+        "marketing/add.html", active="add",
+        hub_names=db.hub_names(),
+        apartments=apartments,
+        collections=db.collections_by_apartment(),
+    )
 
 
 @app.route("/marketing/add", methods=["POST"])
@@ -786,6 +792,50 @@ def marketing_standee_replace(standee_id):
         return redirect(url_for("marketing_standees_page"))
     db.retire_standee(standee_id, replaced_by=new_id)
     flash(f"'{old['name']}' retired · new creative '{new_name}' added", "success")
+    return redirect(url_for("marketing_standees_page"))
+
+
+@app.route("/marketing/standees/<int:standee_id>/edit", methods=["POST"])
+@feature_required("standees", "edit")
+def marketing_standee_edit(standee_id):
+    s = db.get_standee(standee_id)
+    if not s:
+        flash("Standee not found", "danger")
+        return redirect(url_for("marketing_standees_page"))
+    name = request.form.get("name", "").strip()
+    storage = request.form.get("storage_location", "").strip()
+    try:
+        total = int(request.form.get("total_units", str(s["total_units"])) or 0)
+    except ValueError:
+        total = s["total_units"]
+    if not name:
+        flash("Standee name is required", "danger")
+        return redirect(url_for("marketing_standees_page"))
+    saved = _save_photos([request.files.get("photo")], "designs")
+    ok = db.update_standee(
+        standee_id, name=name, total_units=max(0, total),
+        storage_location=storage, photo_path=(saved[0] if saved else None),
+    )
+    flash("Standee updated" if ok else f"A standee named '{name}' already exists",
+          "success" if ok else "danger")
+    return redirect(url_for("marketing_standees_page"))
+
+
+@app.route("/marketing/standees/<int:standee_id>/delete", methods=["POST"])
+@feature_required("standees", "read")
+@admin_required
+def marketing_standee_delete(standee_id):
+    s = db.get_standee(standee_id)
+    if not s:
+        flash("Standee not found", "danger")
+        return redirect(url_for("marketing_standees_page"))
+    n = db.standee_in_use(standee_id)
+    if n:
+        flash(f"Can't delete '{s['name']}' — it has {n} assignment or replacement link(s). "
+              "Use Replace to discontinue it instead.", "danger")
+    else:
+        db.delete_standee(standee_id)
+        flash(f"Deleted standee '{s['name']}'", "success")
     return redirect(url_for("marketing_standees_page"))
 
 

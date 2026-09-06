@@ -21,6 +21,11 @@
   .save-bar{position:sticky; bottom:0; z-index:10; padding-top:12px; margin-top:6px;}
   .save-bar .btn{width:100%; padding:13px; font-size:14px;}
   @media(max-width:560px){.save-bar{margin:0 -16px; padding:12px 16px; background:var(--surface); border-top:1px solid var(--border);}}
+  .range-row{display:flex; align-items:center; gap:12px;}
+  .range-row input[type=range]{flex:1; accent-color:var(--accent); height:28px;}
+  .range-val{min-width:44px; text-align:center; font-weight:700; font-size:17px; color:var(--accent-hover);
+    background:var(--accent-soft); border-radius:var(--r-sm); padding:4px 6px;}
+  .range-scale{display:flex; justify-content:space-between; font-size:11px; color:var(--subtle); margin-top:2px;}
 </style>
 {% endblock %}
 
@@ -133,8 +138,13 @@
         </div>
       </div>
       <div id="missingBlock" class="sub-block" hidden>
-        <div class="field mb-0"><label>Units missing <span class="hint">max {{ a.quantity }}</span></label>
-          <input type="number" name="quantity_missing" id="qtyMissing" min="1" max="{{ a.quantity }}" value="1"></div>
+        <div class="field mb-0"><label>Units missing <span class="hint">out of {{ a.quantity }} placed here</span></label>
+          <div class="range-row">
+            <input type="range" name="quantity_missing" id="qtyMissing" min="1" max="{{ a.quantity }}" step="1" value="1">
+            <span class="range-val" id="qtyMissingVal">1</span>
+          </div>
+          <div class="range-scale"><span>1</span><span>{{ a.quantity }}</span></div>
+        </div>
       </div>
 
       <div class="divider"></div>
@@ -249,6 +259,14 @@
   }
   bindYesNo('damaged_flag', 'damageBlock');
   bindYesNo('missing_flag', 'missingBlock');
+
+  var qtyMissing = document.getElementById('qtyMissing');
+  var qtyMissingVal = document.getElementById('qtyMissingVal');
+  if(qtyMissing && qtyMissingVal){
+    var showMissing = function(){ qtyMissingVal.textContent = qtyMissing.value; };
+    qtyMissing.addEventListener('input', showMissing);
+    showMissing();
+  }
 
   var dropType = document.getElementById('dropType');
   if(dropType){

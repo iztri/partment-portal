@@ -75,4 +75,64 @@
     </div>
   </div>
 </div>
+
+<div class="card" style="margin-top:18px;">
+  <div class="card-head">
+    <h2>All apartments</h2>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <input type="text" id="aptSearch" placeholder="Search name, ID or hub…" style="width:230px; padding:7px 12px; font-size:13px;">
+      <span class="sub" id="aptCount">{{ apartments|length }}</span>
+    </div>
+  </div>
+  <div class="card-body flush">
+    <div class="tbl-wrap">
+      <table class="tbl" id="aptTable">
+        <thead><tr><th>#</th><th>Apt ID</th><th>Apartment</th><th>Hub</th><th>BTL user</th><th>Status</th><th>Contact</th></tr></thead>
+        <tbody>
+          {% for apt in apartments %}
+          {% set col = collections.get(apt.id) %}
+          {% set eff_status = 'Unassigned' if not apt.assigned_to else apt.status %}
+          <tr data-search="{{ (apt.name ~ ' ' ~ (apt.apartment_code or '') ~ ' ' ~ apt.hub)|lower }}">
+            <td class="num">{{ apt.id }}</td>
+            <td>{% if apt.apartment_code %}<span class="chip">{{ apt.apartment_code }}</span>{% else %}<span class="subtle">—</span>{% endif %}</td>
+            <td><a href="/marketing/apartment/{{ apt.id }}" class="strong">{{ apt.name }}</a></td>
+            <td><span class="chip"><i class="bi bi-building"></i>{{ apt.hub }}</span></td>
+            <td>{% if apt.assigned_to %}<span class="chip"><i class="bi bi-person"></i>{{ apt.assigned_to }}</span>{% else %}<span class="subtle">—</span>{% endif %}</td>
+            <td><span class="badge {{ 'badge-ok' if eff_status=='Collected' else 'badge-alt' if eff_status=='No Number' else 'badge-off' if eff_status=='Unassigned' else 'badge-live' }}">{{ eff_status }}</span></td>
+            <td>
+              {% if col and col.outcome == 'number' %}
+                {% if col.contact_name %}{{ col.contact_name }} · {% endif %}<span class="strong">{{ col.phone }}</span>
+              {% elif col and col.outcome == 'no_number' %}<span class="subtle">No number</span>
+              {% else %}<span class="subtle">—</span>{% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7" class="muted" style="padding:18px; text-align:center;">No apartments yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  var aptSearch = document.getElementById('aptSearch');
+  if(aptSearch){
+    var aptRows = [].slice.call(document.querySelectorAll('#aptTable tbody tr'));
+    var aptCount = document.getElementById('aptCount');
+    aptSearch.addEventListener('input', function(){
+      var t = this.value.toLowerCase().trim();
+      var n = 0;
+      aptRows.forEach(function(tr){
+        if(!tr.dataset.search) return;
+        var ok = !t || tr.dataset.search.indexOf(t) !== -1;
+        tr.style.display = ok ? '' : 'none';
+        if(ok) n++;
+      });
+      aptCount.textContent = n;
+    });
+  }
+</script>
 {% endblock %}

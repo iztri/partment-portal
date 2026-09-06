@@ -16,8 +16,23 @@
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border:1px solid transparent;}
   .cal-e.place{background:#e3f2fd; color:#1565c0; border-color:#90caf9;}
   .cal-e.remove{background:#ffebee; color:#c62828; border-color:#ffcdd2;}
-  .cal-legend{display:flex; gap:16px; align-items:center; padding:10px 14px; font-size:12px; color:var(--muted); border-top:1px solid var(--border);}
+  .cal-more{font-size:10px; font-weight:700; padding:2px 6px; border-radius:4px; margin-bottom:2px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .cal-more.place{background:#e3f2fd; color:#1565c0;}
+  .cal-more.remove{background:#ffebee; color:#c62828;}
+  .cal-d.has{cursor:pointer;}
+  .cal-d.has:hover{background:var(--accent-soft);}
+  .cal-legend{display:flex; gap:16px; align-items:center; padding:10px 14px; font-size:12px; color:var(--muted); border-top:1px solid var(--border); flex-wrap:wrap;}
   .cal-legend .dot{display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; vertical-align:middle;}
+  .dm-sect{margin-bottom:14px;}
+  .dm-sect:last-child{margin-bottom:0;}
+  .dm-h{font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; padding-bottom:5px;
+    margin-bottom:6px; border-bottom:1px solid var(--border);}
+  .dm-h.place{color:#1565c0;} .dm-h.remove{color:#c62828;}
+  .dm-row{display:flex; justify-content:space-between; gap:10px; align-items:center; padding:10px 12px;
+    border:1px solid var(--border); border-radius:var(--r-sm); margin-bottom:6px; text-decoration:none; color:var(--text);}
+  .dm-row:hover{background:var(--bg);}
+  .dm-row .bi{color:var(--muted);}
 
   .filters{display:flex; gap:8px; flex-wrap:wrap; margin:12px 0 14px;}
   .filters button{padding:8px 14px; border-radius:20px; border:1px solid var(--border-strong);
@@ -138,12 +153,36 @@
 {% else %}
 <div class="card"><div class="empty"><i class="bi bi-signpost-2"></i><div class="t">No standees assigned to you yet.</div></div></div>
 {% endfor %}
+
+<div class="modal fade" id="dayModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header"><span class="modal-title" id="dayModalTitle">Day</span>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body" id="dayModalBody"></div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
   var A = {{ assignments | tojson | safe }};
   var cy = {{ today[:4] }}, cm = {{ today[5:7]|int }};
+
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  function dayEvents(ds){
+    return {
+      place: A.filter(function(a){ return a.placed_at && a.placed_at.slice(0,10) === ds; }),
+      remove: A.filter(function(a){
+        return (a.status === 'Collected' && a.collected_at && a.collected_at.slice(0,10) === ds) ||
+               (a.status === 'Placed' && a.collect_by === ds);
+      })
+    };
+  }
+
   function calRender(){
     var dim = new Date(cy, cm, 0).getDate();
     var first = new Date(cy, cm - 1, 1).getDay();
@@ -155,20 +194,45 @@
       var day = i - first + 1;
       if(day < 1 || day > dim){ h += '<div class="cal-d other"></div>'; continue; }
       var ds = ms + '-' + String(day).padStart(2,'0');
-      h += '<div class="cal-d' + (ds === todayStr ? ' today' : '') + '"><div class="dn">' + day + '</div>';
-      A.filter(function(a){ return a.placed_at && a.placed_at.slice(0,10) === ds; }).forEach(function(a){
-        h += '<div class="cal-e place" title="Placed">' + a.standee_name + '</div>';
-      });
-      A.filter(function(a){
-        return (a.status === 'Collected' && a.collected_at && a.collected_at.slice(0,10) === ds) ||
-               (a.status === 'Placed' && a.collect_by === ds);
-      }).forEach(function(a){
-        h += '<div class="cal-e remove" title="Removed / due">' + a.standee_name + '</div>';
-      });
+      var ev = dayEvents(ds);
+      var total = ev.place.length + ev.remove.length;
+      h += '<div class="cal-d' + (ds === todayStr ? ' today' : '') + (total ? ' has' : '') +
+           '" data-date="' + ds + '"><div class="dn">' + day + '</div>';
+      if(total > 3){
+        if(ev.place.length) h += '<div class="cal-more place">' + ev.place.length + ' to place</div>';
+        if(ev.remove.length) h += '<div class="cal-more remove">' + ev.remove.length + ' to remove</div>';
+      } else {
+        ev.place.forEach(function(a){ h += '<div class="cal-e place" title="Placed">' + esc(a.standee_name) + '</div>'; });
+        ev.remove.forEach(function(a){ h += '<div class="cal-e remove" title="Removed / due">' + esc(a.standee_name) + '</div>'; });
+      }
       h += '</div>';
     }
-    document.getElementById('calGrid').innerHTML = h;
+    var grid = document.getElementById('calGrid');
+    grid.innerHTML = h;
+    grid.querySelectorAll('.cal-d.has').forEach(function(d){
+      d.addEventListener('click', function(){ openDayModal(d.dataset.date); });
+    });
   }
+
+  function openDayModal(ds){
+    var ev = dayEvents(ds);
+    document.getElementById('dayModalTitle').textContent =
+      new Date(ds + 'T00:00:00').toLocaleDateString('en', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+    function sect(label, cls, items){
+      if(!items.length) return '';
+      return '<div class="dm-sect"><div class="dm-h ' + cls + '">' + label + ' · ' + items.length + '</div>' +
+        items.map(function(a){
+          return '<a class="dm-row" href="/btl/standees/' + a.id + '">' +
+            '<span><span class="strong">' + esc(a.standee_name) + '</span>' +
+            '<span class="subtle"> · ' + esc(a.apartment_name) + ' × ' + a.quantity + '</span></span>' +
+            '<i class="bi bi-chevron-right"></i></a>';
+        }).join('') + '</div>';
+    }
+    var body = sect('To place', 'place', ev.place) + sect('To remove / due', 'remove', ev.remove);
+    document.getElementById('dayModalBody').innerHTML = body || '<div class="muted">Nothing on this day.</div>';
+    new bootstrap.Modal(document.getElementById('dayModal')).show();
+  }
+
   function calMove(d){ cm += d; if(cm > 12){ cm = 1; cy++; } else if(cm < 1){ cm = 12; cy--; } calRender(); }
   calRender();
 

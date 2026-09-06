@@ -551,6 +551,43 @@ class SQLiteDatabase:
         )
         self.conn.commit()
 
+    def update_standee(self, standee_id, name=None, total_units=None,
+                       storage_location=None, photo_path=None):
+        sets, vals = [], []
+        for col, val in (
+            ("name", name), ("total_units", total_units),
+            ("storage_location", storage_location), ("photo_path", photo_path),
+        ):
+            if val is not None:
+                sets.append(f"{col}=?")
+                vals.append(int(val) if col == "total_units" else val)
+        if not sets:
+            return True
+        vals.append(int(standee_id))
+        try:
+            self.conn.execute(f"UPDATE standees SET {', '.join(sets)} WHERE id=?", vals)
+            self.conn.commit()
+            return True
+        except sqlite3.IntegrityError:
+            return False
+
+    def standee_in_use(self, standee_id):
+        """Assignments referencing it + standees that name it as their replacement."""
+        sid = int(standee_id)
+        a = self.conn.execute(
+            "SELECT COUNT(*) FROM standee_assignments WHERE standee_id=?", (sid,)
+        ).fetchone()[0]
+        r = self.conn.execute(
+            "SELECT COUNT(*) FROM standees WHERE replaced_by=?", (sid,)
+        ).fetchone()[0]
+        return a + r
+
+    def delete_standee(self, standee_id):
+        sid = int(standee_id)
+        self.conn.execute("DELETE FROM standee_reprints WHERE standee_id=?", (sid,))
+        self.conn.execute("DELETE FROM standees WHERE id=?", (sid,))
+        self.conn.commit()
+
     def reprint_standee(self, standee_id, added_units, note, added_by, resolve_damaged=False):
         standee_id = int(standee_id)
         added_units = int(added_units)
@@ -1035,6 +1072,38 @@ class SupabaseDatabase:
         self.sb.table("standees").update({
             "active": False, "replaced_by": int(replaced_by) if replaced_by else None,
         }).eq("id", int(standee_id)).execute()
+
+    def update_standee(self, standee_id, name=None, total_units=None,
+                       storage_location=None, photo_path=None):
+        upd = {}
+        if name is not None:
+            upd["name"] = name
+        if total_units is not None:
+            upd["total_units"] = int(total_units)
+        if storage_location is not None:
+            upd["storage_location"] = storage_location
+        if photo_path is not None:
+            upd["photo_path"] = photo_path
+        if not upd:
+            return True
+        try:
+            self.sb.table("standees").update(upd).eq("id", int(standee_id)).execute()
+            return True
+        except Exception:
+            return False
+
+    def standee_in_use(self, standee_id):
+        sid = int(standee_id)
+        a = (self.sb.table("standee_assignments").select("id", count="exact")
+             .eq("standee_id", sid).limit(1).execute().count) or 0
+        r = (self.sb.table("standees").select("id", count="exact")
+             .eq("replaced_by", sid).limit(1).execute().count) or 0
+        return a + r
+
+    def delete_standee(self, standee_id):
+        sid = int(standee_id)
+        self.sb.table("standee_reprints").delete().eq("standee_id", sid).execute()
+        self.sb.table("standees").delete().eq("id", sid).execute()
 
     def reprint_standee(self, standee_id, added_units, note, added_by, resolve_damaged=False):
         standee_id = int(standee_id)

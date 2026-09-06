@@ -137,8 +137,12 @@
                 <div style="display:flex; gap:4px;">
                   <button class="btn btn-default btn-icon" onclick="openStandeeDetail({{ s.id }})" title="View details"><i class="bi bi-eye"></i></button>
                   {% if can('standees', 'edit') %}
+                  <button class="btn btn-default btn-icon" data-bs-toggle="modal" data-bs-target="#editStandee{{ s.id }}" title="Edit"><i class="bi bi-pencil"></i></button>
                   <button class="btn btn-default btn-icon" data-bs-toggle="modal" data-bs-target="#reprint{{ s.id }}" title="Reprint"><i class="bi bi-printer"></i></button>
                   <button class="btn btn-default btn-icon" data-bs-toggle="modal" data-bs-target="#replace{{ s.id }}" title="Replace"><i class="bi bi-arrow-repeat"></i></button>
+                  {% endif %}
+                  {% if is_admin %}
+                  <button class="btn btn-danger btn-icon" data-bs-toggle="modal" data-bs-target="#delStandee{{ s.id }}" title="Delete"><i class="bi bi-trash3"></i></button>
                   {% endif %}
                 </div>
               </td>
@@ -299,6 +303,48 @@
 {% if can('standees', 'edit') %}
 {% for s in standees %}
 {% set st = stats.get(s.id, {'placed':0,'damaged':0,'lost':0,'available':s.total_units}) %}
+<div class="modal fade" id="editStandee{{ s.id }}" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="post" action="/marketing/standees/{{ s.id }}/edit" enctype="multipart/form-data">
+      <div class="modal-header"><span class="modal-title">Edit · {{ s.name }}</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="field"><label>Name</label><input type="text" name="name" value="{{ s.name }}" required></div>
+        <div class="grid-2">
+          <div class="field"><label>Total units printed</label><input type="number" name="total_units" min="0" value="{{ s.total_units }}" required></div>
+          <div class="field"><label>Storage location <span class="hint">optional</span></label>
+            <select name="storage_location">
+              <option value="">— None —</option>
+              {% for h in hub_names %}<option {{ 'selected' if h == s.storage_location }}>{{ h }}</option>{% endfor %}
+            </select></div>
+        </div>
+        <div class="field mb-0"><label>Design photo <span class="hint">optional — replaces the current one</span></label><input type="file" name="photo" accept="image/*"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if is_admin %}
+<div class="modal fade" id="delStandee{{ s.id }}" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="post" action="/marketing/standees/{{ s.id }}/delete">
+      <div class="modal-header"><span class="modal-title">Delete · {{ s.name }}</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <p class="mb-0"><span class="strong">{{ s.name }}</span> and its reprint history will be permanently removed. This can't be undone.</p>
+        <p class="muted" style="margin-bottom:0; font-size:12.5px;">Blocked if the standee has any assignments — discontinue it with Replace instead.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-danger"><i class="bi bi-trash3"></i>Delete standee</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
 <div class="modal fade" id="reprint{{ s.id }}" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <form class="modal-content" method="post" action="/marketing/standees/{{ s.id }}/reprint">

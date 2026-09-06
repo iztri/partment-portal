@@ -35,8 +35,14 @@
 
 {% macro picker(rows, form_id, show_owner) %}
 <div class="card">
-  <div class="card-head"><h2>{{ 'Currently assigned' if show_owner else 'Pick apartments' }}</h2>
-    <span class="sub" id="c_{{ form_id }}">0 selected</span></div>
+  <div class="card-head">
+    <h2>{{ 'Currently assigned' if show_owner else 'Pick apartments' }}</h2>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <input type="text" class="pick-search" data-form="{{ form_id }}" placeholder="Search name, ID or hub…"
+             style="width:190px; padding:6px 11px; font-size:12.5px;">
+      <span class="sub" id="c_{{ form_id }}">0 selected</span>
+    </div>
+  </div>
   <div class="card-body flush pick">
     <table class="tbl">
       <thead><tr>
@@ -45,9 +51,9 @@
       </tr></thead>
       <tbody>
         {% for apt in rows %}
-        <tr>
+        <tr data-form="{{ form_id }}" data-search="{{ (apt.name ~ ' ' ~ (apt.apartment_code or '') ~ ' ' ~ apt.hub ~ ' ' ~ (apt.assigned_to or ''))|lower }}">
           <td><input type="checkbox" class="ck" data-form="{{ form_id }}" name="apartment_ids[]" value="{{ apt.id }}" form="{{ form_id }}"></td>
-          <td class="num">{{ apt.id }}</td>
+          <td class="num">{{ apt.id }}{% if apt.apartment_code %} <span class="subtle">#{{ apt.apartment_code }}</span>{% endif %}</td>
           <td class="strong">{{ apt.name }}</td>
           <td><span class="chip"><i class="bi bi-building"></i>{{ apt.hub }}</span></td>
           {% if show_owner %}
@@ -115,14 +121,31 @@
     var n = document.querySelectorAll('.ck[data-form="' + form + '"]:checked').length;
     document.getElementById('c_' + form).textContent = n + ' selected';
   }
+  function rowVisible(tr){ return tr.style.display !== 'none'; }
   document.querySelectorAll('.all').forEach(function(a){
     a.addEventListener('change', function(){
-      document.querySelectorAll('.ck[data-form="' + a.dataset.form + '"]').forEach(function(c){ c.checked = a.checked; });
+      document.querySelectorAll('tr[data-form="' + a.dataset.form + '"]').forEach(function(tr){
+        if(!rowVisible(tr)) return;
+        var c = tr.querySelector('.ck');
+        if(c) c.checked = a.checked;
+      });
       count(a.dataset.form);
     });
   });
   document.querySelectorAll('.ck').forEach(function(c){
     c.addEventListener('change', function(){ count(c.dataset.form); });
+  });
+  document.querySelectorAll('.pick-search').forEach(function(inp){
+    inp.addEventListener('input', function(){
+      var t = this.value.toLowerCase().trim(), form = this.dataset.form;
+      document.querySelectorAll('tr[data-form="' + form + '"]').forEach(function(tr){
+        if(!tr.dataset.search) return;
+        var ok = !t || tr.dataset.search.indexOf(t) !== -1;
+        tr.style.display = ok ? '' : 'none';
+        if(!ok){ var c = tr.querySelector('.ck'); if(c && c.checked){ c.checked = false; } }
+      });
+      count(form);
+    });
   });
 </script>
 {% endblock %}
