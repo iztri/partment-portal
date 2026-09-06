@@ -1,0 +1,25 @@
+# Render blueprint (optional reference). If a Web Service already exists, just
+# mirror these settings in its dashboard rather than syncing this file.
+services:
+  - type: web
+    name: apartment-portal
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    healthCheckPath: /login
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: DATABASE_BACKEND
+        value: supabase
+      - key: FLASK_SECRET
+        sync: false          # set in dashboard — a long random string
+      - key: SUPABASE_URL
+        sync: false          # https://<project-ref>.supabase.co
+      - key: SUPABASE_KEY
+        sync: false          # Supabase service_role key (NOT the anon key)
+      - key: ADMIN_USERNAME
+        sync: false          # seeded on first run only, when users table is empty
+      - key: ADMIN_PASSWORD
+        sync: false
