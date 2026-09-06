@@ -894,6 +894,31 @@ def marketing_standee_assign():
     return redirect(url_for("marketing_standees_page"))
 
 
+@app.route("/marketing/standees/assignment/<int:assignment_id>/quantity", methods=["POST"])
+@feature_required("standees", "edit")
+def marketing_standee_assignment_quantity(assignment_id):
+    a = db.get_standee_assignment(assignment_id)
+    back = url_for("marketing_standees_page") + "#assign"
+    if not a:
+        flash("Assignment not found", "danger")
+        return redirect(back)
+    if a["status"] == "Collected":
+        flash("That assignment is already collected — its quantity is locked", "danger")
+        return redirect(back)
+    try:
+        qty = int(request.form.get("quantity", ""))
+    except ValueError:
+        qty = 0
+    if qty < 1:
+        flash("Quantity must be at least 1", "danger")
+    elif qty == a["quantity"]:
+        flash("Quantity unchanged", "info")
+    else:
+        db.update_assignment_quantity(assignment_id, qty)
+        flash(f"{a['standee_name']} @ {a['apartment_name']}: quantity {a['quantity']} → {qty}", "success")
+    return redirect(back)
+
+
 @app.route("/marketing/standees/assignment/<int:assignment_id>")
 @feature_required("standees", "read")
 def marketing_standee_assignment_detail(assignment_id):

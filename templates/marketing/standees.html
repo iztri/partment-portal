@@ -210,7 +210,16 @@
               <tr>
                 <td class="strong">{{ a.apartment_name }}</td>
                 <td class="muted">{% if a.standee_photo %}<img class="thumb" src="/static/{{ a.standee_photo }}">{% endif %}{{ a.standee_name }}</td>
-                <td>{{ a.quantity }}</td>
+                <td>
+                  {% if can('standees', 'edit') and a.status != 'Collected' %}
+                  <form method="post" action="/marketing/standees/assignment/{{ a.id }}/quantity" style="display:flex; gap:4px; align-items:center;">
+                    <input type="number" name="quantity" value="{{ a.quantity }}" min="1" required
+                           title="{{ stats.get(a.standee_id, {}).get('available', 0) }} available in inventory"
+                           style="width:56px; padding:4px 6px; font-size:12.5px;">
+                    <button class="btn btn-default btn-sm" style="padding:3px 7px;" title="Save quantity"><i class="bi bi-check-lg"></i></button>
+                  </form>
+                  {% else %}{{ a.quantity }}{% endif %}
+                </td>
                 <td class="muted">{{ a.assigned_to }}</td>
                 <td>{{ status_badge(a.status) }}</td>
                 <td class="muted" style="font-size:12px;">{{ a.placed_at[:16] if a.placed_at else '—' }}</td>
@@ -508,8 +517,14 @@
       document.querySelectorAll('.pane').forEach(function(p){ p.classList.remove('active'); });
       b.classList.add('active');
       document.getElementById('pane-' + b.dataset.pane).classList.add('active');
+      if(history.replaceState) history.replaceState(null, '', '#' + b.dataset.pane);
     });
   });
+  (function(){
+    var h = (location.hash || '').replace('#','');
+    var target = document.querySelector('.seg button[data-pane="' + h + '"]');
+    if(target) target.click();
+  })();
   document.getElementById('afStatus').addEventListener('change', function(){
     var v = this.value;
     document.querySelectorAll('#afTable tbody tr').forEach(function(r){

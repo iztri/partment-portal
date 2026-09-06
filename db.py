@@ -717,6 +717,13 @@ class SQLiteDatabase:
         ).fetchone()
         return dict(r) if r else None
 
+    def update_assignment_quantity(self, assignment_id, quantity):
+        self.conn.execute(
+            "UPDATE standee_assignments SET quantity=? WHERE id=?",
+            (int(quantity), int(assignment_id)),
+        )
+        self.conn.commit()
+
     def confirm_placement(self, assignment_id, placed_by, photo_paths):
         assignment_id = int(assignment_id)
         row = self.conn.execute(
@@ -1212,6 +1219,11 @@ class SupabaseDatabase:
         ).eq("id", int(assignment_id)).limit(1).execute().data
         joined = self._join_assignment_rows(rows)
         return joined[0] if joined else None
+
+    def update_assignment_quantity(self, assignment_id, quantity):
+        self.sb.table("standee_assignments").update(
+            {"quantity": int(quantity)}
+        ).eq("id", int(assignment_id)).execute()
 
     def confirm_placement(self, assignment_id, placed_by, photo_paths):
         assignment_id = int(assignment_id)
