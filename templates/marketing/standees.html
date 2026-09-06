@@ -85,7 +85,11 @@
         <div class="field"><label>Name</label><input type="text" name="name" placeholder="e.g. Diwali Offer Standee" required></div>
         <div class="grid-2">
           <div class="field"><label>Total units printed</label><input type="number" name="total_units" min="0" placeholder="0" required></div>
-          <div class="field"><label>Storage location <span class="hint">optional</span></label><input type="text" name="storage_location" placeholder="e.g. Koramangala office"></div>
+          <div class="field"><label>Storage location <span class="hint">optional</span></label>
+            <select name="storage_location">
+              <option value="">— None —</option>
+              {% for h in hub_names %}<option>{{ h }}</option>{% endfor %}
+            </select></div>
         </div>
         <div class="field"><label>Design photo <span class="hint">optional</span></label><input type="file" name="photo" accept="image/*"></div>
         <button type="submit" class="btn btn-primary btn-block"><i class="bi bi-plus-lg"></i>Add standee</button>
@@ -264,7 +268,7 @@
     <div class="card-body flush">
       <div class="tbl-wrap">
         <table class="tbl" id="afTable">
-          <thead><tr><th>#</th><th>Standee</th><th>Apartment</th><th>Coordinator</th><th>Qty</th><th>Status</th><th>Placed</th><th>Returned</th><th>Damaged</th><th>Damage note</th><th>Drop location</th><th style="width:40px;"></th></tr></thead>
+          <thead><tr><th>#</th><th>Standee</th><th>Apartment</th><th>Coordinator</th><th>Qty</th><th>Status</th><th>Placed</th><th>Returned</th><th>Damaged</th><th>Missing</th><th>Damage note</th><th>Kept at / redeployed</th><th style="width:40px;"></th></tr></thead>
           <tbody>
             {% for a in assignments %}
             <tr data-status="{{ a.status }}">
@@ -277,12 +281,13 @@
               <td class="muted" style="font-size:12px;">{{ a.placed_at[:16] if a.placed_at else '—' }}</td>
               <td>{{ a.quantity_returned if a.status == 'Collected' else '—' }}</td>
               <td>{% if a.quantity_damaged %}<span style="color:var(--danger-fg); font-weight:600;">{{ a.quantity_damaged }}</span>{% else %}—{% endif %}</td>
+              <td>{% if a.quantity_missing %}<span style="color:var(--danger-fg); font-weight:600;">{{ a.quantity_missing }}</span>{% else %}—{% endif %}</td>
               <td class="muted" style="font-size:12px;">{{ a.damage_note or '—' }}</td>
               <td class="muted" style="font-size:12px;">{{ a.drop_location or '—' }}</td>
               <td><button class="btn btn-default btn-icon" onclick="openAssignmentDetail({{ a.id }})" title="View"><i class="bi bi-eye"></i></button></td>
             </tr>
             {% else %}
-            <tr><td colspan="12"><div class="empty"><i class="bi bi-table"></i><div class="t">No assignments yet.</div></div></td></tr>
+            <tr><td colspan="13"><div class="empty"><i class="bi bi-table"></i><div class="t">No assignments yet.</div></div></td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -321,8 +326,11 @@
           <span>New creative? '{{ s.name }}' will be marked discontinued (kept for history, can't be assigned again) and a new standee is created below.</span></div>
         <div class="field"><label>New standee name</label><input type="text" name="new_name" placeholder="e.g. Diwali Offer Standee v2" required></div>
         <div class="field"><label>Total units printed <span class="hint">for the new creative</span></label><input type="number" name="new_total_units" min="0" placeholder="0" required></div>
-        <div class="field"><label>Storage location <span class="hint">optional, defaults to same as before</span></label>
-          <input type="text" name="new_storage_location" placeholder="{{ s.storage_location or 'e.g. Koramangala office store' }}"></div>
+        <div class="field"><label>Storage location <span class="hint">optional, keeps the old one if left blank</span></label>
+          <select name="new_storage_location">
+            <option value="">— Same as before ({{ s.storage_location or 'none' }}) —</option>
+            {% for h in hub_names %}<option {{ 'selected' if h == s.storage_location }}>{{ h }}</option>{% endfor %}
+          </select></div>
         <div class="field mb-0"><label>New design photo <span class="hint">optional</span></label><input type="file" name="new_photo" accept="image/*"></div>
       </div>
       <div class="modal-footer">
@@ -408,8 +416,8 @@
             <div class="field"><label>Placed on</label><div id="adPlaced"></div></div>
             <div class="field"><label>Collect by</label><div id="adCollectBy"></div></div>
             <div class="field"><label>Collected on</label><div id="adCollected"></div></div>
-            <div class="field"><label>Returned / Damaged</label><div id="adReturned"></div></div>
-            <div class="field" style="grid-column:1/-1;"><label>Drop location</label><div id="adDrop"></div></div>
+            <div class="field"><label>Returned / Damaged / Missing</label><div id="adReturned"></div></div>
+            <div class="field" style="grid-column:1/-1;"><label>Kept at / redeployed</label><div id="adDrop"></div></div>
           </div>
           <div id="adDamageNoteWrap" class="alert alert-warning mb-0" hidden style="margin-top:6px;"><i class="bi bi-exclamation-triangle-fill"></i><span id="adDamageNote"></span></div>
           <div class="divider"></div>
@@ -518,7 +526,7 @@
           asg.innerHTML = '<table class="tbl"><thead><tr><th>Apartment</th><th>Coordinator</th><th>Qty</th><th>Status</th><th>Placed</th><th>Collect by / Returned</th></tr></thead><tbody>' +
             d.assignments.map(function(a){
               var second = a.status === 'Collected'
-                ? (a.quantity_returned + ' returned' + (a.quantity_damaged ? ', ' + a.quantity_damaged + ' damaged' : ''))
+                ? (a.quantity_returned + ' returned' + (a.quantity_damaged ? ', ' + a.quantity_damaged + ' damaged' : '') + (a.quantity_missing ? ', ' + a.quantity_missing + ' missing' : ''))
                 : (a.collect_by || '—');
               return '<tr><td class="strong">' + a.apartment_name + '</td><td class="muted">' + a.assigned_to + '</td>' +
                 '<td>' + a.quantity + '</td><td>' + statusBadgeHtml(a.status) + '</td>' +
@@ -562,7 +570,7 @@
         document.getElementById('adCollected').textContent = d.collected_at
           ? d.collected_at.slice(0,16) + (d.collected_by ? ' · by ' + d.collected_by : '') : '—';
         document.getElementById('adReturned').textContent = d.status === 'Collected'
-          ? d.quantity_returned + ' returned' + (d.quantity_damaged ? ', ' + d.quantity_damaged + ' damaged' : '')
+          ? d.quantity_returned + ' returned' + (d.quantity_damaged ? ', ' + d.quantity_damaged + ' damaged' : '') + (d.quantity_missing ? ', ' + d.quantity_missing + ' missing' : '')
           : '—';
         document.getElementById('adDrop').textContent = d.drop_location || '—';
         var dn = document.getElementById('adDamageNoteWrap');

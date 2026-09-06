@@ -138,8 +138,10 @@ class SQLiteDatabase:
                 collected_by TEXT NOT NULL DEFAULT '',
                 quantity_returned INTEGER NOT NULL DEFAULT 0,
                 quantity_damaged INTEGER NOT NULL DEFAULT 0,
+                quantity_missing INTEGER NOT NULL DEFAULT 0,
                 damage_note TEXT NOT NULL DEFAULT '',
                 drop_location TEXT NOT NULL DEFAULT '',
+                redeployed_to INTEGER,
                 created_by TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL DEFAULT ''
             );
@@ -163,6 +165,8 @@ class SQLiteDatabase:
             "ALTER TABLE standees ADD COLUMN damaged_resolved INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE apartments ADD COLUMN apartment_code TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE standee_assignments ADD COLUMN quantity_missing INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE standee_assignments ADD COLUMN redeployed_to INTEGER",
         ):
             try:
                 self.conn.execute(stmt)
@@ -594,12 +598,14 @@ class SQLiteDatabase:
         ):
             placed[r["standee_id"]] = r["q"] or 0
         for r in self.conn.execute(
-            "SELECT standee_id, quantity, quantity_returned, quantity_damaged "
+            "SELECT standee_id, quantity, quantity_returned, quantity_damaged, quantity_missing "
             "FROM standee_assignments WHERE status='Collected'"
         ):
             sid = r["standee_id"]
             damaged_raw[sid] = damaged_raw.get(sid, 0) + (r["quantity_damaged"] or 0)
-            missing = (r["quantity"] or 0) - (r["quantity_returned"] or 0) - (r["quantity_damaged"] or 0)
+            explicit = r["quantity_missing"] or 0
+            implicit = (r["quantity"] or 0) - (r["quantity_returned"] or 0) - (r["quantity_damaged"] or 0)
+            missing = explicit if explicit else max(0, implicit)
             if missing > 0:
                 lost[sid] = lost.get(sid, 0) + missing
         out = {}
@@ -697,14 +703,17 @@ class SQLiteDatabase:
         self.conn.commit()
 
     def collect_standee_assignment(self, assignment_id, quantity_returned, quantity_damaged,
-                                    damage_note, drop_location, collected_by, photo_paths):
+                                    damage_note, drop_location, collected_by, photo_paths,
+                                    quantity_missing=0, redeployed_to=None):
         assignment_id = int(assignment_id)
         now = _now()
         self.conn.execute(
             "UPDATE standee_assignments SET status='Collected', collected_at=?, collected_by=?, "
-            "quantity_returned=?, quantity_damaged=?, damage_note=?, drop_location=? WHERE id=?",
+            "quantity_returned=?, quantity_damaged=?, quantity_missing=?, damage_note=?, "
+            "drop_location=?, redeployed_to=? WHERE id=?",
             (now, collected_by, int(quantity_returned), int(quantity_damaged),
-             damage_note, drop_location, assignment_id),
+             int(quantity_missing), damage_note, drop_location,
+             int(redeployed_to) if redeployed_to else None, assignment_id),
         )
         for p in photo_paths:
             self.conn.execute(
@@ -1055,11 +1064,13 @@ class SupabaseDatabase:
         for r in self.sb.table("standee_assignments").select("standee_id,quantity").eq("status", "Placed").execute().data:
             placed[r["standee_id"]] = placed.get(r["standee_id"], 0) + (r["quantity"] or 0)
         for r in self.sb.table("standee_assignments").select(
-            "standee_id,quantity,quantity_returned,quantity_damaged"
+            "standee_id,quantity,quantity_returned,quantity_damaged,quantity_missing"
         ).eq("status", "Collected").execute().data:
             sid = r["standee_id"]
             damaged_raw[sid] = damaged_raw.get(sid, 0) + (r["quantity_damaged"] or 0)
-            missing = (r["quantity"] or 0) - (r["quantity_returned"] or 0) - (r["quantity_damaged"] or 0)
+            explicit = r.get("quantity_missing") or 0
+            implicit = (r["quantity"] or 0) - (r["quantity_returned"] or 0) - (r["quantity_damaged"] or 0)
+            missing = explicit if explicit else max(0, implicit)
             if missing > 0:
                 lost[sid] = lost.get(sid, 0) + missing
         out = {}
@@ -1149,13 +1160,16 @@ class SupabaseDatabase:
             ]).execute()
 
     def collect_standee_assignment(self, assignment_id, quantity_returned, quantity_damaged,
-                                    damage_note, drop_location, collected_by, photo_paths):
+                                    damage_note, drop_location, collected_by, photo_paths,
+                                    quantity_missing=0, redeployed_to=None):
         assignment_id = int(assignment_id)
         now = _now()
         self.sb.table("standee_assignments").update({
             "status": "Collected", "collected_at": now, "collected_by": collected_by,
             "quantity_returned": int(quantity_returned), "quantity_damaged": int(quantity_damaged),
+            "quantity_missing": int(quantity_missing),
             "damage_note": damage_note, "drop_location": drop_location,
+            "redeployed_to": int(redeployed_to) if redeployed_to else None,
         }).eq("id", assignment_id).execute()
         if photo_paths:
             self.sb.table("standee_photos").insert([

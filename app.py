@@ -814,6 +814,7 @@ def marketing_standee_detail(standee_id):
             "quantity": a["quantity"], "status": a["status"], "placed_at": a.get("placed_at"),
             "collect_by": a.get("collect_by"), "collected_at": a.get("collected_at"),
             "quantity_returned": a.get("quantity_returned"), "quantity_damaged": a.get("quantity_damaged"),
+            "quantity_missing": a.get("quantity_missing"),
         }
         for a in sorted(history, key=lambda x: x["id"], reverse=True)
     ]
@@ -959,13 +960,17 @@ def btl_standee_detail(assignment_id):
     if not a or a["assigned_to"] != session["user"]:
         flash("That task is not assigned to you", "danger")
         return redirect(url_for("btl_standees_page"))
+    pending = [
+        x for x in db.list_standee_assignments_for_btl(session["user"])
+        if x["status"] == "Assigned" and x["id"] != assignment_id
+    ]
     return render_template(
         "btl/standee_detail.html",
         a=a,
         collection=db.get_collection(a["apartment_id"]),
         photos=db.photos_for(assignment_id),
         hub_names=db.hub_names(),
-        active_placements=db.active_standee_placements(),
+        pending_assignments=pending,
     )
 
 
@@ -992,19 +997,48 @@ def btl_standee_collect(assignment_id):
     if not a or a["assigned_to"] != session["user"] or a["status"] != "Placed":
         flash("This task can't be collected right now", "danger")
         return redirect(url_for("btl_standees_page"))
-    try:
-        returned = int(request.form.get("quantity_returned", "0"))
-    except ValueError:
-        returned = 0
-    try:
-        damaged = int(request.form.get("quantity_damaged", "0"))
-    except ValueError:
-        damaged = 0
-    note = request.form.get("damage_note", "").strip()
-    loc = _resolve_location_pair("drop_location", "drop_location_detail")
-    saved = _save_photos(request.files.getlist("damage_photos"), assignment_id) if damaged > 0 else []
-    db.collect_standee_assignment(assignment_id, returned, damaged, note, loc, session["user"], saved)
-    flash("Standee collected", "success")
+    qty = int(a["quantity"] or 0)
+
+    def _int(name, default=0):
+        try:
+            return int(request.form.get(name, str(default)) or default)
+        except ValueError:
+            return default
+
+    returned = max(0, min(qty, _int("quantity_returned")))
+
+    damaged = 0
+    if request.form.get("damaged_flag") == "yes":
+        damaged = min(max(1, _int("quantity_damaged", 1)), max(0, qty - returned))
+    missing = 0
+    if request.form.get("missing_flag") == "yes":
+        missing = min(max(1, _int("quantity_missing", 1)), max(0, qty - returned - damaged))
+    note = request.form.get("damage_note", "").strip() if damaged else ""
+
+    # where it goes next: a hub, or redeployed to one of my pending assignments
+    drop_type = request.form.get("drop_type", "hub")
+    redeploy_id, dest = None, None
+    if drop_type == "assignment":
+        rid = _int("drop_assignment_id")
+        dest = db.get_standee_assignment(rid) if rid else None
+        if not dest or dest["assigned_to"] != session["user"] or dest["status"] != "Assigned":
+            flash("Pick a valid pending assignment to redeploy to", "danger")
+            return redirect(url_for("btl_standee_detail", assignment_id=assignment_id))
+        redeploy_id = rid
+        loc = f"→ {dest['standee_name']} @ {dest['apartment_name']}"
+    else:
+        loc = request.form.get("drop_hub", "").strip() or a["apartment_hub"]
+
+    saved = _save_photos(request.files.getlist("damage_photos"), assignment_id) if damaged else []
+    db.collect_standee_assignment(
+        assignment_id, returned, damaged, note, loc, session["user"], saved,
+        quantity_missing=missing, redeployed_to=redeploy_id,
+    )
+    if redeploy_id:
+        db.confirm_placement(redeploy_id, session["user"], [])
+        flash(f"Collected · redeployed to {dest['apartment_name']} ({dest['standee_name']})", "success")
+    else:
+        flash("Standee collected", "success")
     return redirect(url_for("btl_standees_page"))
 
 

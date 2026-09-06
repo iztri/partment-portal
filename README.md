@@ -43,6 +43,8 @@ is seeded from `ADMIN_USERNAME` / `ADMIN_PASSWORD` (default `admin` / `admin123`
    create table if not exists hubs (
        hub_id bigint primary key, hub_name text not null unique,
        created_at text not null default '');
+   alter table standee_assignments add column if not exists quantity_missing integer not null default 0;
+   alter table standee_assignments add column if not exists redeployed_to bigint;
    update users set is_admin = true where username = 'gowtham';
    ```
 2. **Render** — Web Service from this repo:
