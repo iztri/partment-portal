@@ -77,6 +77,7 @@
     <div class="stat"><div class="n" style="color:var(--danger-fg);">{{ inv_damaged }}</div><div class="l">Damaged</div></div>
   </div>
 
+  {% if can('standees', 'edit') %}
   <div class="card" style="max-width:440px;">
     <div class="card-head"><h2>Add standee</h2></div>
     <div class="card-body">
@@ -91,6 +92,7 @@
       </form>
     </div>
   </div>
+  {% endif %}
 
   <div class="card section-gap">
     <div class="card-head"><h2>Inventory</h2></div>
@@ -116,10 +118,12 @@
                 {% if st.damaged %}
                   <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                     <span style="color:var(--danger-fg); font-weight:700;">{{ st.damaged }}</span>
+                    {% if can('standees', 'edit') %}
                     <button type="button" class="btn btn-default btn-sm" style="padding:3px 8px; font-size:11px;"
                       data-bs-toggle="modal" data-bs-target="#reprintDamaged{{ s.id }}"><i class="bi bi-printer"></i>Reprint</button>
                     <button type="button" class="btn btn-default btn-sm" style="padding:3px 8px; font-size:11px;"
                       data-bs-toggle="modal" data-bs-target="#replace{{ s.id }}"><i class="bi bi-arrow-repeat"></i>Replace</button>
+                    {% endif %}
                   </div>
                 {% else %}<span class="subtle">—</span>{% endif %}
               </td>
@@ -128,8 +132,10 @@
               <td>
                 <div style="display:flex; gap:4px;">
                   <button class="btn btn-default btn-icon" onclick="openStandeeDetail({{ s.id }})" title="View details"><i class="bi bi-eye"></i></button>
+                  {% if can('standees', 'edit') %}
                   <button class="btn btn-default btn-icon" data-bs-toggle="modal" data-bs-target="#reprint{{ s.id }}" title="Reprint"><i class="bi bi-printer"></i></button>
                   <button class="btn btn-default btn-icon" data-bs-toggle="modal" data-bs-target="#replace{{ s.id }}" title="Replace"><i class="bi bi-arrow-repeat"></i></button>
+                  {% endif %}
                 </div>
               </td>
             </tr>
@@ -146,6 +152,7 @@
 <!-- Assign -->
 <div class="pane" id="pane-assign">
   <div class="split">
+    {% if can('standees', 'edit') %}
     <div class="card">
       <div class="card-head"><h2>New assignment</h2></div>
       <div class="card-body">
@@ -183,6 +190,7 @@
         </form>
       </div>
     </div>
+    {% endif %}
     <div class="card">
       <div class="card-head"><h2>Current assignments</h2></div>
       <div class="card-body flush" style="max-height:65vh; overflow-y:auto;">
@@ -283,6 +291,7 @@
   </div>
 </div>
 
+{% if can('standees', 'edit') %}
 {% for s in standees %}
 {% set st = stats.get(s.id, {'placed':0,'damaged':0,'lost':0,'available':s.total_units}) %}
 <div class="modal fade" id="reprint{{ s.id }}" tabindex="-1">
@@ -343,6 +352,7 @@
   </div>
 </div>
 {% endfor %}
+{% endif %}
 
 <div class="modal fade" id="sDetail" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered modal-lg">

@@ -11,6 +11,7 @@ drop table if exists collection_campaigns cascade;
 drop table if exists collections cascade;
 drop table if exists apartments cascade;
 drop table if exists hubs cascade;
+drop table if exists user_permissions cascade;
 drop table if exists users cascade;
 
 -- 1. users
@@ -20,9 +21,20 @@ create table users (
     name          text not null default '',
     password_hash text not null,
     workspace     text not null default 'btl' check (workspace in ('marketing','btl')),
+    is_admin      boolean not null default false,
     active        boolean not null default true,
     created_at    text not null default ''
 );
+
+-- user_permissions  (marketing workspace: per-user level per feature)
+create table user_permissions (
+    id       bigint generated always as identity primary key,
+    username text not null,
+    feature  text not null,
+    level    text not null default 'edit' check (level in ('none','read','edit')),
+    unique (username, feature)
+);
+create index user_permissions_username_idx on user_permissions (username);
 
 -- hubs  (master apartment-grouping list; IDs are the marketing team's own)
 create table hubs (
@@ -47,16 +59,18 @@ on conflict (hub_id) do nothing;
 
 -- 2. apartments
 create table apartments (
-    id            bigint generated always as identity primary key,
-    name          text not null default '',
-    hub           text not null default '',
-    location_link text not null default '',
-    assigned_to   text not null default '',
-    status        text not null default 'Pending',
-    deleted       boolean not null default false,
-    created_by    text not null default '',
-    created_at    text not null default ''
+    id             bigint generated always as identity primary key,
+    name           text not null default '',
+    apartment_code text not null default '',
+    hub            text not null default '',
+    location_link  text not null default '',
+    assigned_to    text not null default '',
+    status         text not null default 'Pending',
+    deleted        boolean not null default false,
+    created_by     text not null default '',
+    created_at     text not null default ''
 );
+create index apartments_code_idx on apartments (apartment_code) where apartment_code <> '';
 create index apartments_assigned_to_idx on apartments (assigned_to) where deleted = false;
 
 -- 3. collections
@@ -146,5 +160,8 @@ create index standee_photos_assignment_idx on standee_photos (assignment_id);
 
 -- 9. Seed single admin user
 delete from users;
-insert into users (username, name, password_hash, workspace, active, created_at)
-values ('gowtham', 'Gowtham', 'pbkdf2:sha256:1000000$KDAxpOjN07lI4FMT$bc119260872e409c318b2f913395195178bd39c05bfb92fae606c1e648f8d85d', 'marketing', true, '');
+insert into users (username, name, password_hash, workspace, is_admin, active, created_at)
+values ('gowtham', 'Gowtham', 'pbkdf2:sha256:1000000$KDAxpOjN07lI4FMT$bc119260872e409c318b2f913395195178bd39c05bfb92fae606c1e648f8d85d', 'marketing', true, true, '');
+
+-- gowtham is the admin (only admins may delete hubs / apartments and manage the team).
+update users set is_admin = true where username = 'gowtham';

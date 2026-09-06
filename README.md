@@ -30,7 +30,21 @@ is seeded from `ADMIN_USERNAME` / `ADMIN_PASSWORD` (default `admin` / `admin123`
 ## Deploy (Render + Supabase)
 
 1. **Supabase** — run `supabase_schema.sql` in the project's SQL editor before the
-   first boot (the app queries `users` at startup).
+   first boot (the app queries `users` at startup). It drops and recreates every
+   table. To add the newer bits to an **existing** database without wiping it:
+   ```sql
+   alter table users add column if not exists is_admin boolean not null default false;
+   alter table apartments add column if not exists apartment_code text not null default '';
+   create table if not exists user_permissions (
+       id bigint generated always as identity primary key,
+       username text not null, feature text not null,
+       level text not null default 'edit' check (level in ('none','read','edit')),
+       unique (username, feature));
+   create table if not exists hubs (
+       hub_id bigint primary key, hub_name text not null unique,
+       created_at text not null default '');
+   update users set is_admin = true where username = 'gowtham';
+   ```
 2. **Render** — Web Service from this repo:
    - Build: `pip install -r requirements.txt`
    - Start: `gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120`

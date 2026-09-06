@@ -21,9 +21,11 @@
             <td><span class="chip"><i class="bi bi-building"></i>{{ apt.hub }}</span></td>
             <td class="muted">{{ apt.assigned_to or '—' }}</td>
             <td>
+              {% if can('apartments', 'edit') %}
               <form method="post" action="/marketing/apartment/{{ apt.id }}/restore">
                 <button class="btn btn-default btn-sm"><i class="bi bi-arrow-counterclockwise"></i>Restore</button>
               </form>
+              {% else %}<span class="subtle">—</span>{% endif %}
             </td>
           </tr>
           {% else %}

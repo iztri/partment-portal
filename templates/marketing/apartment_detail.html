@@ -5,11 +5,11 @@
 <div class="page-head" style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
   <div>
     <h1>{{ apt.name }}</h1>
-    <p>{% if hub_id %}Hub {{ hub_id }} · {% endif %}{{ apt.hub }}{% if apt.location_link %} · <a href="{{ apt.location_link }}" target="_blank">Open map</a>{% endif %}</p>
+    <p>{% if apt.apartment_code %}#{{ apt.apartment_code }} · {% endif %}{% if hub_id %}Hub {{ hub_id }} · {% endif %}{{ apt.hub }}{% if apt.location_link %} · <a href="{{ apt.location_link }}" target="_blank">Open map</a>{% endif %}</p>
   </div>
   <div style="display:flex; gap:8px;">
     <a href="/marketing" class="btn btn-default btn-sm"><i class="bi bi-arrow-left"></i>Back</a>
-    {% if not apt.deleted %}<button class="btn btn-default btn-sm" data-bs-toggle="modal" data-bs-target="#edit"><i class="bi bi-pencil"></i>Edit</button>{% endif %}
+    {% if not apt.deleted and can('apartments', 'edit') %}<button class="btn btn-default btn-sm" data-bs-toggle="modal" data-bs-target="#edit"><i class="bi bi-pencil"></i>Edit</button>{% endif %}
   </div>
 </div>
 
@@ -71,6 +71,7 @@
   </div>
 </div>
 
+{% if can('apartments', 'edit') %}
 <div class="modal fade" id="edit" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <form class="modal-content" method="post" action="/marketing/apartment/{{ apt.id }}/edit">
@@ -79,6 +80,8 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
       <div class="modal-body">
         <div class="field"><label>Apartment name</label><input type="text" name="name" value="{{ apt.name }}" required></div>
+        <div class="field"><label>Apartment ID <span class="hint">your own numbering, optional</span></label>
+          <input type="text" name="apartment_code" value="{{ apt.apartment_code }}" placeholder="e.g. 105"></div>
         <div class="field"><label>Hub</label>
           <select name="hub" required>{% for h in hub_names %}<option {{ 'selected' if h == apt.hub }}>{{ h }}</option>{% endfor %}</select></div>
         <div class="field"><label>Location link <span class="hint">optional</span></label>
@@ -91,4 +94,5 @@
     </form>
   </div>
 </div>
+{% endif %}
 {% endblock %}

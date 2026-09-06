@@ -1,14 +1,30 @@
 {% extends "base.html" %}
 {% block title %}Team · Apartment Portal{% endblock %}
 
+{% macro perm_row(uname, prefix) %}
+{% for key, label in features %}
+{% set cur = permissions.get(uname, {}).get(key, default_permission) %}
+<div class="field" style="margin-bottom:8px;">
+  <label style="display:flex; justify-content:space-between; align-items:center;">
+    <span>{{ label }}</span>
+    <select name="{{ prefix }}{{ key }}" style="width:auto; font-size:12.5px; padding:5px 26px 5px 9px;">
+      {% for lv in levels %}<option value="{{ lv }}" {{ 'selected' if lv == cur }}>{{ {'none':'No access','read':'Read only','edit':'Read & edit'}[lv] }}</option>{% endfor %}
+    </select>
+  </label>
+</div>
+{% endfor %}
+{% endmacro %}
+
 {% block content %}
 <div class="page-head">
   <h1>Team</h1>
-  <p>Marketing and BTL accounts. Deactivated users can't sign in.</p>
+  <p>Marketing and BTL accounts. Deactivated users can't sign in. Marketing users
+    get a per-feature access level; admins bypass all of it and are the only ones
+    who can delete hubs / apartments or manage this page.</p>
 </div>
 
 <div class="row-flex" style="align-items:flex-start;">
-  <div class="card" style="flex:1; min-width:280px; max-width:360px;">
+  <div class="card" style="flex:1; min-width:300px; max-width:400px;">
     <div class="card-head"><h2>Add user</h2></div>
     <div class="card-body">
       <form method="post" action="/marketing/team/add">
@@ -20,27 +36,63 @@
             <option value="btl">BTL</option>
             <option value="marketing">Marketing</option>
           </select></div>
+        <div style="border-top:1px solid var(--border); margin:12px 0 10px; padding-top:10px;">
+          <div class="subtle" style="font-size:11px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:8px;">
+            Marketing access <span class="hint">(ignored for BTL users)</span>
+          </div>
+          {% for key, label in features %}
+          <div class="field" style="margin-bottom:8px;">
+            <label style="display:flex; justify-content:space-between; align-items:center;">
+              <span>{{ label }}</span>
+              <select name="perm_{{ key }}" style="width:auto; font-size:12.5px; padding:5px 26px 5px 9px;">
+                <option value="edit" selected>Read &amp; edit</option>
+                <option value="read">Read only</option>
+                <option value="none">No access</option>
+              </select>
+            </label>
+          </div>
+          {% endfor %}
+        </div>
         <button type="submit" class="btn btn-primary btn-block"><i class="bi bi-person-plus"></i>Add user</button>
       </form>
     </div>
   </div>
 
-  <div class="card" style="flex:1; min-width:320px;">
+  <div class="card" style="flex:1; min-width:340px;">
     <div class="card-head"><h2>Users</h2><span class="sub">{{ users|length }}</span></div>
     <div class="card-body flush">
       <div class="tbl-wrap">
         <table class="tbl">
-          <thead><tr><th>Username</th><th>Name</th><th>Workspace</th><th>Status</th><th style="width:180px;"></th></tr></thead>
+          <thead><tr><th>Username</th><th>Name</th><th>Workspace</th><th>Access</th><th>Status</th><th style="width:230px;"></th></tr></thead>
           <tbody>
             {% for u in users %}
             <tr>
               <td class="strong">{{ u.username }}{% if u.username == session.user %} <span class="subtle">(you)</span>{% endif %}</td>
               <td class="muted">{{ u.name }}</td>
               <td><span class="chip">{{ workspace_labels[u.workspace] }}</span></td>
+              <td>
+                {% if u.workspace != 'marketing' %}<span class="subtle">—</span>
+                {% elif u.is_admin %}<span class="badge badge-ok">Admin</span>
+                {% else %}
+                  {% set p = permissions.get(u.username, {}) %}
+                  {% set custom = [] %}
+                  {% for key, label in features %}{% if p.get(key, default_permission) != 'edit' %}{{ custom.append(label ~ ': ' ~ {'none':'none','read':'read'}[p.get(key, default_permission)]) or '' }}{% endif %}{% endfor %}
+                  {% if custom %}<span class="subtle" style="font-size:12px;">{{ custom | join(' · ') }}</span>
+                  {% else %}<span class="subtle" style="font-size:12px;">Full access</span>{% endif %}
+                {% endif %}
+              </td>
               <td>{% if u.active %}<span class="badge badge-ok">Active</span>{% else %}<span class="badge badge-off">Inactive</span>{% endif %}</td>
               <td>
-                <div style="display:flex; gap:4px;">
-                  <button class="btn btn-default btn-sm" data-bs-toggle="modal" data-bs-target="#pw{{ u.id }}"><i class="bi bi-key"></i>Password</button>
+                <div style="display:flex; gap:4px; flex-wrap:wrap;">
+                  <button class="btn btn-default btn-sm" data-bs-toggle="modal" data-bs-target="#pw{{ u.id }}"><i class="bi bi-key"></i></button>
+                  {% if u.workspace == 'marketing' and not u.is_admin %}
+                  <button class="btn btn-default btn-sm" data-bs-toggle="modal" data-bs-target="#perm{{ u.id }}"><i class="bi bi-sliders"></i>Access</button>
+                  {% endif %}
+                  {% if u.workspace == 'marketing' and u.username != session.user %}
+                  <form method="post" action="/marketing/team/{{ u.id }}/admin">
+                    <button class="btn btn-default btn-sm">{{ 'Remove admin' if u.is_admin else 'Make admin' }}</button>
+                  </form>
+                  {% endif %}
                   {% if u.username != session.user %}
                   <form method="post" action="/marketing/team/{{ u.id }}/toggle">
                     <button class="btn btn-default btn-sm">{{ 'Deactivate' if u.active else 'Activate' }}</button>
@@ -72,5 +124,23 @@
     </form>
   </div>
 </div>
+{% if u.workspace == 'marketing' and not u.is_admin %}
+<div class="modal fade" id="perm{{ u.id }}" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="post" action="/marketing/team/{{ u.id }}/permissions">
+      <div class="modal-header"><span class="modal-title">Access · {{ u.username }}</span>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <p class="muted" style="margin-top:0; font-size:12.5px;">Deletes and this Team page always stay admin-only.</p>
+        {{ perm_row(u.username, 'perm_') }}
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save access</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
 {% endfor %}
 {% endblock %}

@@ -87,11 +87,17 @@
 </div>
 {% endmacro %}
 
+{% set editable = can('assign', 'edit') %}
+{% if not editable %}
+<div class="alert alert-info" style="margin-bottom:18px;">
+  <i class="bi bi-eye"></i><span>You have read-only access to Assign.</span>
+</div>
+{% endif %}
 <div class="pane active" id="pane-un">
-  <div class="assign-grid">{{ picker(unassigned, 'formUn', false) }}{{ side_form('formUn', 'Assign') }}</div>
+  <div class="assign-grid" {{ 'style=grid-template-columns:1fr' if not editable }}>{{ picker(unassigned, 'formUn', false) }}{% if editable %}{{ side_form('formUn', 'Assign') }}{% endif %}</div>
 </div>
 <div class="pane" id="pane-as">
-  <div class="assign-grid">{{ picker(assigned, 'formAs', true) }}{{ side_form('formAs', 'Reassign') }}</div>
+  <div class="assign-grid" {{ 'style=grid-template-columns:1fr' if not editable }}>{{ picker(assigned, 'formAs', true) }}{% if editable %}{{ side_form('formAs', 'Reassign') }}{% endif %}</div>
 </div>
 {% endblock %}
 

@@ -51,3 +51,20 @@ HUB_NAMES = [name for _, name in HUBS_SEED]
 STATUS_PENDING = "Pending"
 STATUS_COLLECTED = "Collected"
 STATUS_NO_NUMBER = "No Number"
+
+# ── Marketing-workspace access control ──────────────────────────────────
+# Each marketing user gets a level per feature: 'none' | 'read' | 'edit'.
+# Admins bypass this entirely and are the only ones who may delete hubs or
+# apartments and manage the team.  Users with no explicit row default to
+# 'edit' (so existing accounts keep working).
+MARKETING_FEATURES = [
+    ("apartments", "Apartments"),
+    ("hubs", "Hubs"),
+    ("assign", "Assign"),
+    ("standees", "Standees"),
+    ("export", "Export"),
+]
+MARKETING_FEATURE_KEYS = [k for k, _ in MARKETING_FEATURES]
+PERMISSION_LEVELS = ["none", "read", "edit"]
+PERMISSION_RANK = {"none": 0, "read": 1, "edit": 2}
+DEFAULT_PERMISSION = "edit"

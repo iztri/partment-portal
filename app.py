@@ -12,12 +12,15 @@ from flask import (
     Flask, render_template, request, redirect, url_for, session, flash, send_file
 )
 from auth import (
-    login_required, role_required, authenticate, logout, ensure_seed_admin, hash_password,
+    login_required, role_required, feature_required, admin_required,
+    authenticate, logout, ensure_seed_admin, hash_password,
+    effective_level, is_admin_user,
 )
-from db import get_db, ensure_seed_hubs
+from db import get_db, ensure_seed_hubs, ensure_admin
 from config import (
     MARKETING_CAMPAIGNS, DESIGNATIONS, WORKSPACE_LABELS,
     STATUS_PENDING, STATUS_COLLECTED, STATUS_NO_NUMBER,
+    MARKETING_FEATURES, MARKETING_FEATURE_KEYS, PERMISSION_LEVELS, PERMISSION_RANK,
 )
 
 app = Flask(__name__)
@@ -27,8 +30,30 @@ app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024  # 20MB, generous for phone-
 db = get_db()
 ensure_seed_admin()
 ensure_seed_hubs()
+ensure_admin()
 
 ALLOWED_IMAGE_EXT = {"jpg", "jpeg", "png", "webp", "gif", "heic"}
+
+
+@app.context_processor
+def _inject_access():
+    """`can('hubs')` / `can('hubs','edit')` and `is_admin` for every template."""
+    user = session.get("user")
+    role = session.get("role")
+
+    def can(feature, level="read"):
+        if role != "marketing":
+            return False
+        return PERMISSION_RANK.get(effective_level(user, feature), 0) >= PERMISSION_RANK.get(level, 0)
+
+    return {"can": can, "is_admin": bool(user) and is_admin_user(user)}
+
+
+def _first_allowed_feature():
+    for key in MARKETING_FEATURE_KEYS:
+        if effective_level(session.get("user"), key) != "none":
+            return key
+    return None
 
 
 # ── helpers ──────────────────────────────────────────────────────────────
@@ -121,14 +146,27 @@ def do_logout():
 def home():
     if "user" not in session:
         return redirect(url_for("login"))
-    return redirect(url_for("marketing_dashboard" if session["role"] == "marketing" else "btl_dashboard"))
+    if session["role"] != "marketing":
+        return redirect(url_for("btl_dashboard"))
+    first = _first_allowed_feature()
+    dest = {
+        "apartments": "marketing_dashboard", "hubs": "marketing_hubs_page",
+        "assign": "marketing_assign_page", "standees": "marketing_standees_page",
+        "export": "marketing_export_page",
+    }.get(first)
+    if dest:
+        return redirect(url_for(dest))
+    if is_admin_user(session["user"]):
+        return redirect(url_for("marketing_team"))
+    return render_template("error.html", code=403,
+                           message="No sections are enabled for your account — ask an admin."), 403
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  Marketing
 # ═══════════════════════════════════════════════════════════════════════════
 @app.route("/marketing")
-@role_required("marketing")
+@feature_required("apartments", "read")
 def marketing_dashboard():
     apartments = db.list_apartments()
     collections = db.collections_by_apartment()
@@ -143,54 +181,106 @@ def marketing_dashboard():
 
 
 @app.route("/marketing/add")
-@role_required("marketing")
+@feature_required("apartments", "edit")
 def marketing_add_page():
     return render_template("marketing/add.html", active="add", hub_names=db.hub_names())
 
 
 @app.route("/marketing/add", methods=["POST"])
-@role_required("marketing")
+@feature_required("apartments", "edit")
 def marketing_add():
     name = request.form.get("name", "").strip()
     hub = request.form.get("hub", "").strip()
     link = request.form.get("location_link", "").strip()
+    code = request.form.get("apartment_code", "").strip()
     if not name or hub not in set(db.hub_names()):
         flash("Apartment name and a valid hub are required", "danger")
         return redirect(url_for("marketing_add_page"))
-    db.add_apartment(name, hub, link, session["user"])
+    if code and db.get_apartment_by_code(code):
+        flash(f"Apartment ID '{code}' is already used", "danger")
+        return redirect(url_for("marketing_add_page"))
+    db.add_apartment(name, hub, link, session["user"], apartment_code=code)
     flash(f"Added '{name}'", "success")
     return redirect(url_for("marketing_add_page"))
 
 
+def _split_row(line):
+    if "\t" in line:
+        parts = line.split("\t")
+    else:
+        parts = line.split(",")
+    return [p.strip() for p in parts]
+
+
 @app.route("/marketing/bulk-upload", methods=["POST"])
-@role_required("marketing")
+@feature_required("apartments", "edit")
 def marketing_bulk_upload():
+    """Bulk apartments: Hub ID, Hub Name, Apartment ID, Apartment Name, Manager Name, Phone.
+    Hub is matched by ID (auto-created from ID+Name if new); apartment is matched by
+    Apartment ID (created or updated); manager name + phone go into the apartment's
+    collection contact (designation left untouched)."""
     raw = request.form.get("bulk_data", "").strip()
     if not raw:
         flash("Nothing to upload", "danger")
         return redirect(url_for("marketing_add_page"))
-    rows, errors = [], []
-    valid_hubs = set(db.hub_names())
+    added = updated = contacts = 0
+    errors = []
     for i, line in enumerate((l for l in raw.splitlines() if l.strip()), 1):
-        parts = [p.strip() for p in line.split(",")]
-        name = parts[0] if parts else ""
-        hub = parts[1] if len(parts) > 1 else ""
-        link = parts[2] if len(parts) > 2 else ""
-        if not name or hub not in valid_hubs:
-            errors.append(f"Row {i}: '{line}'")
+        p = _split_row(line)
+        p += [""] * (6 - len(p))
+        raw_hub_id, hub_name, apt_code, apt_name, mgr_name, phone = p[:6]
+        # header row? (row 1, non-numeric Hub ID, mentions the column names)
+        low = line.lower()
+        if i == 1 and not raw_hub_id.lstrip("-").isdigit() and ("hub" in low or "apartment" in low):
             continue
-        rows.append((name, hub, link))
-    if rows:
-        db.bulk_add_apartments(rows, session["user"])
-    msg = f"Added {len(rows)} apartment(s)"
+        if not apt_name:
+            errors.append(f"Row {i}: no apartment name — '{line}'")
+            continue
+        # resolve hub
+        hub = None
+        if raw_hub_id:
+            try:
+                hid = int(raw_hub_id)
+            except ValueError:
+                errors.append(f"Row {i}: bad Hub ID '{raw_hub_id}'")
+                continue
+            h = db.get_hub(hid)
+            if h:
+                hub = h["hub_name"]
+            elif hub_name:
+                db.add_hub(hid, hub_name)
+                hub = hub_name
+            else:
+                errors.append(f"Row {i}: hub {hid} not found and no name to create it")
+                continue
+        elif hub_name and hub_name in set(db.hub_names()):
+            hub = hub_name
+        else:
+            errors.append(f"Row {i}: no resolvable hub — '{line}'")
+            continue
+        # create or update apartment
+        existing = db.get_apartment_by_code(apt_code) if apt_code else None
+        if existing:
+            db.update_apartment(existing["id"], name=apt_name, hub=hub)
+            apt_id = existing["id"]
+            updated += 1
+        else:
+            apt_id = db.add_apartment(apt_name, hub, "", session["user"], apartment_code=apt_code)
+            added += 1
+        # manager contact → collection (keep any existing designation)
+        if mgr_name or phone:
+            existing_col = db.get_collection(apt_id) or {}
+            db.upsert_contact(apt_id, mgr_name, existing_col.get("designation", ""), phone, session["user"])
+            contacts += 1
+    msg = f"Added {added}, updated {updated} apartment(s); {contacts} manager contact(s)"
     if errors:
-        msg += f" · skipped {len(errors)} (bad name/hub): " + "; ".join(errors[:3])
-    flash(msg, "success" if rows and not errors else "warning")
+        msg += f" · skipped {len(errors)}: " + "; ".join(errors[:3])
+    flash(msg, "success" if (added or updated) and not errors else "warning")
     return redirect(url_for("marketing_add_page"))
 
 
 @app.route("/marketing/contacts/bulk-upload", methods=["POST"])
-@role_required("marketing")
+@feature_required("apartments", "edit")
 def marketing_contacts_bulk_upload():
     raw = request.form.get("contacts_data", "").strip()
     if not raw:
@@ -222,7 +312,7 @@ def marketing_contacts_bulk_upload():
 
 # ── Hubs (master apartment-grouping list) ────────────────────────────────
 @app.route("/marketing/hubs")
-@role_required("marketing")
+@feature_required("hubs", "read")
 def marketing_hubs_page():
     hubs = db.list_hubs()
     counts = {}
@@ -235,7 +325,7 @@ def marketing_hubs_page():
 
 
 @app.route("/marketing/hubs/add", methods=["POST"])
-@role_required("marketing")
+@feature_required("hubs", "edit")
 def marketing_hub_add():
     raw_id = request.form.get("hub_id", "").strip()
     hub_name = request.form.get("hub_name", "").strip()
@@ -254,7 +344,7 @@ def marketing_hub_add():
 
 
 @app.route("/marketing/hubs/bulk-upload", methods=["POST"])
-@role_required("marketing")
+@feature_required("hubs", "edit")
 def marketing_hubs_bulk_upload():
     raw = request.form.get("bulk_data", "").strip()
     if not raw:
@@ -298,7 +388,8 @@ def marketing_hubs_bulk_upload():
 
 
 @app.route("/marketing/hubs/<int:hub_id>/delete", methods=["POST"])
-@role_required("marketing")
+@feature_required("hubs", "read")
+@admin_required
 def marketing_hub_delete(hub_id):
     hub = db.get_hub(hub_id)
     if not hub:
@@ -314,7 +405,7 @@ def marketing_hub_delete(hub_id):
 
 
 @app.route("/marketing/apartment/<int:apt_id>/edit", methods=["POST"])
-@role_required("marketing")
+@feature_required("apartments", "edit")
 def marketing_edit_apartment(apt_id):
     apt = db.get_apartment(apt_id)
     if not apt or apt["deleted"]:
@@ -323,16 +414,20 @@ def marketing_edit_apartment(apt_id):
     name = request.form.get("name", "").strip()
     hub = request.form.get("hub", "").strip()
     link = request.form.get("location_link", "").strip()
+    code = request.form.get("apartment_code", "").strip()
+    clash = db.get_apartment_by_code(code) if code else None
     if not name or hub not in set(db.hub_names()):
         flash("Apartment name and a valid hub are required", "danger")
+    elif clash and clash["id"] != apt_id:
+        flash(f"Apartment ID '{code}' is already used", "danger")
     else:
-        db.update_apartment(apt_id, name=name, hub=hub, location_link=link)
+        db.update_apartment(apt_id, name=name, hub=hub, location_link=link, apartment_code=code)
         flash("Apartment updated", "success")
     return redirect(request.form.get("next") or url_for("marketing_dashboard"))
 
 
 @app.route("/marketing/assign")
-@role_required("marketing")
+@feature_required("assign", "read")
 def marketing_assign_page():
     apartments = db.list_apartments()
     return render_template(
@@ -345,7 +440,7 @@ def marketing_assign_page():
 
 
 @app.route("/marketing/assign", methods=["POST"])
-@role_required("marketing")
+@feature_required("assign", "edit")
 def marketing_assign():
     ids = request.form.getlist("apartment_ids[]")
     assigned_to = request.form.get("assigned_to", "").strip()
@@ -359,7 +454,7 @@ def marketing_assign():
 
 
 @app.route("/marketing/apartment/<int:apt_id>")
-@role_required("marketing")
+@feature_required("apartments", "read")
 def marketing_apartment_detail(apt_id):
     apt = db.get_apartment(apt_id)
     if not apt:
@@ -377,7 +472,8 @@ def marketing_apartment_detail(apt_id):
 
 
 @app.route("/marketing/apartment/<int:apt_id>/delete", methods=["POST"])
-@role_required("marketing")
+@feature_required("apartments", "read")
+@admin_required
 def marketing_delete_apartment(apt_id):
     db.soft_delete_apartment(apt_id)
     flash(f"Apartment #{apt_id} moved to trash", "warning")
@@ -385,7 +481,7 @@ def marketing_delete_apartment(apt_id):
 
 
 @app.route("/marketing/trash")
-@role_required("marketing")
+@feature_required("apartments", "read")
 def marketing_trash():
     return render_template(
         "marketing/trash.html", active="trash",
@@ -394,7 +490,7 @@ def marketing_trash():
 
 
 @app.route("/marketing/apartment/<int:apt_id>/restore", methods=["POST"])
-@role_required("marketing")
+@feature_required("apartments", "edit")
 def marketing_restore_apartment(apt_id):
     db.restore_apartment(apt_id)
     flash(f"Apartment #{apt_id} restored", "success")
@@ -402,13 +498,13 @@ def marketing_restore_apartment(apt_id):
 
 
 @app.route("/marketing/export")
-@role_required("marketing")
+@feature_required("export", "read")
 def marketing_export_page():
     return render_template("marketing/export.html", active="export", hub_names=db.hub_names())
 
 
 @app.route("/marketing/export.xlsx")
-@role_required("marketing")
+@feature_required("export", "read")
 def marketing_export_xlsx():
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment
@@ -501,16 +597,23 @@ def marketing_export_xlsx():
 
 
 @app.route("/marketing/team")
-@role_required("marketing")
+@admin_required
 def marketing_team():
+    users = db.list_users()
+    permissions = {
+        u["username"]: db.list_permissions(u["username"])
+        for u in users if u["workspace"] == "marketing"
+    }
     return render_template(
         "marketing/team.html", active="team",
-        users=db.list_users(), workspace_labels=WORKSPACE_LABELS,
+        users=users, workspace_labels=WORKSPACE_LABELS,
+        features=MARKETING_FEATURES, levels=PERMISSION_LEVELS,
+        permissions=permissions, default_permission="edit",
     )
 
 
 @app.route("/marketing/team/add", methods=["POST"])
-@role_required("marketing")
+@admin_required
 def marketing_team_add():
     username = request.form.get("username", "").strip().lower()
     name = request.form.get("name", "").strip()
@@ -522,12 +625,17 @@ def marketing_team_add():
         flash(f"Username '{username}' is taken", "danger")
     else:
         db.create_user(username, name or username, hash_password(password), workspace)
+        if workspace == "marketing":
+            for key in MARKETING_FEATURE_KEYS:
+                lvl = request.form.get(f"perm_{key}", "edit")
+                if lvl in PERMISSION_LEVELS:
+                    db.set_permission(username, key, lvl)
         flash(f"Added {WORKSPACE_LABELS[workspace]} user '{username}'", "success")
     return redirect(url_for("marketing_team"))
 
 
 @app.route("/marketing/team/<int:user_id>/toggle", methods=["POST"])
-@role_required("marketing")
+@admin_required
 def marketing_team_toggle(user_id):
     u = db.get_user_by_id(user_id)
     if not u:
@@ -540,8 +648,42 @@ def marketing_team_toggle(user_id):
     return redirect(url_for("marketing_team"))
 
 
+@app.route("/marketing/team/<int:user_id>/admin", methods=["POST"])
+@admin_required
+def marketing_team_admin(user_id):
+    u = db.get_user_by_id(user_id)
+    if not u:
+        flash("User not found", "danger")
+    elif u["username"] == session["user"]:
+        flash("You can't change your own admin status", "danger")
+    elif u["workspace"] != "marketing":
+        flash("Only marketing users can be admins", "danger")
+    else:
+        make_admin = not u.get("is_admin")
+        if not make_admin and db.count_admins() <= 1:
+            flash("There must be at least one admin", "danger")
+        else:
+            db.set_user_admin(user_id, make_admin)
+            flash(f"{'Granted' if make_admin else 'Removed'} admin for '{u['username']}'", "success")
+    return redirect(url_for("marketing_team"))
+
+
+@app.route("/marketing/team/<int:user_id>/permissions", methods=["POST"])
+@admin_required
+def marketing_team_permissions(user_id):
+    u = db.get_user_by_id(user_id)
+    if not u or u["workspace"] != "marketing":
+        flash("Marketing user not found", "danger")
+        return redirect(url_for("marketing_team"))
+    for key in MARKETING_FEATURE_KEYS:
+        lvl = request.form.get(f"perm_{key}", "edit")
+        db.set_permission(u["username"], key, lvl if lvl in PERMISSION_LEVELS else "edit")
+    flash(f"Permissions saved for '{u['username']}'", "success")
+    return redirect(url_for("marketing_team"))
+
+
 @app.route("/marketing/team/<int:user_id>/reset-password", methods=["POST"])
-@role_required("marketing")
+@admin_required
 def marketing_team_reset_password(user_id):
     u = db.get_user_by_id(user_id)
     password = request.form.get("password", "")
@@ -557,7 +699,7 @@ def marketing_team_reset_password(user_id):
 #  Marketing · Standee tracker
 # ═══════════════════════════════════════════════════════════════════════════
 @app.route("/marketing/standees")
-@role_required("marketing")
+@feature_required("standees", "read")
 def marketing_standees_page():
     standees = db.list_standees()
     stats = db.standee_stats()
@@ -576,7 +718,7 @@ def marketing_standees_page():
 
 
 @app.route("/marketing/standees/add", methods=["POST"])
-@role_required("marketing")
+@feature_required("standees", "edit")
 def marketing_standee_add():
     name = request.form.get("name", "").strip()
     total = request.form.get("total_units", "0").strip()
@@ -598,7 +740,7 @@ def marketing_standee_add():
 
 
 @app.route("/marketing/standees/<int:standee_id>/reprint", methods=["POST"])
-@role_required("marketing")
+@feature_required("standees", "edit")
 def marketing_standee_reprint(standee_id):
     try:
         added = int(request.form.get("added_units", "0"))
@@ -618,7 +760,7 @@ def marketing_standee_reprint(standee_id):
 
 
 @app.route("/marketing/standees/<int:standee_id>/replace", methods=["POST"])
-@role_required("marketing")
+@feature_required("standees", "edit")
 def marketing_standee_replace(standee_id):
     old = db.get_standee(standee_id)
     new_name = request.form.get("new_name", "").strip()
@@ -648,7 +790,7 @@ def marketing_standee_replace(standee_id):
 
 
 @app.route("/marketing/standees/<int:standee_id>/detail")
-@role_required("marketing")
+@feature_required("standees", "read")
 def marketing_standee_detail(standee_id):
     s = db.get_standee(standee_id)
     if not s:
@@ -679,7 +821,7 @@ def marketing_standee_detail(standee_id):
 
 
 @app.route("/marketing/standees/assign", methods=["POST"])
-@role_required("marketing")
+@feature_required("standees", "edit")
 def marketing_standee_assign():
     standee_id = request.form.get("standee_id", "").strip()
     apartment_id = request.form.get("apartment_id", "").strip()
@@ -702,7 +844,7 @@ def marketing_standee_assign():
 
 
 @app.route("/marketing/standees/assignment/<int:assignment_id>")
-@role_required("marketing")
+@feature_required("standees", "read")
 def marketing_standee_assignment_detail(assignment_id):
     a = db.get_standee_assignment(assignment_id)
     if not a:

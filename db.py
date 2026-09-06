@@ -46,8 +46,17 @@ class SQLiteDatabase:
                 name TEXT NOT NULL DEFAULT '',
                 password_hash TEXT NOT NULL,
                 workspace TEXT NOT NULL DEFAULT 'btl',
+                is_admin INTEGER NOT NULL DEFAULT 0,
                 active INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT NOT NULL DEFAULT ''
+            );
+
+            CREATE TABLE IF NOT EXISTS user_permissions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL,
+                feature TEXT NOT NULL,
+                level TEXT NOT NULL DEFAULT 'edit',
+                UNIQUE(username, feature)
             );
 
             CREATE TABLE IF NOT EXISTS hubs (
@@ -59,6 +68,7 @@ class SQLiteDatabase:
             CREATE TABLE IF NOT EXISTS apartments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
+                apartment_code TEXT NOT NULL DEFAULT '',
                 hub TEXT NOT NULL DEFAULT '',
                 location_link TEXT NOT NULL DEFAULT '',
                 assigned_to TEXT NOT NULL DEFAULT '',
@@ -151,6 +161,8 @@ class SQLiteDatabase:
             "ALTER TABLE standees ADD COLUMN active INTEGER NOT NULL DEFAULT 1",
             "ALTER TABLE standees ADD COLUMN replaced_by INTEGER REFERENCES standees(id)",
             "ALTER TABLE standees ADD COLUMN damaged_resolved INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE apartments ADD COLUMN apartment_code TEXT NOT NULL DEFAULT ''",
         ):
             try:
                 self.conn.execute(stmt)
@@ -205,6 +217,59 @@ class SQLiteDatabase:
     def set_user_password(self, user_id, password_hash):
         self.conn.execute(
             "UPDATE users SET password_hash=? WHERE id=?", (password_hash, int(user_id))
+        )
+        self.conn.commit()
+
+    # ── admin + per-feature permissions ──────────────────────────────────
+    def count_admins(self):
+        return self.conn.execute(
+            "SELECT COUNT(*) FROM users WHERE is_admin=1 AND active=1"
+        ).fetchone()[0]
+
+    def set_user_admin(self, user_id, is_admin):
+        self.conn.execute(
+            "UPDATE users SET is_admin=? WHERE id=?", (1 if is_admin else 0, int(user_id))
+        )
+        self.conn.commit()
+
+    def promote_to_admin(self, username):
+        self.conn.execute(
+            "UPDATE users SET is_admin=1 WHERE username=?", (username,)
+        )
+        self.conn.commit()
+
+    def list_permissions(self, username):
+        rows = self.conn.execute(
+            "SELECT feature, level FROM user_permissions WHERE username=?", (username,)
+        ).fetchall()
+        return {r["feature"]: r["level"] for r in rows}
+
+    def get_permission(self, username, feature):
+        r = self.conn.execute(
+            "SELECT level FROM user_permissions WHERE username=? AND feature=?",
+            (username, feature),
+        ).fetchone()
+        return r["level"] if r else None
+
+    def set_permission(self, username, feature, level):
+        cur = self.conn.execute(
+            "UPDATE user_permissions SET level=? WHERE username=? AND feature=?",
+            (level, username, feature),
+        )
+        if cur.rowcount == 0:
+            self.conn.execute(
+                "INSERT INTO user_permissions (username, feature, level) VALUES (?, ?, ?)",
+                (username, feature, level),
+            )
+        self.conn.commit()
+
+    def set_permissions(self, username, mapping):
+        for feature, level in mapping.items():
+            self.set_permission(username, feature, level)
+
+    def clear_permissions(self, username):
+        self.conn.execute(
+            "DELETE FROM user_permissions WHERE username=?", (username,)
         )
         self.conn.commit()
 
@@ -264,24 +329,33 @@ class SQLiteDatabase:
         self.conn.commit()
 
     # ── apartments ───────────────────────────────────────────────────────
-    def add_apartment(self, name, hub, location_link, created_by):
+    def add_apartment(self, name, hub, location_link, created_by, apartment_code=""):
         cur = self.conn.execute(
-            "INSERT INTO apartments (name, hub, location_link, created_by, created_at) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (name, hub, location_link, created_by, _now()),
+            "INSERT INTO apartments (name, apartment_code, hub, location_link, created_by, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (name, apartment_code, hub, location_link, created_by, _now()),
         )
         self.conn.commit()
         return cur.lastrowid
 
     def bulk_add_apartments(self, rows, created_by):
+        """rows: iterable of (name, hub, location_link, apartment_code)."""
         now = _now()
         self.conn.executemany(
-            "INSERT INTO apartments (name, hub, location_link, created_by, created_at) "
-            "VALUES (?, ?, ?, ?, ?)",
-            [(n, h, l, created_by, now) for (n, h, l) in rows],
+            "INSERT INTO apartments (name, hub, location_link, apartment_code, created_by, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            [(n, h, l, c, created_by, now) for (n, h, l, c) in rows],
         )
         self.conn.commit()
         return len(rows)
+
+    def get_apartment_by_code(self, code):
+        if not code:
+            return None
+        r = self.conn.execute(
+            "SELECT * FROM apartments WHERE apartment_code=? ORDER BY id LIMIT 1", (code,)
+        ).fetchone()
+        return dict(r) if r else None
 
     def list_apartments(self, include_deleted=False):
         sql = "SELECT * FROM apartments"
@@ -309,9 +383,12 @@ class SQLiteDatabase:
         ).fetchone()
         return dict(r) if r else None
 
-    def update_apartment(self, apt_id, name=None, hub=None, location_link=None):
+    def update_apartment(self, apt_id, name=None, hub=None, location_link=None, apartment_code=None):
         sets, vals = [], []
-        for col, val in (("name", name), ("hub", hub), ("location_link", location_link)):
+        for col, val in (
+            ("name", name), ("hub", hub),
+            ("location_link", location_link), ("apartment_code", apartment_code),
+        ):
             if val is not None:
                 sets.append(f"{col}=?")
                 vals.append(val)
@@ -686,7 +763,7 @@ class SupabaseDatabase:
         try:
             r = self.sb.table("users").insert({
                 "username": username, "name": name, "password_hash": password_hash,
-                "workspace": workspace, "active": True, "created_at": _now(),
+                "workspace": workspace, "is_admin": False, "active": True, "created_at": _now(),
             }).execute()
             return r.data[0]["id"] if r.data else None
         except Exception:
@@ -697,6 +774,47 @@ class SupabaseDatabase:
 
     def set_user_password(self, user_id, password_hash):
         self.sb.table("users").update({"password_hash": password_hash}).eq("id", int(user_id)).execute()
+
+    # ── admin + per-feature permissions ──
+    def count_admins(self):
+        r = (
+            self.sb.table("users").select("id", count="exact")
+            .eq("is_admin", True).eq("active", True).limit(1).execute()
+        )
+        return r.count or 0
+
+    def set_user_admin(self, user_id, is_admin):
+        self.sb.table("users").update({"is_admin": bool(is_admin)}).eq("id", int(user_id)).execute()
+
+    def promote_to_admin(self, username):
+        self.sb.table("users").update({"is_admin": True}).eq("username", username).execute()
+
+    def list_permissions(self, username):
+        rows = (
+            self.sb.table("user_permissions").select("feature,level")
+            .eq("username", username).execute().data
+        )
+        return {r["feature"]: r["level"] for r in rows}
+
+    def get_permission(self, username, feature):
+        r = (
+            self.sb.table("user_permissions").select("level")
+            .eq("username", username).eq("feature", feature).limit(1).execute()
+        )
+        return r.data[0]["level"] if r.data else None
+
+    def set_permission(self, username, feature, level):
+        self.sb.table("user_permissions").upsert(
+            {"username": username, "feature": feature, "level": level},
+            on_conflict="username,feature",
+        ).execute()
+
+    def set_permissions(self, username, mapping):
+        for feature, level in mapping.items():
+            self.set_permission(username, feature, level)
+
+    def clear_permissions(self, username):
+        self.sb.table("user_permissions").delete().eq("username", username).execute()
 
     # ── hubs ──
     def list_hubs(self):
@@ -738,24 +856,35 @@ class SupabaseDatabase:
         self.sb.table("hubs").delete().eq("hub_id", int(hub_id)).execute()
 
     # ── apartments ──
-    def add_apartment(self, name, hub, location_link, created_by):
+    def add_apartment(self, name, hub, location_link, created_by, apartment_code=""):
         r = self.sb.table("apartments").insert({
-            "name": name, "hub": hub, "location_link": location_link,
+            "name": name, "apartment_code": apartment_code, "hub": hub,
+            "location_link": location_link,
             "assigned_to": "", "status": STATUS_PENDING, "deleted": False,
             "created_by": created_by, "created_at": _now(),
         }).execute()
         return r.data[0]["id"] if r.data else None
 
     def bulk_add_apartments(self, rows, created_by):
+        """rows: iterable of (name, hub, location_link, apartment_code)."""
         now = _now()
         payload = [{
-            "name": n, "hub": h, "location_link": l, "assigned_to": "",
-            "status": STATUS_PENDING, "deleted": False,
+            "name": n, "hub": h, "location_link": l, "apartment_code": c,
+            "assigned_to": "", "status": STATUS_PENDING, "deleted": False,
             "created_by": created_by, "created_at": now,
-        } for (n, h, l) in rows]
+        } for (n, h, l, c) in rows]
         if payload:
             self.sb.table("apartments").insert(payload).execute()
         return len(payload)
+
+    def get_apartment_by_code(self, code):
+        if not code:
+            return None
+        r = (
+            self.sb.table("apartments").select("*")
+            .eq("apartment_code", code).order("id").limit(1).execute()
+        )
+        return r.data[0] if r.data else None
 
     def list_apartments(self, include_deleted=False):
         q = self.sb.table("apartments").select("*").order("id", desc=True)
@@ -780,7 +909,7 @@ class SupabaseDatabase:
         r = self.sb.table("apartments").select("*").eq("id", int(apt_id)).limit(1).execute()
         return r.data[0] if r.data else None
 
-    def update_apartment(self, apt_id, name=None, hub=None, location_link=None):
+    def update_apartment(self, apt_id, name=None, hub=None, location_link=None, apartment_code=None):
         upd = {}
         if name is not None:
             upd["name"] = name
@@ -788,6 +917,8 @@ class SupabaseDatabase:
             upd["hub"] = hub
         if location_link is not None:
             upd["location_link"] = location_link
+        if apartment_code is not None:
+            upd["apartment_code"] = apartment_code
         if upd:
             self.sb.table("apartments").update(upd).eq("id", int(apt_id)).execute()
 
@@ -1078,3 +1209,18 @@ def ensure_seed_hubs():
     from config import HUBS_SEED
     for hid, hname in HUBS_SEED:
         d.add_hub(hid, hname)
+
+
+def ensure_admin():
+    """Make sure at least one admin exists. Promotes ADMIN_USERNAME (default
+    'gowtham') if it's a marketing user and nobody is admin yet."""
+    d = get_db()
+    try:
+        if d.count_admins() > 0:
+            return
+    except Exception:
+        return
+    username = (os.environ.get("ADMIN_USERNAME", "gowtham").strip() or "gowtham")
+    u = d.get_user(username)
+    if u and u.get("workspace") == "marketing":
+        d.promote_to_admin(username)

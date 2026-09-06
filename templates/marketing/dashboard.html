@@ -35,14 +35,14 @@
         <option value="">All statuses</option>
         <option>Unassigned</option><option>Pending</option><option>Collected</option><option>No Number</option>
       </select>
-      <a href="/marketing/add" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i>Add</a>
+      {% if can('apartments', 'edit') %}<a href="/marketing/add" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i>Add</a>{% endif %}
     </div>
   </div>
   <div class="card-body flush">
     <div class="tbl-wrap">
       <table class="tbl" id="tbl">
         <thead><tr>
-          <th>#</th><th>Apartment</th><th>Hub</th><th>BTL user</th><th>Status</th>
+          <th>#</th><th>Apt ID</th><th>Apartment</th><th>Hub</th><th>BTL user</th><th>Status</th>
           <th>Contact</th><th>Campaigns</th><th style="width:120px;"></th>
         </tr></thead>
         <tbody>
@@ -51,6 +51,7 @@
           {% set eff_status = 'Unassigned' if not apt.assigned_to else apt.status %}
           <tr data-name="{{ apt.name|lower }}" data-hub="{{ apt.hub }}" data-status="{{ eff_status }}">
             <td class="num">{{ apt.id }}</td>
+            <td>{% if apt.apartment_code %}<span class="chip">{{ apt.apartment_code }}</span>{% else %}<span class="subtle">—</span>{% endif %}</td>
             <td>
               <a href="/marketing/apartment/{{ apt.id }}" class="strong">{{ apt.name }}</a>
               {% if apt.location_link %}<a href="{{ apt.location_link }}" target="_blank" style="margin-left:6px; font-size:12px;"><i class="bi bi-geo-alt"></i></a>{% endif %}
@@ -71,13 +72,13 @@
             <td>
               <div style="display:flex; gap:4px;">
                 <a href="/marketing/apartment/{{ apt.id }}" class="btn btn-default btn-icon" title="Details"><i class="bi bi-eye"></i></a>
-                <button class="btn btn-default btn-icon" title="Edit" data-bs-toggle="modal" data-bs-target="#edit{{ apt.id }}"><i class="bi bi-pencil"></i></button>
-                <button class="btn btn-danger btn-icon" title="Delete" data-bs-toggle="modal" data-bs-target="#del{{ apt.id }}"><i class="bi bi-trash3"></i></button>
+                {% if can('apartments', 'edit') %}<button class="btn btn-default btn-icon" title="Edit" data-bs-toggle="modal" data-bs-target="#edit{{ apt.id }}"><i class="bi bi-pencil"></i></button>{% endif %}
+                {% if is_admin %}<button class="btn btn-danger btn-icon" title="Delete" data-bs-toggle="modal" data-bs-target="#del{{ apt.id }}"><i class="bi bi-trash3"></i></button>{% endif %}
               </div>
             </td>
           </tr>
           {% else %}
-          <tr><td colspan="8"><div class="empty"><i class="bi bi-inbox"></i><div class="t">No apartments yet.</div></div></td></tr>
+          <tr><td colspan="9"><div class="empty"><i class="bi bi-inbox"></i><div class="t">No apartments yet.</div></div></td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -86,6 +87,7 @@
 </div>
 
 {% for apt in apartments %}
+{% if can('apartments', 'edit') %}
 <div class="modal fade" id="edit{{ apt.id }}" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <form class="modal-content" method="post" action="/marketing/apartment/{{ apt.id }}/edit">
@@ -94,6 +96,8 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
       <div class="modal-body">
         <div class="field"><label>Apartment name</label><input type="text" name="name" value="{{ apt.name }}" required></div>
+        <div class="field"><label>Apartment ID <span class="hint">your own numbering, optional</span></label>
+          <input type="text" name="apartment_code" value="{{ apt.apartment_code }}" placeholder="e.g. 105"></div>
         <div class="field"><label>Hub</label>
           <select name="hub" required>{% for h in hub_names %}<option {{ 'selected' if h == apt.hub }}>{{ h }}</option>{% endfor %}</select>
         </div>
@@ -107,6 +111,8 @@
     </form>
   </div>
 </div>
+{% endif %}
+{% if is_admin %}
 <div class="modal fade" id="del{{ apt.id }}" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <form class="modal-content" method="post" action="/marketing/apartment/{{ apt.id }}/delete">
@@ -120,6 +126,7 @@
     </form>
   </div>
 </div>
+{% endif %}
 {% endfor %}
 {% endblock %}
 
