@@ -839,6 +839,13 @@ class SQLiteDatabase:
         ).fetchall()
         return [dict(r) for r in rows]
 
+    # ── media (local dev writes to disk in app._save_photos; nothing to do here) ──
+    def ensure_media_bucket(self):
+        return None
+
+
+MEDIA_BUCKET = "media"
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  Supabase backend (production)
@@ -1354,6 +1361,32 @@ class SupabaseDatabase:
             self.sb.table("standee_photos").select("*").eq("assignment_id", int(assignment_id))
             .order("id").execute().data
         )
+
+    # ── media: a public Storage bucket, so uploads survive Render redeploys ──
+    def ensure_media_bucket(self):
+        try:
+            self.sb.storage.create_bucket(
+                MEDIA_BUCKET,
+                options={
+                    "public": True,
+                    "file_size_limit": 20 * 1024 * 1024,
+                    "allowed_mime_types": [
+                        "image/jpeg", "image/png", "image/webp",
+                        "image/gif", "image/heic",
+                    ],
+                },
+            )
+        except Exception:
+            pass  # already exists (or perms) — fine
+
+    def upload_media(self, key, data, content_type):
+        """Upload bytes to the public 'media' bucket; return the public URL."""
+        self.sb.storage.from_(MEDIA_BUCKET).upload(
+            key, data,
+            {"content-type": content_type or "application/octet-stream", "upsert": "true"},
+        )
+        url = self.sb.storage.from_(MEDIA_BUCKET).get_public_url(key)
+        return (url or "").rstrip("?")
 
 
 # ═══════════════════════════════════════════════════════════════════════════

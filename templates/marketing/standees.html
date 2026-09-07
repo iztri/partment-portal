@@ -110,7 +110,7 @@
             {% set replacement = standees_by_id.get(s.replaced_by) if s.replaced_by else None %}
             <tr>
               <td>
-                {% if s.photo_path %}<img class="thumb" src="/static/{{ s.photo_path }}">{% endif %}
+                {% if s.photo_path %}<img class="thumb" src="{{ s.photo_path | media }}">{% endif %}
                 <span class="strong">{{ s.name }}</span>
                 {% if not s.active %}<span class="badge badge-off" style="margin-left:6px;">Discontinued</span>{% endif %}
                 {% if replacement %}<div class="subtle" style="font-size:11px; margin-top:2px;">→ replaced by {{ replacement.name }}</div>{% endif %}
@@ -217,7 +217,7 @@
               {% for a in assignments %}
               <tr>
                 <td class="strong">{{ a.apartment_name }}</td>
-                <td class="muted">{% if a.standee_photo %}<img class="thumb" src="/static/{{ a.standee_photo }}">{% endif %}{{ a.standee_name }}</td>
+                <td class="muted">{% if a.standee_photo %}<img class="thumb" src="{{ a.standee_photo | media }}">{% endif %}{{ a.standee_name }}</td>
                 <td>
                   {% if can('standees', 'edit') and a.status != 'Collected' %}
                   <form method="post" action="/marketing/standees/assignment/{{ a.id }}/quantity" style="display:flex; gap:4px; align-items:center;">
@@ -235,7 +235,7 @@
                 <td>
                   <div style="display:flex; gap:4px; align-items:center;">
                     {% if a.invoice_photo %}
-                    <a href="/static/{{ a.invoice_photo }}" target="_blank" class="btn btn-default btn-icon" title="View payment proof{{ ' · ' ~ a.invoice_note if a.invoice_note }}"><i class="bi bi-receipt" style="color:var(--accent);"></i></a>
+                    <a href="{{ a.invoice_photo | media }}" target="_blank" class="btn btn-default btn-icon" title="View payment proof{{ ' · ' ~ a.invoice_note if a.invoice_note }}"><i class="bi bi-receipt" style="color:var(--accent);"></i></a>
                     {% elif a.invoice_note %}
                     <span class="subtle" title="{{ a.invoice_note }}"><i class="bi bi-sticky"></i></span>
                     {% else %}<span class="subtle">—</span>{% endif %}
@@ -279,7 +279,7 @@
           <tbody>
             {% for p in active_placements %}
             <tr><td class="strong">{{ p.apartment_name }}</td><td class="muted">{{ p.apartment_hub }}</td>
-              <td class="muted">{% if p.standee_photo %}<img class="thumb" src="/static/{{ p.standee_photo }}">{% endif %}{{ p.standee_name }}</td>
+              <td class="muted">{% if p.standee_photo %}<img class="thumb" src="{{ p.standee_photo | media }}">{% endif %}{{ p.standee_name }}</td>
               <td>{{ p.quantity }}</td></tr>
             {% else %}
             <tr><td colspan="4"><div class="empty"><i class="bi bi-geo-alt"></i><div class="t">Nothing placed right now.</div></div></td></tr>
@@ -307,7 +307,7 @@
             {% for a in assignments %}
             <tr data-status="{{ a.status }}">
               <td class="num">{{ a.id }}</td>
-              <td class="strong">{% if a.standee_photo %}<img class="thumb" src="/static/{{ a.standee_photo }}">{% endif %}{{ a.standee_name }}</td>
+              <td class="strong">{% if a.standee_photo %}<img class="thumb" src="{{ a.standee_photo | media }}">{% endif %}{{ a.standee_name }}</td>
               <td class="muted">{{ a.apartment_name }}</td>
               <td class="muted">{{ a.assigned_to }}</td>
               <td>{{ a.quantity }}</td>
@@ -661,7 +661,7 @@
         document.getElementById('adId').textContent = '#' + d.id;
         document.getElementById('adStandeeName').textContent = d.standee_name;
         var photoEl = document.getElementById('adStandeePhoto');
-        if(d.standee_photo){ photoEl.src = '/static/' + d.standee_photo; photoEl.hidden = false; } else { photoEl.hidden = true; }
+        if(d.standee_photo_url){ photoEl.src = d.standee_photo_url; photoEl.hidden = false; } else { photoEl.hidden = true; }
         document.getElementById('adApt').textContent = d.apartment_name + ' (' + d.apartment_hub + ')';
         document.getElementById('adUser').textContent = d.assigned_to;
         document.getElementById('adQty').textContent = d.quantity;

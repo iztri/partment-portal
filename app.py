@@ -3,6 +3,7 @@
 Run locally:  PORT=5055 python3 app.py
 """
 
+import mimetypes
 import os
 import uuid
 from datetime import date
@@ -17,7 +18,7 @@ from auth import (
     authenticate, logout, ensure_seed_admin, hash_password,
     effective_level, is_admin_user,
 )
-from db import get_db, ensure_seed_hubs, ensure_admin
+from db import get_db, ensure_seed_hubs, ensure_admin, _use_supabase
 from config import (
     MARKETING_CAMPAIGNS, DESIGNATIONS, WORKSPACE_LABELS,
     STATUS_PENDING, STATUS_COLLECTED, STATUS_NO_NUMBER,
@@ -38,7 +39,24 @@ ensure_seed_admin()
 ensure_seed_hubs()
 ensure_admin()
 
+# When running on the Supabase backend, uploaded images go to a public Storage
+# bucket (durable across Render redeploys). Local dev keeps writing to static/.
+MEDIA_REMOTE = _use_supabase()
+db.ensure_media_bucket()
+
 ALLOWED_IMAGE_EXT = {"jpg", "jpeg", "png", "webp", "gif", "heic"}
+
+
+def _media_url(p):
+    """A stored image reference -> a browser URL.
+    Supabase Storage values are already absolute https URLs; local ones are
+    paths under static/."""
+    if not p:
+        return ""
+    return p if p.startswith(("http://", "https://")) else f"/static/{p}"
+
+
+app.add_template_filter(_media_url, "media")
 
 
 @app.context_processor
@@ -99,8 +117,10 @@ def _apartment_stats(apartments):
 
 
 def _save_photos(files, subdir):
-    """Save uploaded image files under static/uploads/standees/<subdir>/.
-    Returns the list of saved paths, relative to the static folder."""
+    """Persist uploaded image files. On the Supabase backend they go to the public
+    'media' Storage bucket (returns absolute https URLs); locally they go under
+    static/uploads/ (returns 'uploads/...' paths). Use the `media` filter / helper
+    to turn either form into a browser URL."""
     saved = []
     folder = os.path.join(app.static_folder, "uploads", "standees", str(subdir))
     for f in files or []:
@@ -109,10 +129,18 @@ def _save_photos(files, subdir):
         ext = f.filename.rsplit(".", 1)[-1].lower() if "." in f.filename else ""
         if ext not in ALLOWED_IMAGE_EXT:
             continue
-        os.makedirs(folder, exist_ok=True)
         fname = f"{uuid.uuid4().hex}.{ext}"
-        f.save(os.path.join(folder, fname))
-        saved.append(f"uploads/standees/{subdir}/{fname}")
+        if MEDIA_REMOTE:
+            data = f.read()
+            ctype = f.mimetype or mimetypes.guess_type(fname)[0] or "application/octet-stream"
+            try:
+                saved.append(db.upload_media(f"standees/{subdir}/{fname}", data, ctype))
+            except Exception:
+                app.logger.exception("media upload failed: standees/%s/%s", subdir, fname)
+        else:
+            os.makedirs(folder, exist_ok=True)
+            f.save(os.path.join(folder, fname))
+            saved.append(f"uploads/standees/{subdir}/{fname}")
     return saved
 
 
@@ -889,7 +917,7 @@ def marketing_standee_detail(standee_id):
     history = [
         a for a in db.list_standee_assignments() if a["standee_id"] == standee_id
     ]
-    s["photo_url"] = f"/static/{s['photo_path']}" if s.get("photo_path") else ""
+    s["photo_url"] = _media_url(s.get("photo_path"))
     s["stats"] = db.standee_stats().get(standee_id, {})
     s["replaced_by_name"] = replaced_by["name"] if replaced_by else None
     s["replaced_by_id"] = replaced_by["id"] if replaced_by else None
@@ -987,10 +1015,11 @@ def marketing_standee_assignment_detail(assignment_id):
     if not a:
         return {"error": "not found"}, 404
     a["photos"] = [
-        {"kind": p["kind"], "url": f"/static/{p['path']}", "uploaded_at": p["uploaded_at"]}
+        {"kind": p["kind"], "url": _media_url(p["path"]), "uploaded_at": p["uploaded_at"]}
         for p in db.photos_for(assignment_id)
     ]
-    a["invoice_url"] = f"/static/{a['invoice_photo']}" if a.get("invoice_photo") else ""
+    a["invoice_url"] = _media_url(a.get("invoice_photo"))
+    a["standee_photo_url"] = _media_url(a.get("standee_photo"))
     return a
 
 

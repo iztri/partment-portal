@@ -131,7 +131,7 @@
     <div style="min-width:0;">
       <div class="st-top">
         <div class="st-name">
-          {% if a.standee_photo %}<img src="/static/{{ a.standee_photo }}">{% endif %}
+          {% if a.standee_photo %}<img src="{{ a.standee_photo | media }}">{% endif %}
           <h3>{{ a.standee_name }} <span class="subtle" style="font-weight:500;">× {{ a.quantity }}</span></h3>
         </div>
         {% if a.status == 'Assigned' %}<span class="badge badge-live">To place</span>
