@@ -35,11 +35,14 @@ create table if not exists hubs (
 );
 
 insert into hubs (hub_id, hub_name) values
+    (0, 'Unmapped'),
     (1, 'Arekere'),
+    (7, 'Brigade Omega'),
     (8, 'Elita Promenade'),
     (9, 'Nandi Citadel'),
     (12, 'Godrej E-city'),
     (11, 'Sattva Misty Charm'),
+    (13, 'Brigade Meadows'),
     (28, 'Prestige Jindal City'),
     (20, 'Brigade Panorama'),
     (31, 'House of Hiranandani'),

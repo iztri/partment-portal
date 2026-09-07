@@ -31,9 +31,12 @@ MARKETING_CAMPAIGNS = [
 # This is only the first-run seed — (hub_id, hub_name), IDs come from the
 # marketing team's own numbering, not necessarily sequential.
 HUBS_SEED = [
+    (0, "Unmapped"),          # bucket for apartments not yet assigned to a real hub
     (1, "Arekere"),
+    (7, "Brigade Omega"),
     (8, "Elita Promenade"),
     (9, "Nandi Citadel"),
+    (13, "Brigade Meadows"),
     (12, "Godrej E-city"),
     (11, "Sattva Misty Charm"),
     (28, "Prestige Jindal City"),
