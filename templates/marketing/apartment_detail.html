@@ -115,7 +115,10 @@
         <div class="field"><label>Apartment ID <span class="hint">your own numbering, optional</span></label>
           <input type="text" name="apartment_code" value="{{ apt.apartment_code }}" placeholder="e.g. 105"></div>
         <div class="field"><label>Hub</label>
-          <select name="hub" required>{% for h in hub_names %}<option {{ 'selected' if h == apt.hub }}>{{ h }}</option>{% endfor %}</select></div>
+          <select name="hub" required>
+            {% if apt.hub and apt.hub not in hub_names %}<option value="" selected>— {{ apt.hub }}: pick a hub —</option>{% endif %}
+            {% for h in hub_names %}<option {{ 'selected' if h == apt.hub }}>{{ h }}</option>{% endfor %}
+          </select></div>
         <div class="field"><label>Location link <span class="hint">optional</span></label>
           <input type="url" name="location_link" value="{{ apt.location_link }}"></div>
       </div>

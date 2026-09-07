@@ -30,6 +30,7 @@
       <select id="fHub" style="width:auto; font-size:12.5px; padding:7px 28px 7px 10px;">
         <option value="">All hubs</option>
         {% for h in hub_names %}<option value="{{ h }}">{{ h }}</option>{% endfor %}
+        {% for h in apartments | map(attribute='hub') | unique %}{% if h and h not in hub_names %}<option value="{{ h }}">{{ h }}</option>{% endif %}{% endfor %}
       </select>
       <select id="fStatus" style="width:auto; font-size:12.5px; padding:7px 28px 7px 10px;">
         <option value="">All statuses</option>
@@ -60,10 +61,10 @@
             <td>{% if apt.assigned_to %}<span class="chip"><i class="bi bi-person"></i>{{ apt.assigned_to }}</span>{% else %}<span class="subtle">—</span>{% endif %}</td>
             <td>{{ status_badge(apt) }}{% if apt.recollect_at %} <span class="badge badge-alt" title="Sent for a fresh number"><i class="bi bi-arrow-repeat"></i></span>{% endif %}</td>
             <td>
-              {% if col and col.outcome == 'number' %}
-                {% if col.contact_name %}<span class="strong">{{ col.contact_name }}</span> ·{% endif %}
-                <span class="strong">{{ col.phone }}</span>
-                <span class="subtle" style="font-size:12px;">· {{ col.designation }}</span>
+              {% if col and col.outcome == 'number' and (col.phone or col.contact_name) %}
+                {% if col.contact_name %}<span class="strong">{{ col.contact_name }}</span>{% endif %}
+                {% if col.phone %}{% if col.contact_name %} · {% endif %}<span class="strong">{{ col.phone }}</span>{% endif %}
+                {% if col.designation %}<span class="subtle" style="font-size:12px;"> · {{ col.designation }}</span>{% endif %}
               {% elif col and col.outcome == 'no_number' %}
                 <span class="subtle">No number{% if col.no_number_reason %} — {{ col.no_number_reason }}{% endif %}</span>
               {% else %}<span class="subtle">—</span>{% endif %}
@@ -99,7 +100,10 @@
         <div class="field"><label>Apartment ID <span class="hint">your own numbering, optional</span></label>
           <input type="text" name="apartment_code" value="{{ apt.apartment_code }}" placeholder="e.g. 105"></div>
         <div class="field"><label>Hub</label>
-          <select name="hub" required>{% for h in hub_names %}<option {{ 'selected' if h == apt.hub }}>{{ h }}</option>{% endfor %}</select>
+          <select name="hub" required>
+            {% if apt.hub and apt.hub not in hub_names %}<option value="" selected>— {{ apt.hub }}: pick a hub —</option>{% endif %}
+            {% for h in hub_names %}<option {{ 'selected' if h == apt.hub }}>{{ h }}</option>{% endfor %}
+          </select>
         </div>
         <div class="field"><label>Location link <span class="hint">optional</span></label>
           <input type="url" name="location_link" value="{{ apt.location_link }}" placeholder="https://maps.google.com/…"></div>
