@@ -144,19 +144,6 @@ def _save_photos(files, subdir):
     return saved
 
 
-def _resolve_location_pair(select_name, detail_name):
-    """hub-or-active-placement-or-custom pattern used by the standee location pickers."""
-    hub = request.form.get(select_name, "").strip()
-    detail = request.form.get(detail_name, "").strip()
-    if hub == "__custom__":
-        return detail
-    if hub.startswith("apt:"):
-        return hub[4:]
-    if hub:
-        return (hub + " - " + detail).strip(" -") if detail else hub
-    return detail
-
-
 # ── auth ─────────────────────────────────────────────────────────────────
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -241,127 +228,6 @@ def marketing_add():
         return redirect(url_for("marketing_add_page"))
     db.add_apartment(name, hub, link, session["user"], apartment_code=code)
     flash(f"Added '{name}'", "success")
-    return redirect(url_for("marketing_add_page"))
-
-
-def _split_row(line):
-    if "\t" in line:
-        parts = line.split("\t")
-    else:
-        parts = line.split(",")
-    return [p.strip() for p in parts]
-
-
-def _match_designation(raw):
-    """Canonical designation for a bulk-upload cell, or '' if blank/unrecognised."""
-    raw = (raw or "").strip()
-    if not raw:
-        return ""
-    for d in DESIGNATIONS:
-        if d.lower() == raw.lower():
-            return d
-    return ""
-
-
-@app.route("/marketing/bulk-upload", methods=["POST"])
-@feature_required("apartments", "edit")
-def marketing_bulk_upload():
-    """Bulk apartments: Hub ID, Hub Name, Apartment ID, Apartment Name, Manager Name,
-    Phone, Designation. Hub is matched by ID (auto-created from ID+Name if new);
-    apartment is matched by Apartment ID (created or updated); manager name + phone +
-    designation go into the apartment's collection contact. Designation must be one of
-    Security / Apartment Manager / Association Member (blank keeps any existing one)."""
-    raw = request.form.get("bulk_data", "").strip()
-    if not raw:
-        flash("Nothing to upload", "danger")
-        return redirect(url_for("marketing_add_page"))
-    added = updated = contacts = 0
-    errors = []
-    for i, line in enumerate((l for l in raw.splitlines() if l.strip()), 1):
-        p = _split_row(line)
-        p += [""] * (7 - len(p))
-        raw_hub_id, hub_name, apt_code, apt_name, mgr_name, phone, raw_desig = p[:7]
-        # header row? (row 1, non-numeric Hub ID, mentions the column names)
-        low = line.lower()
-        if i == 1 and not raw_hub_id.lstrip("-").isdigit() and ("hub" in low or "apartment" in low):
-            continue
-        if not apt_name:
-            errors.append(f"Row {i}: no apartment name — '{line}'")
-            continue
-        # resolve hub
-        hub = None
-        if raw_hub_id:
-            try:
-                hid = int(raw_hub_id)
-            except ValueError:
-                errors.append(f"Row {i}: bad Hub ID '{raw_hub_id}'")
-                continue
-            h = db.get_hub(hid)
-            if h:
-                hub = h["hub_name"]
-            elif hub_name:
-                db.add_hub(hid, hub_name)
-                hub = hub_name
-            else:
-                errors.append(f"Row {i}: hub {hid} not found and no name to create it")
-                continue
-        elif hub_name and hub_name in set(db.hub_names()):
-            hub = hub_name
-        else:
-            errors.append(f"Row {i}: no resolvable hub — '{line}'")
-            continue
-        # create or update apartment
-        existing = db.get_apartment_by_code(apt_code) if apt_code else None
-        if existing:
-            db.update_apartment(existing["id"], name=apt_name, hub=hub)
-            apt_id = existing["id"]
-            updated += 1
-        else:
-            apt_id = db.add_apartment(apt_name, hub, "", session["user"], apartment_code=apt_code)
-            added += 1
-        # manager contact → collection
-        if mgr_name or phone or raw_desig:
-            existing_col = db.get_collection(apt_id) or {}
-            desig = _match_designation(raw_desig) or existing_col.get("designation", "")
-            if raw_desig and not _match_designation(raw_desig):
-                errors.append(f"Row {i}: unknown designation '{raw_desig}' (ignored)")
-            db.upsert_contact(apt_id, mgr_name, desig, phone, session["user"])
-            contacts += 1
-    msg = f"Added {added}, updated {updated} apartment(s); {contacts} manager contact(s)"
-    if errors:
-        msg += f" · skipped {len(errors)}: " + "; ".join(errors[:3])
-    flash(msg, "success" if (added or updated) and not errors else "warning")
-    return redirect(url_for("marketing_add_page"))
-
-
-@app.route("/marketing/contacts/bulk-upload", methods=["POST"])
-@feature_required("apartments", "edit")
-def marketing_contacts_bulk_upload():
-    raw = request.form.get("contacts_data", "").strip()
-    if not raw:
-        flash("Nothing to upload", "danger")
-        return redirect(url_for("marketing_add_page"))
-    apts_by_name = {a["name"].strip().lower(): a for a in db.list_apartments()}
-    updated, errors = 0, []
-    for i, line in enumerate((l for l in raw.splitlines() if l.strip()), 1):
-        parts = [p.strip() for p in line.split(",")]
-        if len(parts) < 4:
-            errors.append(f"Row {i}: need 4 fields — '{line}'")
-            continue
-        apt_name, contact_name, designation, phone = parts[0], parts[1], parts[2], parts[3]
-        apt = apts_by_name.get(apt_name.lower())
-        if not apt:
-            errors.append(f"Row {i}: no apartment named '{apt_name}'")
-            continue
-        if designation not in DESIGNATIONS:
-            errors.append(f"Row {i}: invalid designation '{designation}'")
-            continue
-        db.upsert_contact(apt["id"], contact_name, designation, phone, session["user"])
-        updated += 1
-    msg = f"Updated {updated} contact(s)"
-    if errors:
-        msg += f" · skipped {len(errors)}: " + "; ".join(errors[:3])
-    flash(msg, "success" if updated and not errors else "warning")
     return redirect(url_for("marketing_add_page"))
 
 
@@ -954,12 +820,11 @@ def marketing_standee_assign():
     except ValueError:
         flash("Quantity and duration must be numbers", "danger")
         return redirect(url_for("marketing_standees_page"))
-    loc = _resolve_location_pair("collection_location", "collection_location_detail")
+    loc = request.form.get("collection_location", "").strip()
     inv = _save_photos([request.files.get("invoice_photo")], "invoices")
     db.create_standee_assignment(
         standee_id, apartment_id, assigned_to, qty, days, loc, session["user"],
         invoice_photo=(inv[0] if inv else ""),
-        invoice_note=request.form.get("invoice_note", "").strip(),
     )
     flash("Standee assigned", "success")
     return redirect(url_for("marketing_standees_page") + "#assign")
@@ -974,12 +839,11 @@ def marketing_standee_assignment_invoice(assignment_id):
         flash("Assignment not found", "danger")
         return redirect(back)
     inv = _save_photos([request.files.get("invoice_photo")], "invoices")
-    note = request.form.get("invoice_note", "").strip()
-    if not inv and not note and not a.get("invoice_photo"):
-        flash("Add a payment photo or a note", "danger")
+    if not inv:
+        flash("Choose a payment proof photo to upload", "danger")
         return redirect(back)
-    db.set_assignment_invoice(assignment_id, inv[0] if inv else "", note, session["user"])
-    flash(f"Invoice updated for {a['standee_name']} @ {a['apartment_name']}", "success")
+    db.set_assignment_invoice(assignment_id, inv[0], "", session["user"])
+    flash(f"Payment proof updated for {a['standee_name']} @ {a['apartment_name']}", "success")
     return redirect(back)
 
 

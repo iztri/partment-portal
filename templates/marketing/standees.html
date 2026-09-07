@@ -1,24 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Standees · Apartment Portal{% endblock %}
 
-{% macro location_picker(select_name, detail_name, placeholder) %}
-<select name="{{ select_name }}" style="margin-bottom:8px;">
-  <option value="">— Select hub or active placement —</option>
-  {% if active_placements %}
-  <optgroup label="Active placements">
-    {% for p in active_placements %}
-    <option value="apt:{{ p.apartment_name }} ({{ p.apartment_hub }})">{{ p.standee_name }} → {{ p.apartment_name }}</option>
-    {% endfor %}
-  </optgroup>
-  {% endif %}
-  <optgroup label="Hubs">
-    {% for h in hub_names %}<option value="{{ h }}">{{ h }}</option>{% endfor %}
-  </optgroup>
-  <option value="__custom__">Other (type below)</option>
-</select>
-<input type="text" name="{{ detail_name }}" placeholder="{{ placeholder }}">
-{% endmacro %}
-
 {% macro status_badge(s) %}
   {% if s == 'Assigned' %}<span class="badge badge-live">Assigned</span>
   {% elif s == 'Placed' %}<span class="badge badge-alt">Placed</span>
@@ -70,11 +52,13 @@
   {% set inv_active = stats.values()|sum(attribute='placed') %}
   {% set inv_available = stats.values()|sum(attribute='available') %}
   {% set inv_damaged = stats.values()|sum(attribute='damaged') %}
+  {% set inv_lost = stats.values()|sum(attribute='lost') %}
   <div class="stats">
     <div class="stat"><div class="n">{{ inv_total }}</div><div class="l">Total standees</div></div>
     <div class="stat live"><div class="n">{{ inv_active }}</div><div class="l">On active placement</div></div>
     <div class="stat accent"><div class="n">{{ inv_available }}</div><div class="l">Available to execute</div></div>
     <div class="stat"><div class="n" style="color:var(--danger-fg);">{{ inv_damaged }}</div><div class="l">Damaged</div></div>
+    <div class="stat"><div class="n" style="color:var(--danger-fg);">{{ inv_lost }}</div><div class="l">Total lost</div></div>
   </div>
 
   {% if can('standees', 'edit') %}
@@ -191,16 +175,15 @@
             <div class="field"><label>Duration <span class="hint">days</span></label><input type="number" name="duration_days" min="1" placeholder="e.g. 7" required></div>
           </div>
           <div class="field">
-            <label>Pickup location <span class="hint">where the coordinator collects it from, optional</span></label>
-            {{ location_picker('collection_location', 'collection_location_detail', 'Floor, block, room…') }}
+            <label>Pickup location <span class="hint">which hub the coordinator collects it from, optional</span></label>
+            <select name="collection_location">
+              <option value="">— Select hub —</option>
+              {% for h in hub_names %}<option>{{ h }}</option>{% endfor %}
+            </select>
           </div>
           <div class="field">
-            <label>Payment proof <span class="hint">photo of the paid invoice, optional</span></label>
+            <label>Payment proof <span class="hint">photo of the paid payment detail, optional</span></label>
             <input type="file" name="invoice_photo" accept="image/*">
-          </div>
-          <div class="field">
-            <label>Invoice note <span class="hint">optional — number, amount, reference</span></label>
-            <input type="text" name="invoice_note" placeholder="e.g. INV-2231 · ₹4,500">
           </div>
           <button type="submit" class="btn btn-primary btn-block" {{ 'disabled' if not btl_users }}><i class="bi bi-send"></i>Assign standee</button>
         </form>
@@ -212,10 +195,11 @@
       <div class="card-body flush" style="max-height:65vh; overflow-y:auto;">
         <div class="tbl-wrap">
           <table class="tbl">
-            <thead><tr><th>Apartment</th><th>Standee</th><th>Qty</th><th>Coordinator</th><th>Status</th><th>Placed</th><th>Collect by</th><th>Invoice</th><th style="width:40px;"></th></tr></thead>
+            <thead><tr><th style="width:44px;">#</th><th>Apartment</th><th>Standee</th><th>Qty</th><th>Coordinator</th><th>Status</th><th>Placed</th><th>Collect by</th><th>Proof</th><th style="width:40px;"></th></tr></thead>
             <tbody>
               {% for a in assignments %}
               <tr>
+                <td class="num">{{ a.id }}</td>
                 <td class="strong">{{ a.apartment_name }}</td>
                 <td class="muted">{% if a.standee_photo %}<img class="thumb" src="{{ a.standee_photo | media }}">{% endif %}{{ a.standee_name }}</td>
                 <td>
@@ -235,20 +219,18 @@
                 <td>
                   <div style="display:flex; gap:4px; align-items:center;">
                     {% if a.invoice_photo %}
-                    <a href="{{ a.invoice_photo | media }}" target="_blank" class="btn btn-default btn-icon" title="View payment proof{{ ' · ' ~ a.invoice_note if a.invoice_note }}"><i class="bi bi-receipt" style="color:var(--accent);"></i></a>
-                    {% elif a.invoice_note %}
-                    <span class="subtle" title="{{ a.invoice_note }}"><i class="bi bi-sticky"></i></span>
+                    <a href="{{ a.invoice_photo | media }}" target="_blank" class="btn btn-default btn-icon" title="View payment proof"><i class="bi bi-receipt" style="color:var(--accent);"></i></a>
                     {% else %}<span class="subtle">—</span>{% endif %}
                     {% if can('standees', 'edit') %}
-                    <button type="button" class="btn btn-default btn-icon" title="Add / replace invoice"
-                            onclick="openInvoiceModal({{ a.id }}, {{ 'true' if a.invoice_photo else 'false' }}, '{{ (a.invoice_note or '')|replace("'", "\\'") }}')"><i class="bi bi-pencil"></i></button>
+                    <button type="button" class="btn btn-default btn-icon" title="Add / replace payment proof"
+                            onclick="openInvoiceModal({{ a.id }}, {{ 'true' if a.invoice_photo else 'false' }})"><i class="bi bi-pencil"></i></button>
                     {% endif %}
                   </div>
                 </td>
                 <td><button class="btn btn-default btn-icon" onclick="openAssignmentDetail({{ a.id }})" title="View"><i class="bi bi-eye"></i></button></td>
               </tr>
               {% else %}
-              <tr><td colspan="9"><div class="empty"><i class="bi bi-signpost-2"></i><div class="t">No assignments yet.</div></div></td></tr>
+              <tr><td colspan="10"><div class="empty"><i class="bi bi-signpost-2"></i><div class="t">No assignments yet.</div></div></td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -499,7 +481,7 @@
           <div id="adDamageNoteWrap" class="alert alert-warning mb-0" hidden style="margin-top:6px;"><i class="bi bi-exclamation-triangle-fill"></i><span id="adDamageNote"></span></div>
           <div class="divider"></div>
           <div class="field">
-            <label>Payment invoice</label>
+            <label>Payment proof</label>
             <div id="adInvoice" class="muted">—</div>
           </div>
           <div class="field mb-0">
@@ -516,17 +498,15 @@
 <div class="modal fade" id="invoiceModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <form class="modal-content" method="post" id="invoiceForm" enctype="multipart/form-data">
-      <div class="modal-header"><span class="modal-title">Payment invoice</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-header"><span class="modal-title">Payment proof</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
       <div class="modal-body">
         <div id="invoiceHasPhoto" class="muted mb-0" hidden style="margin-bottom:10px;"><i class="bi bi-check-circle-fill" style="color:var(--accent);"></i> A payment photo is already on file — uploading a new one replaces it.</div>
-        <div class="field"><label>Payment proof photo</label>
-          <input type="file" name="invoice_photo" accept="image/*"></div>
-        <div class="field mb-0"><label>Invoice note <span class="hint">optional</span></label>
-          <input type="text" name="invoice_note" id="invoiceNote" placeholder="e.g. INV-2231 · ₹4,500"></div>
+        <div class="field mb-0"><label>Payment proof photo <span class="hint">photo of the paid payment detail</span></label>
+          <input type="file" name="invoice_photo" accept="image/*" required></div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-default" data-bs-dismiss="modal">Cancel</button>
-        <button type="submit" class="btn btn-primary"><i class="bi bi-upload"></i>Save invoice</button>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-upload"></i>Save payment proof</button>
       </div>
     </form>
   </div>
@@ -682,10 +662,7 @@
         document.getElementById('adUpdated').textContent = d.updated_at ? d.updated_at.slice(0,16) : '—';
         var inv = document.getElementById('adInvoice');
         if(d.invoice_url){
-          inv.innerHTML = '<a href="' + d.invoice_url + '" target="_blank" class="photo-thumb" style="display:inline-block; width:96px; aspect-ratio:1;"><img src="' + d.invoice_url + '"></a>' +
-            (d.invoice_note ? '<div class="muted" style="font-size:12.5px; margin-top:4px;">' + d.invoice_note + '</div>' : '');
-        } else if(d.invoice_note){
-          inv.innerHTML = '<span>' + d.invoice_note + '</span> <span class="subtle">(no photo)</span>';
+          inv.innerHTML = '<a href="' + d.invoice_url + '" target="_blank" class="photo-thumb" style="display:inline-block; width:96px; aspect-ratio:1;"><img src="' + d.invoice_url + '"></a>';
         } else {
           inv.textContent = '—';
         }
@@ -707,11 +684,10 @@
       });
   }
 
-  function openInvoiceModal(id, hasPhoto, note){
+  function openInvoiceModal(id, hasPhoto){
     var f = document.getElementById('invoiceForm');
     f.action = '/marketing/standees/assignment/' + id + '/invoice';
     f.reset();
-    document.getElementById('invoiceNote').value = note || '';
     document.getElementById('invoiceHasPhoto').hidden = !hasPhoto;
     new bootstrap.Modal(document.getElementById('invoiceModal')).show();
   }

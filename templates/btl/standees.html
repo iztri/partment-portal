@@ -103,8 +103,8 @@
       <div class="cal-h"><div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div></div>
       <div class="cal-g" id="calGrid"></div>
       <div class="cal-legend">
-        <span><span class="dot" style="background:#1565c0;"></span>Placed</span>
-        <span><span class="dot" style="background:#c62828;"></span>Removed / due for removal</span>
+        <span><span class="dot" style="background:#1565c0;"></span>To place</span>
+        <span><span class="dot" style="background:#c62828;"></span>To remove (collect back)</span>
       </div>
     </div>
   </div>
@@ -138,7 +138,7 @@
         {% elif a.status == 'Placed' %}<span class="badge badge-alt">Placed</span>
         {% else %}<span class="badge badge-ok">Collected</span>{% endif %}
       </div>
-      <div class="meta"><i class="bi bi-building"></i> {{ a.apartment_name }} · {{ a.apartment_hub }}</div>
+      <div class="meta"><i class="bi bi-building"></i> {{ a.apartment_name }} · {{ a.apartment_hub }} · <span class="subtle">#{{ a.id }}</span></div>
       {% if a.status == 'Placed' %}<div class="meta">Collect by <strong>{{ a.collect_by }}</strong></div>{% endif %}
       {% if a.status == 'Collected' %}<div class="meta">Returned {{ a.quantity_returned }}{% if a.quantity_damaged %} · {{ a.quantity_damaged }} damaged{% endif %}</div>{% endif %}
     </div>
@@ -168,18 +168,22 @@
 {% block extra_js %}
 <script>
   var A = {{ assignments | tojson | safe }};
+  var TODAY = "{{ today }}";
   var cy = {{ today[:4] }}, cm = {{ today[5:7]|int }};
 
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 
+  // BTL calendar shows open tasks only:
+  //  • "to place"  — every not-yet-placed standee, pinned to today until it's placed
+  //  • "to remove" — a placed standee on its collect-by date
+  // Once placed it leaves the "to place" group; once collected it leaves the calendar.
+  // (The real placed-at / collected-at timestamps still live on the backend + the
+  //  marketing Current assignments view — this view is deliberately task-only.)
   function dayEvents(ds){
     return {
-      place: A.filter(function(a){ return a.placed_at && a.placed_at.slice(0,10) === ds; }),
-      remove: A.filter(function(a){
-        return (a.status === 'Collected' && a.collected_at && a.collected_at.slice(0,10) === ds) ||
-               (a.status === 'Placed' && a.collect_by === ds);
-      })
+      place: (ds === TODAY) ? A.filter(function(a){ return a.status === 'Assigned'; }) : [],
+      remove: A.filter(function(a){ return a.status === 'Placed' && a.collect_by === ds; })
     };
   }
 
@@ -202,8 +206,8 @@
         if(ev.place.length) h += '<div class="cal-more place">' + ev.place.length + ' to place</div>';
         if(ev.remove.length) h += '<div class="cal-more remove">' + ev.remove.length + ' to remove</div>';
       } else {
-        ev.place.forEach(function(a){ h += '<div class="cal-e place" title="Placed">' + esc(a.standee_name) + '</div>'; });
-        ev.remove.forEach(function(a){ h += '<div class="cal-e remove" title="Removed / due">' + esc(a.standee_name) + '</div>'; });
+        ev.place.forEach(function(a){ h += '<div class="cal-e place" title="To place">' + esc(a.standee_name) + '</div>'; });
+        ev.remove.forEach(function(a){ h += '<div class="cal-e remove" title="To remove">' + esc(a.standee_name) + '</div>'; });
       }
       h += '</div>';
     }
@@ -228,7 +232,7 @@
             '<i class="bi bi-chevron-right"></i></a>';
         }).join('') + '</div>';
     }
-    var body = sect('To place', 'place', ev.place) + sect('To remove / due', 'remove', ev.remove);
+    var body = sect('To place', 'place', ev.place) + sect('To remove', 'remove', ev.remove);
     document.getElementById('dayModalBody').innerHTML = body || '<div class="muted">Nothing on this day.</div>';
     new bootstrap.Modal(document.getElementById('dayModal')).show();
   }

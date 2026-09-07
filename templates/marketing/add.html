@@ -4,81 +4,31 @@
 {% block content %}
 <div class="page-head">
   <h1>Add apartment</h1>
-  <p>Add one, or paste a list to add many at once.</p>
+  <p>Add an apartment, or find an existing one in the list below.</p>
 </div>
 
-<div class="row-flex" style="align-items:flex-start;">
-  <div class="card" style="flex:1; min-width:300px; max-width:440px;">
-    <div class="card-head"><h2>Single apartment</h2></div>
-    <div class="card-body">
-      <form method="post" action="/marketing/add">
-        <div class="field"><label>Apartment name</label>
-          <input type="text" name="name" placeholder="e.g. Prestige Sunrise Park" required autofocus></div>
-        <div class="field"><label>Apartment ID <span class="hint">your own numbering, optional</span></label>
-          <input type="text" name="apartment_code" placeholder="e.g. 105"></div>
-        <div class="field"><label>Hub</label>
-          <select name="hub" required>
-            <option value="">— Select hub —</option>
-            {% for h in hub_names %}<option>{{ h }}</option>{% endfor %}
-          </select>
-          <span class="hint">manage the list under <a href="/marketing/hubs">Hubs</a></span></div>
-        <div class="field"><label>Location link <span class="hint">optional</span></label>
-          <input type="url" name="location_link" placeholder="https://maps.google.com/…"></div>
-        <button type="submit" class="btn btn-primary btn-block"><i class="bi bi-plus-lg"></i>Add apartment</button>
-      </form>
-    </div>
-  </div>
-
-  <div class="card" style="flex:1; min-width:300px; max-width:560px;">
-    <div class="card-head"><h2>Bulk upload</h2></div>
-    <div class="card-body">
-      <p class="muted" style="margin-top:0; font-size:12.5px;">
-        One per line, comma or tab separated:
-        <code>Hub ID, Hub Name, Apartment ID, Apartment Name, Manager Name, Phone, Designation</code>.
-        Hub is matched by ID (created from ID + Name if new). Apartment is matched by
-        Apartment ID — existing ones are updated, new ones added. Manager Name + Phone +
-        Designation are saved as that apartment's contact; Designation must be
-        <em>Security</em>, <em>Apartment Manager</em> or <em>Association Member</em>
-        (blank = keep any existing). Only Apartment Name and a resolvable hub are
-        required per row.
-      </p>
-      <form method="post" action="/marketing/bulk-upload">
-        <div class="field">
-          <textarea name="bulk_data" id="bulk" rows="8" style="font-family:ui-monospace,Menlo,monospace; font-size:12.5px;"
-            placeholder="1, Arekere, 105, Prestige Sunrise Park, Ramesh Kumar, 9876543210, Apartment Manager&#10;32, Koramangala, 106, Sattva Misty Charm, Anita Rao, 9123456780, Security"></textarea>
-        </div>
-        <div style="display:flex; gap:8px;">
-          <a href="/static/samples/apartments_sample.csv" download class="btn btn-default btn-sm"><i class="bi bi-download"></i>Download sample</a>
-          <button type="submit" class="btn btn-primary btn-sm" style="margin-left:auto;"><i class="bi bi-upload"></i>Upload</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <div class="card" style="flex:1; min-width:300px; max-width:520px;">
-    <div class="card-head"><h2>Bulk contact upload</h2></div>
-    <div class="card-body">
-      <p class="muted" style="margin-top:0; font-size:12.5px;">
-        One per line: <code>Apartment Name, Contact Name, Designation, Phone</code>.
-        Apartment must already exist (matched by name); designation must be one of
-        Security, Apartment Manager, Association Member. Updates the contact on that
-        apartment's collection without touching any campaigns already saved there.
-      </p>
-      <form method="post" action="/marketing/contacts/bulk-upload">
-        <div class="field">
-          <textarea name="contacts_data" id="contacts" rows="7" style="font-family:ui-monospace,Menlo,monospace; font-size:12.5px;"
-            placeholder="Prestige Sunrise Park, Ramesh Kumar, Security, 9876543210&#10;Sattva Misty Charm, Anita Rao, Apartment Manager, 9123456780"></textarea>
-        </div>
-        <div style="display:flex; gap:8px;">
-          <a href="/static/samples/contacts_sample.csv" download class="btn btn-default btn-sm"><i class="bi bi-download"></i>Download sample</a>
-          <button type="submit" class="btn btn-primary btn-sm" style="margin-left:auto;"><i class="bi bi-upload"></i>Upload</button>
-        </div>
-      </form>
-    </div>
+<div class="card" style="max-width:440px;">
+  <div class="card-head"><h2>New apartment</h2></div>
+  <div class="card-body">
+    <form method="post" action="/marketing/add">
+      <div class="field"><label>Apartment name</label>
+        <input type="text" name="name" placeholder="e.g. Prestige Sunrise Park" required autofocus></div>
+      <div class="field"><label>Apartment ID <span class="hint">your own numbering, optional</span></label>
+        <input type="text" name="apartment_code" placeholder="e.g. 105"></div>
+      <div class="field"><label>Hub</label>
+        <select name="hub" required>
+          <option value="">— Select hub —</option>
+          {% for h in hub_names %}<option>{{ h }}</option>{% endfor %}
+        </select>
+        <span class="hint">manage the list under <a href="/marketing/hubs">Hubs</a></span></div>
+      <div class="field"><label>Location link <span class="hint">optional</span></label>
+        <input type="url" name="location_link" placeholder="https://maps.google.com/…"></div>
+      <button type="submit" class="btn btn-primary btn-block"><i class="bi bi-plus-lg"></i>Add apartment</button>
+    </form>
   </div>
 </div>
 
-<div class="card" style="margin-top:18px;">
+<div class="card section-gap">
   <div class="card-head">
     <h2>All apartments</h2>
     <div style="display:flex; gap:8px; align-items:center;">
