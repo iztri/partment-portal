@@ -107,7 +107,7 @@
   <div class="card">
     <div class="card-head"><h2>Collect back</h2><span class="sub">{{ a.quantity }} placed here</span></div>
     <div class="card-body">
-      <div class="field"><label>Units returned</label>
+      <div class="field"><label>Units returned <span class="hint" id="qtyReturnedHint"></span></label>
         <input type="number" name="quantity_returned" id="qtyReturned" min="0" max="{{ a.quantity }}" value="{{ a.quantity }}" required></div>
 
       <div class="field">
@@ -258,21 +258,46 @@
   photoPicker({cameraBtn:'takePhotoBtn', cameraPicker:'cameraPicker', galleryBtn:'galleryBtn', galleryPicker:'galleryPicker', grid:'photoGrid', real:'photosReal'});
   photoPicker({cameraBtn:'takeDmgBtn', cameraPicker:'dmgCameraPicker', galleryBtn:'galleryDmgBtn', galleryPicker:'dmgGalleryPicker', grid:'dmgGrid', real:'dmgReal'});
 
+  var TOTAL_QTY = Math.max(0, {{ a.quantity|int }});
+  var qtyReturned = document.getElementById('qtyReturned');
+  var qtyReturnedHint = document.getElementById('qtyReturnedHint');
+  var qtyDamagedEl = document.getElementById('qtyDamaged');
+  var qtyMissingEl = document.getElementById('qtyMissing');
+
+  function curDamaged(){
+    var yes = document.querySelector('input[name="damaged_flag"]:checked');
+    return (yes && yes.value === 'yes') ? Math.max(1, parseInt(qtyDamagedEl && qtyDamagedEl.value || '1', 10) || 1) : 0;
+  }
+  function curMissing(){
+    var yes = document.querySelector('input[name="missing_flag"]:checked');
+    return (yes && yes.value === 'yes') ? Math.max(1, parseInt(qtyMissingEl && qtyMissingEl.value || '1', 10) || 1) : 0;
+  }
+  function recalcReturned(){
+    var d = curDamaged(), m = curMissing();
+    var cap = Math.max(0, TOTAL_QTY - d - m);
+    qtyReturned.max = cap;
+    if(parseInt(qtyReturned.value || '0', 10) > cap) qtyReturned.value = cap;
+    qtyReturnedHint.textContent = (d || m)
+      ? 'max ' + cap + ' (' + d + ' damaged + ' + m + ' missing of ' + TOTAL_QTY + ')'
+      : '';
+  }
+
   function bindYesNo(name, blockId){
     var block = document.getElementById(blockId);
     if(!block) return;
     document.querySelectorAll('input[name="' + name + '"]').forEach(function(r){
-      r.addEventListener('change', function(){ block.hidden = (this.value !== 'yes'); });
+      r.addEventListener('change', function(){ block.hidden = (this.value !== 'yes'); recalcReturned(); });
     });
   }
   bindYesNo('damaged_flag', 'damageBlock');
   bindYesNo('missing_flag', 'missingBlock');
+  if(qtyDamagedEl) qtyDamagedEl.addEventListener('input', recalcReturned);
 
   (function(){
     var btn = document.getElementById('rollMissing');
     var hidden = document.getElementById('qtyMissing');
     if(!btn || !hidden) return;
-    var rollMax = Math.max(1, {{ a.quantity|int }});
+    var rollMax = Math.max(1, TOTAL_QTY);
     var ones = document.getElementById('rollOnes');
     var tens = document.getElementById('rollTens');
     var cur = 1;
@@ -281,12 +306,14 @@
       hidden.value = v;
       ones.style.transform = 'translateY(-' + ((v % 10) * 34) + 'px)';
       if(tens) tens.style.transform = 'translateY(-' + ((Math.floor(v / 10) % 10) * 34) + 'px)';
+      recalcReturned();
     }
     btn.addEventListener('click', function(){
       setRoll(cur >= rollMax ? 1 : cur + 1);
     });
     setRoll(1);
   })();
+  recalcReturned();
 
   var dropType = document.getElementById('dropType');
   if(dropType){

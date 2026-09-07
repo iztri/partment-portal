@@ -167,7 +167,7 @@
         {% if not btl_users %}
         <div class="alert alert-warning" style="margin-bottom:14px;"><i class="bi bi-exclamation-triangle-fill"></i><span>No BTL users yet — add one on <a href="/marketing/team">Team</a>.</span></div>
         {% endif %}
-        <form method="post" action="/marketing/standees/assign">
+        <form method="post" action="/marketing/standees/assign" enctype="multipart/form-data">
           <div class="field"><label>Apartment</label>
             <select name="apartment_id" required>
               <option value="">— Select —</option>
@@ -194,6 +194,14 @@
             <label>Pickup location <span class="hint">where the coordinator collects it from, optional</span></label>
             {{ location_picker('collection_location', 'collection_location_detail', 'Floor, block, room…') }}
           </div>
+          <div class="field">
+            <label>Payment proof <span class="hint">photo of the paid invoice, optional</span></label>
+            <input type="file" name="invoice_photo" accept="image/*">
+          </div>
+          <div class="field">
+            <label>Invoice note <span class="hint">optional — number, amount, reference</span></label>
+            <input type="text" name="invoice_note" placeholder="e.g. INV-2231 · ₹4,500">
+          </div>
           <button type="submit" class="btn btn-primary btn-block" {{ 'disabled' if not btl_users }}><i class="bi bi-send"></i>Assign standee</button>
         </form>
       </div>
@@ -204,7 +212,7 @@
       <div class="card-body flush" style="max-height:65vh; overflow-y:auto;">
         <div class="tbl-wrap">
           <table class="tbl">
-            <thead><tr><th>Apartment</th><th>Standee</th><th>Qty</th><th>Coordinator</th><th>Status</th><th>Placed</th><th>Collect by</th><th style="width:40px;"></th></tr></thead>
+            <thead><tr><th>Apartment</th><th>Standee</th><th>Qty</th><th>Coordinator</th><th>Status</th><th>Placed</th><th>Collect by</th><th>Invoice</th><th style="width:40px;"></th></tr></thead>
             <tbody>
               {% for a in assignments %}
               <tr>
@@ -224,10 +232,23 @@
                 <td>{{ status_badge(a.status) }}</td>
                 <td class="muted" style="font-size:12px;">{{ a.placed_at[:16] if a.placed_at else '—' }}</td>
                 <td class="muted" style="font-size:12px;">{{ a.collect_by or '—' }}</td>
+                <td>
+                  <div style="display:flex; gap:4px; align-items:center;">
+                    {% if a.invoice_photo %}
+                    <a href="/static/{{ a.invoice_photo }}" target="_blank" class="btn btn-default btn-icon" title="View payment proof{{ ' · ' ~ a.invoice_note if a.invoice_note }}"><i class="bi bi-receipt" style="color:var(--accent);"></i></a>
+                    {% elif a.invoice_note %}
+                    <span class="subtle" title="{{ a.invoice_note }}"><i class="bi bi-sticky"></i></span>
+                    {% else %}<span class="subtle">—</span>{% endif %}
+                    {% if can('standees', 'edit') %}
+                    <button type="button" class="btn btn-default btn-icon" title="Add / replace invoice"
+                            onclick="openInvoiceModal({{ a.id }}, {{ 'true' if a.invoice_photo else 'false' }}, '{{ (a.invoice_note or '')|replace("'", "\\'") }}')"><i class="bi bi-pencil"></i></button>
+                    {% endif %}
+                  </div>
+                </td>
                 <td><button class="btn btn-default btn-icon" onclick="openAssignmentDetail({{ a.id }})" title="View"><i class="bi bi-eye"></i></button></td>
               </tr>
               {% else %}
-              <tr><td colspan="8"><div class="empty"><i class="bi bi-signpost-2"></i><div class="t">No assignments yet.</div></div></td></tr>
+              <tr><td colspan="9"><div class="empty"><i class="bi bi-signpost-2"></i><div class="t">No assignments yet.</div></div></td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -472,10 +493,15 @@
             <div class="field"><label>Collect by</label><div id="adCollectBy"></div></div>
             <div class="field"><label>Collected on</label><div id="adCollected"></div></div>
             <div class="field"><label>Returned / Damaged / Missing</label><div id="adReturned"></div></div>
+            <div class="field"><label>Last updated</label><div id="adUpdated"></div></div>
             <div class="field" style="grid-column:1/-1;"><label>Kept at / redeployed</label><div id="adDrop"></div></div>
           </div>
           <div id="adDamageNoteWrap" class="alert alert-warning mb-0" hidden style="margin-top:6px;"><i class="bi bi-exclamation-triangle-fill"></i><span id="adDamageNote"></span></div>
           <div class="divider"></div>
+          <div class="field">
+            <label>Payment invoice</label>
+            <div id="adInvoice" class="muted">—</div>
+          </div>
           <div class="field mb-0">
             <label>Photos</label>
             <div id="adPhotos" class="photo-grid"></div>
@@ -484,6 +510,25 @@
       </div>
       <div class="modal-footer"><button type="button" class="btn btn-default" data-bs-dismiss="modal">Close</button></div>
     </div>
+  </div>
+</div>
+
+<div class="modal fade" id="invoiceModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="post" id="invoiceForm" enctype="multipart/form-data">
+      <div class="modal-header"><span class="modal-title">Payment invoice</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div id="invoiceHasPhoto" class="muted mb-0" hidden style="margin-bottom:10px;"><i class="bi bi-check-circle-fill" style="color:var(--accent);"></i> A payment photo is already on file — uploading a new one replaces it.</div>
+        <div class="field"><label>Payment proof photo</label>
+          <input type="file" name="invoice_photo" accept="image/*"></div>
+        <div class="field mb-0"><label>Invoice note <span class="hint">optional</span></label>
+          <input type="text" name="invoice_note" id="invoiceNote" placeholder="e.g. INV-2231 · ₹4,500"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-upload"></i>Save invoice</button>
+      </div>
+    </form>
   </div>
 </div>
 {% endblock %}
@@ -634,6 +679,16 @@
           ? d.quantity_returned + ' returned' + (d.quantity_damaged ? ', ' + d.quantity_damaged + ' damaged' : '') + (d.quantity_missing ? ', ' + d.quantity_missing + ' missing' : '')
           : '—';
         document.getElementById('adDrop').textContent = d.drop_location || '—';
+        document.getElementById('adUpdated').textContent = d.updated_at ? d.updated_at.slice(0,16) : '—';
+        var inv = document.getElementById('adInvoice');
+        if(d.invoice_url){
+          inv.innerHTML = '<a href="' + d.invoice_url + '" target="_blank" class="photo-thumb" style="display:inline-block; width:96px; aspect-ratio:1;"><img src="' + d.invoice_url + '"></a>' +
+            (d.invoice_note ? '<div class="muted" style="font-size:12.5px; margin-top:4px;">' + d.invoice_note + '</div>' : '');
+        } else if(d.invoice_note){
+          inv.innerHTML = '<span>' + d.invoice_note + '</span> <span class="subtle">(no photo)</span>';
+        } else {
+          inv.textContent = '—';
+        }
         var dn = document.getElementById('adDamageNoteWrap');
         if(d.damage_note){ dn.hidden = false; document.getElementById('adDamageNote').textContent = d.damage_note; }
         else { dn.hidden = true; }
@@ -650,6 +705,15 @@
       .catch(function(){
         document.getElementById('adLoading').innerHTML = '<div class="t">Failed to load.</div>';
       });
+  }
+
+  function openInvoiceModal(id, hasPhoto, note){
+    var f = document.getElementById('invoiceForm');
+    f.action = '/marketing/standees/assignment/' + id + '/invoice';
+    f.reset();
+    document.getElementById('invoiceNote').value = note || '';
+    document.getElementById('invoiceHasPhoto').hidden = !hasPhoto;
+    new bootstrap.Modal(document.getElementById('invoiceModal')).show();
   }
 </script>
 {% endblock %}

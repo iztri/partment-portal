@@ -150,8 +150,11 @@ create table if not exists standee_assignments (
     damage_note          text not null default '',
     drop_location        text not null default '',
     redeployed_to        bigint,
+    invoice_photo        text not null default '',
+    invoice_note         text not null default '',
     created_by           text not null default '',
-    created_at           text not null default ''
+    created_at           text not null default '',
+    updated_at           text not null default ''
 );
 
 alter table standee_assignments add column if not exists quantity_missing integer not null default 0;
@@ -165,6 +168,9 @@ alter table standee_assignments add column if not exists collected_at text not n
 alter table standee_assignments add column if not exists collected_by text not null default '';
 alter table standee_assignments add column if not exists placed_at text not null default '';
 alter table standee_assignments add column if not exists placed_by text not null default '';
+alter table standee_assignments add column if not exists invoice_photo text not null default '';
+alter table standee_assignments add column if not exists invoice_note text not null default '';
+alter table standee_assignments add column if not exists updated_at text not null default '';
 
 create index if not exists standee_assignments_assigned_to_idx on standee_assignments (assigned_to);
 create index if not exists standee_assignments_status_idx on standee_assignments (status);

@@ -895,9 +895,32 @@ def marketing_standee_assign():
         flash("Quantity and duration must be numbers", "danger")
         return redirect(url_for("marketing_standees_page"))
     loc = _resolve_location_pair("collection_location", "collection_location_detail")
-    db.create_standee_assignment(standee_id, apartment_id, assigned_to, qty, days, loc, session["user"])
+    inv = _save_photos([request.files.get("invoice_photo")], "invoices")
+    db.create_standee_assignment(
+        standee_id, apartment_id, assigned_to, qty, days, loc, session["user"],
+        invoice_photo=(inv[0] if inv else ""),
+        invoice_note=request.form.get("invoice_note", "").strip(),
+    )
     flash("Standee assigned", "success")
-    return redirect(url_for("marketing_standees_page"))
+    return redirect(url_for("marketing_standees_page") + "#assign")
+
+
+@app.route("/marketing/standees/assignment/<int:assignment_id>/invoice", methods=["POST"])
+@feature_required("standees", "edit")
+def marketing_standee_assignment_invoice(assignment_id):
+    a = db.get_standee_assignment(assignment_id)
+    back = url_for("marketing_standees_page") + "#assign"
+    if not a:
+        flash("Assignment not found", "danger")
+        return redirect(back)
+    inv = _save_photos([request.files.get("invoice_photo")], "invoices")
+    note = request.form.get("invoice_note", "").strip()
+    if not inv and not note and not a.get("invoice_photo"):
+        flash("Add a payment photo or a note", "danger")
+        return redirect(back)
+    db.set_assignment_invoice(assignment_id, inv[0] if inv else "", note, session["user"])
+    flash(f"Invoice updated for {a['standee_name']} @ {a['apartment_name']}", "success")
+    return redirect(back)
 
 
 @app.route("/marketing/standees/assignment/<int:assignment_id>/quantity", methods=["POST"])
@@ -935,6 +958,7 @@ def marketing_standee_assignment_detail(assignment_id):
         {"kind": p["kind"], "url": f"/static/{p['path']}", "uploaded_at": p["uploaded_at"]}
         for p in db.photos_for(assignment_id)
     ]
+    a["invoice_url"] = f"/static/{a['invoice_photo']}" if a.get("invoice_photo") else ""
     return a
 
 
@@ -1090,14 +1114,15 @@ def btl_standee_collect(assignment_id):
         except ValueError:
             return default
 
-    returned = max(0, min(qty, _int("quantity_returned")))
-
+    # Damaged + missing are what the coordinator explicitly reported, so they win;
+    # "returned" is then whatever's left (never letting the three exceed quantity).
     damaged = 0
     if request.form.get("damaged_flag") == "yes":
-        damaged = min(max(1, _int("quantity_damaged", 1)), max(0, qty - returned))
+        damaged = min(max(1, _int("quantity_damaged", 1)), qty)
     missing = 0
     if request.form.get("missing_flag") == "yes":
-        missing = min(max(1, _int("quantity_missing", 1)), max(0, qty - returned - damaged))
+        missing = min(max(1, _int("quantity_missing", 1)), max(0, qty - damaged))
+    returned = max(0, min(_int("quantity_returned", qty), qty - damaged - missing))
     note = request.form.get("damage_note", "").strip() if damaged else ""
 
     # where it goes next: a hub, or redeployed to one of my pending assignments

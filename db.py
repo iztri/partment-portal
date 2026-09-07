@@ -142,8 +142,11 @@ class SQLiteDatabase:
                 damage_note TEXT NOT NULL DEFAULT '',
                 drop_location TEXT NOT NULL DEFAULT '',
                 redeployed_to INTEGER,
+                invoice_photo TEXT NOT NULL DEFAULT '',
+                invoice_note TEXT NOT NULL DEFAULT '',
                 created_by TEXT NOT NULL DEFAULT '',
-                created_at TEXT NOT NULL DEFAULT ''
+                created_at TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL DEFAULT ''
             );
 
             CREATE TABLE IF NOT EXISTS standee_photos (
@@ -167,6 +170,9 @@ class SQLiteDatabase:
             "ALTER TABLE apartments ADD COLUMN apartment_code TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE standee_assignments ADD COLUMN quantity_missing INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE standee_assignments ADD COLUMN redeployed_to INTEGER",
+            "ALTER TABLE standee_assignments ADD COLUMN invoice_photo TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE standee_assignments ADD COLUMN invoice_note TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE standee_assignments ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''",
         ):
             try:
                 self.conn.execute(stmt)
@@ -669,16 +675,32 @@ class SQLiteDatabase:
         return [dict(r) for r in rows]
 
     def create_standee_assignment(self, standee_id, apartment_id, assigned_to, quantity,
-                                   duration_days, collection_location, created_by):
+                                   duration_days, collection_location, created_by,
+                                   invoice_photo="", invoice_note=""):
+        now = _now()
         cur = self.conn.execute(
             "INSERT INTO standee_assignments (standee_id, apartment_id, assigned_to, quantity, "
-            "duration_days, collection_location, status, created_by, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, 'Assigned', ?, ?)",
+            "duration_days, collection_location, status, invoice_photo, invoice_note, "
+            "created_by, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, 'Assigned', ?, ?, ?, ?, ?)",
             (int(standee_id), int(apartment_id), assigned_to, int(quantity),
-             int(duration_days), collection_location, created_by, _now()),
+             int(duration_days), collection_location, invoice_photo, invoice_note,
+             created_by, now, now),
         )
         self.conn.commit()
         return cur.lastrowid
+
+    def set_assignment_invoice(self, assignment_id, invoice_photo, invoice_note, updated_by):
+        """Update the payment-proof photo (only if a new one is given) + note."""
+        sets, vals = ["invoice_note=?", "updated_at=?"], [invoice_note, _now()]
+        if invoice_photo:
+            sets.insert(0, "invoice_photo=?")
+            vals.insert(0, invoice_photo)
+        vals.append(int(assignment_id))
+        self.conn.execute(
+            f"UPDATE standee_assignments SET {', '.join(sets)} WHERE id=?", vals
+        )
+        self.conn.commit()
 
     def list_standee_assignments(self):
         rows = self.conn.execute(
@@ -719,8 +741,8 @@ class SQLiteDatabase:
 
     def update_assignment_quantity(self, assignment_id, quantity):
         self.conn.execute(
-            "UPDATE standee_assignments SET quantity=? WHERE id=?",
-            (int(quantity), int(assignment_id)),
+            "UPDATE standee_assignments SET quantity=?, updated_at=? WHERE id=?",
+            (int(quantity), _now(), int(assignment_id)),
         )
         self.conn.commit()
 
@@ -735,8 +757,8 @@ class SQLiteDatabase:
         ).strftime("%Y-%m-%d") if row else ""
         self.conn.execute(
             "UPDATE standee_assignments SET status='Placed', placed_at=?, placed_by=?, "
-            "collect_by=? WHERE id=?",
-            (now, placed_by, collect_by, assignment_id),
+            "collect_by=?, updated_at=? WHERE id=?",
+            (now, placed_by, collect_by, now, assignment_id),
         )
         for p in photo_paths:
             self.conn.execute(
@@ -754,10 +776,10 @@ class SQLiteDatabase:
         self.conn.execute(
             "UPDATE standee_assignments SET status='Collected', collected_at=?, collected_by=?, "
             "quantity_returned=?, quantity_damaged=?, quantity_missing=?, damage_note=?, "
-            "drop_location=?, redeployed_to=? WHERE id=?",
+            "drop_location=?, redeployed_to=?, updated_at=? WHERE id=?",
             (now, collected_by, int(quantity_returned), int(quantity_damaged),
              int(quantity_missing), damage_note, drop_location,
-             int(redeployed_to) if redeployed_to else None, assignment_id),
+             int(redeployed_to) if redeployed_to else None, now, assignment_id),
         )
         for p in photo_paths:
             self.conn.execute(
@@ -1178,14 +1200,23 @@ class SupabaseDatabase:
         return out
 
     def create_standee_assignment(self, standee_id, apartment_id, assigned_to, quantity,
-                                   duration_days, collection_location, created_by):
+                                   duration_days, collection_location, created_by,
+                                   invoice_photo="", invoice_note=""):
+        now = _now()
         r = self.sb.table("standee_assignments").insert({
             "standee_id": int(standee_id), "apartment_id": int(apartment_id),
             "assigned_to": assigned_to, "quantity": int(quantity),
             "duration_days": int(duration_days), "collection_location": collection_location,
-            "status": "Assigned", "created_by": created_by, "created_at": _now(),
+            "status": "Assigned", "invoice_photo": invoice_photo, "invoice_note": invoice_note,
+            "created_by": created_by, "created_at": now, "updated_at": now,
         }).execute()
         return r.data[0]["id"] if r.data else None
+
+    def set_assignment_invoice(self, assignment_id, invoice_photo, invoice_note, updated_by):
+        upd = {"invoice_note": invoice_note, "updated_at": _now()}
+        if invoice_photo:
+            upd["invoice_photo"] = invoice_photo
+        self.sb.table("standee_assignments").update(upd).eq("id", int(assignment_id)).execute()
 
     def _join_assignment_rows(self, rows):
         out = []
@@ -1222,7 +1253,7 @@ class SupabaseDatabase:
 
     def update_assignment_quantity(self, assignment_id, quantity):
         self.sb.table("standee_assignments").update(
-            {"quantity": int(quantity)}
+            {"quantity": int(quantity), "updated_at": _now()}
         ).eq("id", int(assignment_id)).execute()
 
     def confirm_placement(self, assignment_id, placed_by, photo_paths):
@@ -1232,7 +1263,8 @@ class SupabaseDatabase:
         now = _now()
         collect_by = (datetime.now(IST) + timedelta(days=int(duration or 0))).strftime("%Y-%m-%d")
         self.sb.table("standee_assignments").update({
-            "status": "Placed", "placed_at": now, "placed_by": placed_by, "collect_by": collect_by,
+            "status": "Placed", "placed_at": now, "placed_by": placed_by,
+            "collect_by": collect_by, "updated_at": now,
         }).eq("id", assignment_id).execute()
         if photo_paths:
             self.sb.table("standee_photos").insert([
@@ -1251,6 +1283,7 @@ class SupabaseDatabase:
             "quantity_missing": int(quantity_missing),
             "damage_note": damage_note, "drop_location": drop_location,
             "redeployed_to": int(redeployed_to) if redeployed_to else None,
+            "updated_at": now,
         }).eq("id", assignment_id).execute()
         if photo_paths:
             self.sb.table("standee_photos").insert([
