@@ -26,6 +26,25 @@ def _status_for(outcome):
     return STATUS_COLLECTED if outcome == "number" else STATUS_NO_NUMBER
 
 
+def _prev_contact_shift(existing, new_phone):
+    """(previous_contact_name, previous_phone, previous_saved_at) to write on a
+    collection update: the old number moves to "previous" only when one existed
+    and actually changed; otherwise the already-stored "previous" values stay."""
+    existing = existing or {}
+    old_phone = (existing.get("phone") or "").strip()
+    if old_phone and old_phone != (new_phone or "").strip():
+        return (
+            existing.get("contact_name") or "",
+            old_phone,
+            existing.get("updated_at") or existing.get("collected_at") or _now(),
+        )
+    return (
+        existing.get("previous_contact_name") or "",
+        existing.get("previous_phone") or "",
+        existing.get("previous_saved_at") or "",
+    )
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 #  SQLite backend
 # ═══════════════════════════════════════════════════════════════════════════
@@ -74,6 +93,7 @@ class SQLiteDatabase:
                 assigned_to TEXT NOT NULL DEFAULT '',
                 status TEXT NOT NULL DEFAULT 'Pending',
                 deleted INTEGER NOT NULL DEFAULT 0,
+                recollect_at TEXT NOT NULL DEFAULT '',
                 created_by TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL DEFAULT ''
             );
@@ -87,6 +107,9 @@ class SQLiteDatabase:
                 designation TEXT NOT NULL DEFAULT '',
                 total_units INTEGER NOT NULL DEFAULT 0,
                 no_number_reason TEXT NOT NULL DEFAULT '',
+                previous_contact_name TEXT NOT NULL DEFAULT '',
+                previous_phone TEXT NOT NULL DEFAULT '',
+                previous_saved_at TEXT NOT NULL DEFAULT '',
                 collected_by TEXT NOT NULL DEFAULT '',
                 collected_at TEXT NOT NULL DEFAULT '',
                 updated_at TEXT NOT NULL DEFAULT ''
@@ -173,6 +196,10 @@ class SQLiteDatabase:
             "ALTER TABLE standee_assignments ADD COLUMN invoice_photo TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE standee_assignments ADD COLUMN invoice_note TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE standee_assignments ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE apartments ADD COLUMN recollect_at TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE collections ADD COLUMN previous_contact_name TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE collections ADD COLUMN previous_phone TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE collections ADD COLUMN previous_saved_at TEXT NOT NULL DEFAULT ''",
         ):
             try:
                 self.conn.execute(stmt)
@@ -416,6 +443,15 @@ class SQLiteDatabase:
         )
         self.conn.commit()
 
+    def request_recollect(self, apt_id, assigned_to, requested_by):
+        """Send an apartment back to a BTL coordinator for a fresh contact number.
+        Keeps the existing collection on file; flags the apartment so BTL sees why."""
+        self.conn.execute(
+            "UPDATE apartments SET assigned_to=?, status=?, recollect_at=? WHERE id=?",
+            (assigned_to, STATUS_PENDING, _now(), int(apt_id)),
+        )
+        self.conn.commit()
+
     def soft_delete_apartment(self, apt_id):
         self.conn.execute(
             "UPDATE apartments SET deleted=1 WHERE id=?", (int(apt_id),)
@@ -467,16 +503,19 @@ class SQLiteDatabase:
         apartment_id = int(apartment_id)
         now = _now()
         total_units = int(total_units or 0)
-        existing = self.conn.execute(
-            "SELECT id, collected_at FROM collections WHERE apartment_id=?", (apartment_id,)
+        row = self.conn.execute(
+            "SELECT * FROM collections WHERE apartment_id=?", (apartment_id,)
         ).fetchone()
+        existing = dict(row) if row else None
         if existing:
             cid = existing["id"]
+            pn, pp, ps = _prev_contact_shift(existing, phone)
             self.conn.execute(
                 "UPDATE collections SET outcome=?, contact_name=?, phone=?, designation=?, "
-                "total_units=?, no_number_reason=?, collected_by=?, updated_at=? WHERE id=?",
+                "total_units=?, no_number_reason=?, previous_contact_name=?, previous_phone=?, "
+                "previous_saved_at=?, collected_by=?, updated_at=? WHERE id=?",
                 (outcome, contact_name, phone, designation, total_units, no_number_reason,
-                 collected_by, now, cid),
+                 pn, pp, ps, collected_by, now, cid),
             )
         else:
             cur = self.conn.execute(
@@ -498,24 +537,28 @@ class SQLiteDatabase:
             )
 
         self.conn.execute(
-            "UPDATE apartments SET status=? WHERE id=?",
+            "UPDATE apartments SET status=?, recollect_at='' WHERE id=?",
             (_status_for(outcome), apartment_id),
         )
         self.conn.commit()
         return cid
 
     def upsert_contact(self, apartment_id, contact_name, designation, phone, updated_by):
-        """Marketing bulk-upload path: sets contact fields only, never touches campaigns."""
+        """Marketing bulk-upload path: sets contact fields only, never touches campaigns.
+        A changed number pushes the old one into previous_phone."""
         apartment_id = int(apartment_id)
         now = _now()
-        existing = self.conn.execute(
-            "SELECT id FROM collections WHERE apartment_id=?", (apartment_id,)
+        row = self.conn.execute(
+            "SELECT * FROM collections WHERE apartment_id=?", (apartment_id,)
         ).fetchone()
+        existing = dict(row) if row else None
         if existing:
+            pn, pp, ps = _prev_contact_shift(existing, phone)
             self.conn.execute(
                 "UPDATE collections SET outcome='number', contact_name=?, designation=?, "
-                "phone=?, updated_at=? WHERE id=?",
-                (contact_name, designation, phone, now, existing["id"]),
+                "phone=?, previous_contact_name=?, previous_phone=?, previous_saved_at=?, "
+                "updated_at=? WHERE id=?",
+                (contact_name, designation, phone, pn, pp, ps, now, existing["id"]),
             )
         else:
             self.conn.execute(
@@ -525,7 +568,8 @@ class SQLiteDatabase:
                 (apartment_id, contact_name, phone, designation, updated_by, now, now),
             )
         self.conn.execute(
-            "UPDATE apartments SET status=? WHERE id=?", (STATUS_COLLECTED, apartment_id)
+            "UPDATE apartments SET status=?, recollect_at='' WHERE id=?",
+            (STATUS_COLLECTED, apartment_id),
         )
         self.conn.commit()
 
@@ -1003,6 +1047,11 @@ class SupabaseDatabase:
                 {"assigned_to": assigned_to, "status": STATUS_PENDING}
             ).eq("id", i).execute()
 
+    def request_recollect(self, apt_id, assigned_to, requested_by):
+        self.sb.table("apartments").update({
+            "assigned_to": assigned_to, "status": STATUS_PENDING, "recollect_at": _now(),
+        }).eq("id", int(apt_id)).execute()
+
     def soft_delete_apartment(self, apt_id):
         self.sb.table("apartments").update({"deleted": True}).eq("id", int(apt_id)).execute()
 
@@ -1037,7 +1086,7 @@ class SupabaseDatabase:
                         total_units, no_number_reason, campaigns, collected_by):
         apartment_id = int(apartment_id)
         now = _now()
-        existing = self.sb.table("collections").select("id").eq("apartment_id", apartment_id).limit(1).execute()
+        existing = self.sb.table("collections").select("*").eq("apartment_id", apartment_id).limit(1).execute()
         row = {
             "outcome": outcome, "contact_name": contact_name, "phone": phone,
             "designation": designation, "total_units": int(total_units or 0),
@@ -1046,6 +1095,8 @@ class SupabaseDatabase:
         }
         if existing.data:
             cid = existing.data[0]["id"]
+            pn, pp, ps = _prev_contact_shift(existing.data[0], phone)
+            row.update({"previous_contact_name": pn, "previous_phone": pp, "previous_saved_at": ps})
             self.sb.table("collections").update(row).eq("id", cid).execute()
         else:
             row.update({"apartment_id": apartment_id, "collected_at": now})
@@ -1059,17 +1110,22 @@ class SupabaseDatabase:
                 for c in campaigns
             ]).execute()
 
-        self.sb.table("apartments").update({"status": _status_for(outcome)}).eq("id", apartment_id).execute()
+        self.sb.table("apartments").update(
+            {"status": _status_for(outcome), "recollect_at": ""}
+        ).eq("id", apartment_id).execute()
         return cid
 
     def upsert_contact(self, apartment_id, contact_name, designation, phone, updated_by):
         apartment_id = int(apartment_id)
         now = _now()
-        existing = self.sb.table("collections").select("id").eq("apartment_id", apartment_id).limit(1).execute()
+        existing = self.sb.table("collections").select("*").eq("apartment_id", apartment_id).limit(1).execute()
         if existing.data:
+            pn, pp, ps = _prev_contact_shift(existing.data[0], phone)
             self.sb.table("collections").update({
                 "outcome": "number", "contact_name": contact_name,
-                "designation": designation, "phone": phone, "updated_at": now,
+                "designation": designation, "phone": phone,
+                "previous_contact_name": pn, "previous_phone": pp, "previous_saved_at": ps,
+                "updated_at": now,
             }).eq("id", existing.data[0]["id"]).execute()
         else:
             self.sb.table("collections").insert({
@@ -1077,7 +1133,9 @@ class SupabaseDatabase:
                 "phone": phone, "designation": designation, "collected_by": updated_by,
                 "collected_at": now, "updated_at": now,
             }).execute()
-        self.sb.table("apartments").update({"status": STATUS_COLLECTED}).eq("id", apartment_id).execute()
+        self.sb.table("apartments").update(
+            {"status": STATUS_COLLECTED, "recollect_at": ""}
+        ).eq("id", apartment_id).execute()
 
     # ── standees ──
     def add_standee(self, name, photo_path, total_units, storage_location, created_by):

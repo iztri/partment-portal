@@ -58,7 +58,7 @@
             </td>
             <td><span class="chip"><i class="bi bi-building"></i>{{ apt.hub }}</span></td>
             <td>{% if apt.assigned_to %}<span class="chip"><i class="bi bi-person"></i>{{ apt.assigned_to }}</span>{% else %}<span class="subtle">—</span>{% endif %}</td>
-            <td>{{ status_badge(apt) }}</td>
+            <td>{{ status_badge(apt) }}{% if apt.recollect_at %} <span class="badge badge-alt" title="Sent for a fresh number"><i class="bi bi-arrow-repeat"></i></span>{% endif %}</td>
             <td>
               {% if col and col.outcome == 'number' %}
                 {% if col.contact_name %}<span class="strong">{{ col.contact_name }}</span> ·{% endif %}

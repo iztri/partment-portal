@@ -224,13 +224,25 @@ def _split_row(line):
     return [p.strip() for p in parts]
 
 
+def _match_designation(raw):
+    """Canonical designation for a bulk-upload cell, or '' if blank/unrecognised."""
+    raw = (raw or "").strip()
+    if not raw:
+        return ""
+    for d in DESIGNATIONS:
+        if d.lower() == raw.lower():
+            return d
+    return ""
+
+
 @app.route("/marketing/bulk-upload", methods=["POST"])
 @feature_required("apartments", "edit")
 def marketing_bulk_upload():
-    """Bulk apartments: Hub ID, Hub Name, Apartment ID, Apartment Name, Manager Name, Phone.
-    Hub is matched by ID (auto-created from ID+Name if new); apartment is matched by
-    Apartment ID (created or updated); manager name + phone go into the apartment's
-    collection contact (designation left untouched)."""
+    """Bulk apartments: Hub ID, Hub Name, Apartment ID, Apartment Name, Manager Name,
+    Phone, Designation. Hub is matched by ID (auto-created from ID+Name if new);
+    apartment is matched by Apartment ID (created or updated); manager name + phone +
+    designation go into the apartment's collection contact. Designation must be one of
+    Security / Apartment Manager / Association Member (blank keeps any existing one)."""
     raw = request.form.get("bulk_data", "").strip()
     if not raw:
         flash("Nothing to upload", "danger")
@@ -239,8 +251,8 @@ def marketing_bulk_upload():
     errors = []
     for i, line in enumerate((l for l in raw.splitlines() if l.strip()), 1):
         p = _split_row(line)
-        p += [""] * (6 - len(p))
-        raw_hub_id, hub_name, apt_code, apt_name, mgr_name, phone = p[:6]
+        p += [""] * (7 - len(p))
+        raw_hub_id, hub_name, apt_code, apt_name, mgr_name, phone, raw_desig = p[:7]
         # header row? (row 1, non-numeric Hub ID, mentions the column names)
         low = line.lower()
         if i == 1 and not raw_hub_id.lstrip("-").isdigit() and ("hub" in low or "apartment" in low):
@@ -279,10 +291,13 @@ def marketing_bulk_upload():
         else:
             apt_id = db.add_apartment(apt_name, hub, "", session["user"], apartment_code=apt_code)
             added += 1
-        # manager contact → collection (keep any existing designation)
-        if mgr_name or phone:
+        # manager contact → collection
+        if mgr_name or phone or raw_desig:
             existing_col = db.get_collection(apt_id) or {}
-            db.upsert_contact(apt_id, mgr_name, existing_col.get("designation", ""), phone, session["user"])
+            desig = _match_designation(raw_desig) or existing_col.get("designation", "")
+            if raw_desig and not _match_designation(raw_desig):
+                errors.append(f"Row {i}: unknown designation '{raw_desig}' (ignored)")
+            db.upsert_contact(apt_id, mgr_name, desig, phone, session["user"])
             contacts += 1
     msg = f"Added {added}, updated {updated} apartment(s); {contacts} manager contact(s)"
     if errors:
@@ -480,7 +495,24 @@ def marketing_apartment_detail(apt_id):
         collection=db.get_collection(apt_id),
         hub_names=db.hub_names(),
         hub_id=hubs_by_name.get(apt["hub"]),
+        btl_users=db.btl_users(),
     )
+
+
+@app.route("/marketing/apartment/<int:apt_id>/recollect", methods=["POST"])
+@feature_required("apartments", "edit")
+def marketing_apartment_recollect(apt_id):
+    apt = db.get_apartment(apt_id)
+    if not apt or apt["deleted"]:
+        flash("Apartment not found", "danger")
+        return redirect(url_for("marketing_dashboard"))
+    assigned_to = request.form.get("assigned_to", "").strip()
+    if assigned_to not in {u["username"] for u in db.btl_users()}:
+        flash("Pick a BTL coordinator", "danger")
+        return redirect(url_for("marketing_apartment_detail", apt_id=apt_id))
+    db.request_recollect(apt_id, assigned_to, session["user"])
+    flash(f"Sent to {assigned_to} for a fresh contact number — the current one stays on file until they submit a new one.", "success")
+    return redirect(url_for("marketing_apartment_detail", apt_id=apt_id))
 
 
 @app.route("/marketing/apartment/<int:apt_id>/delete", methods=["POST"])

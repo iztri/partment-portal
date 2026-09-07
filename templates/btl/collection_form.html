@@ -40,6 +40,15 @@
   <a href="/btl" class="btn btn-default btn-sm"><i class="bi bi-arrow-left"></i>Back</a>
 </div>
 
+{% if apt.recollect_at %}
+<div class="alert alert-info" style="margin-bottom:16px;">
+  <i class="bi bi-arrow-repeat"></i>
+  <span>Marketing asked for an <strong>updated contact number</strong> for this apartment.
+    {% if collection and collection.outcome == 'number' and collection.phone %}Current on file: <strong>{{ collection.phone }}</strong> — {% endif %}
+    replace the details below and save.</span>
+</div>
+{% endif %}
+
 <form method="post" action="/btl/apartment/{{ apt.id }}/collect">
   <div class="card">
     <div class="card-head"><h2>Is a contact number available?</h2></div>
@@ -57,7 +66,8 @@
       <div class="field"><label>Contact name <span class="hint">optional</span></label>
         <input type="text" name="contact_name" value="{{ collection.contact_name if collection and collection.outcome=='number' else '' }}" placeholder="e.g. Ramesh Kumar"></div>
       <div class="grid-2">
-        <div class="field"><label>Contact number</label>
+        <div class="field"><label>Contact number
+          {% if collection and collection.previous_phone %}<span class="hint">was {{ collection.previous_phone }}</span>{% endif %}</label>
           <input type="tel" name="phone" inputmode="tel" value="{{ collection.phone if collection and collection.outcome=='number' else '' }}" placeholder="e.g. 9876543210"></div>
         <div class="field"><label>Designation</label>
           <select name="designation">

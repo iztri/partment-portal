@@ -43,8 +43,11 @@
     {% else %}
       <div class="row-flex" style="margin-bottom:6px;">
         <div class="field" style="flex:1; min-width:140px;"><label>Contact name</label><div class="strong">{{ collection.contact_name or '—' }}</div></div>
-        <div class="field" style="flex:1; min-width:140px;"><label>Contact number</label><div class="strong">{{ collection.phone }}</div></div>
-        <div class="field" style="flex:1; min-width:140px;"><label>Designation</label><div>{{ collection.designation }}</div></div>
+        <div class="field" style="flex:1; min-width:140px;"><label>Contact number</label>
+          <div class="strong">{{ collection.phone or '—' }}</div>
+          {% if collection.previous_phone %}<div class="subtle" style="font-size:12px;">was {{ collection.previous_phone }}{% if collection.previous_saved_at %} · until {{ collection.previous_saved_at[:10] }}{% endif %}</div>{% endif %}
+        </div>
+        <div class="field" style="flex:1; min-width:140px;"><label>Designation</label><div>{{ collection.designation or '—' }}</div></div>
         <div class="field" style="flex:1; min-width:120px;"><label>Total units</label><div>{{ collection.total_units or '—' }}</div></div>
       </div>
       <div class="muted" style="font-size:12px; margin-bottom:6px;"><i class="bi bi-clock-history"></i>
@@ -70,6 +73,35 @@
     {% endif %}
   </div>
 </div>
+
+{% if can('apartments', 'edit') and not apt.deleted %}
+<div class="card">
+  <div class="card-head"><h2>Get a fresh contact number</h2></div>
+  <div class="card-body">
+    {% if apt.recollect_at %}
+    <div class="alert alert-info" style="margin-bottom:12px;"><i class="bi bi-arrow-repeat"></i>
+      <span>Requested {{ apt.recollect_at[:16] }} — assigned to <strong>{{ apt.assigned_to }}</strong>, waiting for them to submit a new number.</span></div>
+    {% endif %}
+    <p class="muted" style="margin-top:0; font-size:12.5px;">
+      Sends this apartment to a BTL coordinator to collect an up-to-date number.
+      The number currently on file stays until they submit a new one, then it's
+      replaced (the old one is kept under "was …").
+    </p>
+    <form method="post" action="/marketing/apartment/{{ apt.id }}/recollect" class="row-flex" style="align-items:flex-end;">
+      <div class="field" style="flex:1; min-width:200px; margin-bottom:0;">
+        <label>BTL coordinator</label>
+        <select name="assigned_to" required {{ 'disabled' if not btl_users }}>
+          <option value="">— Select —</option>
+          {% for u in btl_users %}<option value="{{ u.username }}" {{ 'selected' if u.username == apt.assigned_to }}>{{ u.name }} ({{ u.username }})</option>{% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary" {{ 'disabled' if not btl_users }}>
+        <i class="bi bi-send"></i>{{ 'Re-send' if apt.recollect_at else 'Send for new number' }}
+      </button>
+    </form>
+  </div>
+</div>
+{% endif %}
 
 {% if can('apartments', 'edit') %}
 <div class="modal fade" id="edit" tabindex="-1">

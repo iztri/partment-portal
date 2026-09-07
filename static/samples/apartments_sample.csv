@@ -1,4 +1,4 @@
-Hub ID,Hub Name,Apartment ID,Apartment Name,Manager Name,Phone
-1,Arekere,105,Prestige Sunrise Park,Ramesh Kumar,9876543210
-32,Koramangala,106,Sattva Misty Charm,Anita Rao,9123456780
-9,Nandi Citadel,107,Nandi Woods,Suresh Babu,9008007000
+Hub ID,Hub Name,Apartment ID,Apartment Name,Manager Name,Phone,Designation
+1,Arekere,105,Prestige Sunrise Park,Ramesh Kumar,9876543210,Apartment Manager
+32,Koramangala,106,Sattva Misty Charm,Anita Rao,9123456780,Security
+9,Nandi Citadel,107,Nandi Woods,Suresh Babu,9008007000,Association Member

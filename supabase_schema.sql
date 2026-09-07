@@ -69,24 +69,32 @@ alter table apartments add column if not exists status text not null default 'Pe
 alter table apartments add column if not exists assigned_to text not null default '';
 alter table apartments add column if not exists hub text not null default '';
 alter table apartments add column if not exists location_link text not null default '';
+alter table apartments add column if not exists recollect_at text not null default '';
 
 create index if not exists apartments_code_idx on apartments (apartment_code) where apartment_code <> '';
 create index if not exists apartments_assigned_to_idx on apartments (assigned_to) where deleted = false;
 
 -- 5. collections table
 create table if not exists collections (
-    id               bigint generated always as identity primary key,
-    apartment_id     bigint not null unique references apartments (id) on delete cascade,
-    outcome          text not null default 'number' check (outcome in ('number','no_number')),
-    contact_name     text not null default '',
-    phone            text not null default '',
-    designation      text not null default '',
-    total_units      integer not null default 0,
-    no_number_reason text not null default '',
-    collected_by     text not null default '',
-    collected_at     text not null default '',
-    updated_at       text not null default ''
+    id                    bigint generated always as identity primary key,
+    apartment_id          bigint not null unique references apartments (id) on delete cascade,
+    outcome               text not null default 'number' check (outcome in ('number','no_number')),
+    contact_name          text not null default '',
+    phone                 text not null default '',
+    designation           text not null default '',
+    total_units           integer not null default 0,
+    no_number_reason      text not null default '',
+    previous_contact_name text not null default '',
+    previous_phone        text not null default '',
+    previous_saved_at     text not null default '',
+    collected_by          text not null default '',
+    collected_at          text not null default '',
+    updated_at            text not null default ''
 );
+
+alter table collections add column if not exists previous_contact_name text not null default '';
+alter table collections add column if not exists previous_phone text not null default '';
+alter table collections add column if not exists previous_saved_at text not null default '';
 
 -- 6. collection_campaigns table
 create table if not exists collection_campaigns (

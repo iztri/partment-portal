@@ -34,16 +34,18 @@
     <div class="card-body">
       <p class="muted" style="margin-top:0; font-size:12.5px;">
         One per line, comma or tab separated:
-        <code>Hub ID, Hub Name, Apartment ID, Apartment Name, Manager Name, Phone</code>.
+        <code>Hub ID, Hub Name, Apartment ID, Apartment Name, Manager Name, Phone, Designation</code>.
         Hub is matched by ID (created from ID + Name if new). Apartment is matched by
-        Apartment ID — existing ones are updated, new ones added. Manager Name + Phone
-        are saved as that apartment's contact. Only Apartment Name and a resolvable hub
-        are required per row.
+        Apartment ID — existing ones are updated, new ones added. Manager Name + Phone +
+        Designation are saved as that apartment's contact; Designation must be
+        <em>Security</em>, <em>Apartment Manager</em> or <em>Association Member</em>
+        (blank = keep any existing). Only Apartment Name and a resolvable hub are
+        required per row.
       </p>
       <form method="post" action="/marketing/bulk-upload">
         <div class="field">
           <textarea name="bulk_data" id="bulk" rows="8" style="font-family:ui-monospace,Menlo,monospace; font-size:12.5px;"
-            placeholder="1, Arekere, 105, Prestige Sunrise Park, Ramesh Kumar, 9876543210&#10;32, Koramangala, 106, Sattva Misty Charm, Anita Rao, 9123456780"></textarea>
+            placeholder="1, Arekere, 105, Prestige Sunrise Park, Ramesh Kumar, 9876543210, Apartment Manager&#10;32, Koramangala, 106, Sattva Misty Charm, Anita Rao, 9123456780, Security"></textarea>
         </div>
         <div style="display:flex; gap:8px;">
           <a href="/static/samples/apartments_sample.csv" download class="btn btn-default btn-sm"><i class="bi bi-download"></i>Download sample</a>
