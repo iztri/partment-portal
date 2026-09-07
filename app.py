@@ -11,6 +11,7 @@ from io import BytesIO
 from flask import (
     Flask, render_template, request, redirect, url_for, session, flash, send_file
 )
+from werkzeug.middleware.proxy_fix import ProxyFix
 from auth import (
     login_required, role_required, feature_required, admin_required,
     authenticate, logout, ensure_seed_admin, hash_password,
@@ -26,6 +27,11 @@ from config import (
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET", "dev-only-change-me")
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024  # 20MB, generous for phone-camera photos
+# Render (and most hosts) put the app behind an HTTPS-terminating proxy. Trust the
+# X-Forwarded-* headers so url_for()/redirects keep the https scheme and real host
+# — otherwise a POST that redirects can get bounced http→https and retried as GET
+# (which shows up as "405 Method Not Allowed" on POST-only routes).
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 db = get_db()
 ensure_seed_admin()
@@ -1049,9 +1055,11 @@ def btl_standee_detail(assignment_id):
     )
 
 
-@app.route("/btl/standees/<int:assignment_id>/place", methods=["POST"])
+@app.route("/btl/standees/<int:assignment_id>/place", methods=["GET", "POST"])
 @role_required("btl")
 def btl_standee_place(assignment_id):
+    if request.method == "GET":
+        return redirect(url_for("btl_standee_detail", assignment_id=assignment_id))
     a = db.get_standee_assignment(assignment_id)
     if not a or a["assigned_to"] != session["user"] or a["status"] != "Assigned":
         flash("This task can't be placed right now", "danger")
@@ -1065,9 +1073,11 @@ def btl_standee_place(assignment_id):
     return redirect(url_for("btl_standees_page"))
 
 
-@app.route("/btl/standees/<int:assignment_id>/collect", methods=["POST"])
+@app.route("/btl/standees/<int:assignment_id>/collect", methods=["GET", "POST"])
 @role_required("btl")
 def btl_standee_collect(assignment_id):
+    if request.method == "GET":
+        return redirect(url_for("btl_standee_detail", assignment_id=assignment_id))
     a = db.get_standee_assignment(assignment_id)
     if not a or a["assigned_to"] != session["user"] or a["status"] != "Placed":
         flash("This task can't be collected right now", "danger")
@@ -1105,12 +1115,18 @@ def btl_standee_collect(assignment_id):
         loc = request.form.get("drop_hub", "").strip() or a["apartment_hub"]
 
     saved = _save_photos(request.files.getlist("damage_photos"), assignment_id) if damaged else []
-    db.collect_standee_assignment(
-        assignment_id, returned, damaged, note, loc, session["user"], saved,
-        quantity_missing=missing, redeployed_to=redeploy_id,
-    )
+    try:
+        db.collect_standee_assignment(
+            assignment_id, returned, damaged, note, loc, session["user"], saved,
+            quantity_missing=missing, redeployed_to=redeploy_id,
+        )
+        if redeploy_id:
+            db.confirm_placement(redeploy_id, session["user"], [])
+    except Exception:
+        app.logger.exception("standee collect failed (assignment %s)", assignment_id)
+        flash("Couldn't save the collection — please try again in a moment.", "danger")
+        return redirect(url_for("btl_standee_detail", assignment_id=assignment_id))
     if redeploy_id:
-        db.confirm_placement(redeploy_id, session["user"], [])
         flash(f"Collected · redeployed to {dest['apartment_name']} ({dest['standee_name']})", "success")
     else:
         flash("Standee collected", "success")
@@ -1122,6 +1138,23 @@ def btl_standee_collect(assignment_id):
 def not_found(e):
     return render_template("error.html", code=404,
                            message="That page doesn't exist."), 404
+
+
+@app.errorhandler(405)
+def method_not_allowed(e):
+    # Usually a refresh/back-button on a form URL. Send them somewhere useful.
+    if request.path.startswith("/btl/"):
+        return redirect(url_for("btl_standees_page"))
+    if request.path.startswith("/marketing/"):
+        return redirect(url_for("home"))
+    return render_template("error.html", code=405,
+                           message="That action can't be opened directly — go back and try again."), 405
+
+
+@app.errorhandler(413)
+def payload_too_large(e):
+    return render_template("error.html", code=413,
+                           message="That upload is too large — try a smaller photo (max 20 MB)."), 413
 
 
 @app.errorhandler(500)
