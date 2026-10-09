@@ -872,6 +872,49 @@ def marketing_standee_assignment_quantity(assignment_id):
     return redirect(back)
 
 
+@app.route("/marketing/standees/assignment/<int:assignment_id>/edit", methods=["POST"])
+@feature_required("standees", "edit")
+def marketing_standee_assignment_edit(assignment_id):
+    a = db.get_standee_assignment(assignment_id)
+    back = url_for("marketing_standees_page") + "#assign"
+    if not a:
+        flash("Assignment not found", "danger")
+        return redirect(back)
+    if a["status"] == "Collected":
+        flash("That assignment is already collected — it can't be edited", "danger")
+        return redirect(back)
+    assigned_to = request.form.get("assigned_to", "").strip()
+    if assigned_to not in {u["username"] for u in db.btl_users()}:
+        flash("Select a valid BTL coordinator", "danger")
+        return redirect(back)
+    try:
+        qty = int(request.form.get("quantity", ""))
+    except ValueError:
+        qty = 0
+    if qty < 1:
+        flash("Quantity must be at least 1", "danger")
+        return redirect(back)
+    if assigned_to != a["assigned_to"]:
+        db.update_assignment_coordinator(assignment_id, assigned_to)
+    if qty != a["quantity"]:
+        db.update_assignment_quantity(assignment_id, qty)
+    flash(f"Updated {a['standee_name']} @ {a['apartment_name']}", "success")
+    return redirect(back)
+
+
+@app.route("/marketing/standees/assignment/<int:assignment_id>/delete", methods=["POST"])
+@feature_required("standees", "read")
+@admin_required
+def marketing_standee_assignment_delete(assignment_id):
+    a = db.get_standee_assignment(assignment_id)
+    if a:
+        db.delete_standee_assignment(assignment_id)
+        flash(f"Deleted assignment {a['standee_name']} @ {a['apartment_name']}", "success")
+    else:
+        flash("Assignment not found", "danger")
+    return redirect(url_for("marketing_standees_page") + "#assign")
+
+
 @app.route("/marketing/standees/assignment/<int:assignment_id>")
 @feature_required("standees", "read")
 def marketing_standee_assignment_detail(assignment_id):

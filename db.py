@@ -790,6 +790,20 @@ class SQLiteDatabase:
         )
         self.conn.commit()
 
+    def update_assignment_coordinator(self, assignment_id, assigned_to):
+        self.conn.execute(
+            "UPDATE standee_assignments SET assigned_to=?, updated_at=? WHERE id=?",
+            (assigned_to, _now(), int(assignment_id)),
+        )
+        self.conn.commit()
+
+    def delete_standee_assignment(self, assignment_id):
+        aid = int(assignment_id)
+        self.conn.execute("DELETE FROM standee_photos WHERE assignment_id=?", (aid,))
+        self.conn.execute("UPDATE standee_assignments SET redeployed_to=NULL WHERE redeployed_to=?", (aid,))
+        self.conn.execute("DELETE FROM standee_assignments WHERE id=?", (aid,))
+        self.conn.commit()
+
     def confirm_placement(self, assignment_id, placed_by, photo_paths):
         assignment_id = int(assignment_id)
         row = self.conn.execute(
@@ -1320,6 +1334,17 @@ class SupabaseDatabase:
         self.sb.table("standee_assignments").update(
             {"quantity": int(quantity), "updated_at": _now()}
         ).eq("id", int(assignment_id)).execute()
+
+    def update_assignment_coordinator(self, assignment_id, assigned_to):
+        self.sb.table("standee_assignments").update(
+            {"assigned_to": assigned_to, "updated_at": _now()}
+        ).eq("id", int(assignment_id)).execute()
+
+    def delete_standee_assignment(self, assignment_id):
+        aid = int(assignment_id)
+        self.sb.table("standee_photos").delete().eq("assignment_id", aid).execute()
+        self.sb.table("standee_assignments").update({"redeployed_to": None}).eq("redeployed_to", aid).execute()
+        self.sb.table("standee_assignments").delete().eq("id", aid).execute()
 
     def confirm_placement(self, assignment_id, placed_by, photo_paths):
         assignment_id = int(assignment_id)

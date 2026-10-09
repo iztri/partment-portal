@@ -153,10 +153,11 @@
         {% endif %}
         <form method="post" action="/marketing/standees/assign" enctype="multipart/form-data">
           <div class="field"><label>Apartment</label>
-            <select name="apartment_id" required>
-              <option value="">— Select —</option>
-              {% for a in apartments %}<option value="{{ a.id }}">{{ a.name }} ({{ a.hub }})</option>{% endfor %}
-            </select></div>
+            <input type="text" id="assignAptSearch" list="assignAptList" placeholder="Type to search apartment…" autocomplete="off" required>
+            <input type="hidden" name="apartment_id" id="assignAptId">
+            <datalist id="assignAptList">
+              {% for a in apartments %}<option value="{{ a.name }} ({{ a.hub }})" data-id="{{ a.id }}"></option>{% endfor %}
+            </datalist></div>
           <div class="field"><label>Standee</label>
             <select name="standee_id" id="assignStandeeSelect" required>
               <option value="">— Select —</option>
@@ -202,16 +203,7 @@
                 <td class="num">{{ a.id }}</td>
                 <td class="strong">{{ a.apartment_name }}</td>
                 <td class="muted">{% if a.standee_photo %}<img class="thumb" src="{{ a.standee_photo | media }}">{% endif %}{{ a.standee_name }}</td>
-                <td>
-                  {% if can('standees', 'edit') and a.status != 'Collected' %}
-                  <form method="post" action="/marketing/standees/assignment/{{ a.id }}/quantity" style="display:flex; gap:4px; align-items:center;">
-                    <input type="number" name="quantity" value="{{ a.quantity }}" min="1" required
-                           title="{{ stats.get(a.standee_id, {}).get('available', 0) }} available in inventory"
-                           style="width:56px; padding:4px 6px; font-size:12.5px;">
-                    <button class="btn btn-default btn-sm" style="padding:3px 7px;" title="Save quantity"><i class="bi bi-check-lg"></i></button>
-                  </form>
-                  {% else %}{{ a.quantity }}{% endif %}
-                </td>
+                <td>{{ a.quantity }}</td>
                 <td class="muted">{{ a.assigned_to }}</td>
                 <td>{{ status_badge(a.status) }}</td>
                 <td class="muted" style="font-size:12px;">{{ a.placed_at[:16] if a.placed_at else '—' }}</td>
@@ -227,7 +219,19 @@
                     {% endif %}
                   </div>
                 </td>
-                <td><button class="btn btn-default btn-icon" onclick="openAssignmentDetail({{ a.id }})" title="View"><i class="bi bi-eye"></i></button></td>
+                <td style="white-space:nowrap;">
+                  <button class="btn btn-default btn-icon" onclick="openAssignmentDetail({{ a.id }})" title="View"><i class="bi bi-eye"></i></button>
+                  {% if can('standees', 'edit') and a.status != 'Collected' %}
+                  <button type="button" class="btn btn-default btn-icon" title="Edit coordinator / quantity"
+                          onclick="openEditAssignment({{ a.id }}, {{ a.assigned_to|tojson }}, {{ a.quantity }})"><i class="bi bi-pencil-square"></i></button>
+                  {% endif %}
+                  {% if is_admin %}
+                  <form method="post" action="/marketing/standees/assignment/{{ a.id }}/delete" style="display:inline;"
+                        onsubmit="return confirm('Delete this assignment permanently?');">
+                    <button class="btn btn-default btn-icon" title="Delete (admin)"><i class="bi bi-trash" style="color:var(--danger-fg);"></i></button>
+                  </form>
+                  {% endif %}
+                </td>
               </tr>
               {% else %}
               <tr><td colspan="10"><div class="empty"><i class="bi bi-signpost-2"></i><div class="t">No assignments yet.</div></div></td></tr>
@@ -511,6 +515,24 @@
     </form>
   </div>
 </div>
+<div class="modal fade" id="editAsgModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="post" id="editAsgForm">
+      <div class="modal-header"><span class="modal-title">Edit assignment</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="field"><label>BTL coordinator</label>
+          <select name="assigned_to" id="editAsgUser" required>
+            {% for u in btl_users %}<option value="{{ u.username }}">{{ u.name }} ({{ u.username }})</option>{% endfor %}
+          </select></div>
+        <div class="field mb-0"><label>Quantity</label><input type="number" name="quantity" id="editAsgQty" min="1" required></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i>Save</button>
+      </div>
+    </form>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -683,6 +705,26 @@
         document.getElementById('adLoading').innerHTML = '<div class="t">Failed to load.</div>';
       });
   }
+
+  function openEditAssignment(id, user, qty){
+    document.getElementById('editAsgForm').action = '/marketing/standees/assignment/' + id + '/edit';
+    document.getElementById('editAsgUser').value = user;
+    document.getElementById('editAsgQty').value = qty;
+    new bootstrap.Modal(document.getElementById('editAsgModal')).show();
+  }
+
+  (function(){
+    var inp = document.getElementById('assignAptSearch');
+    if(!inp) return;
+    var hid = document.getElementById('assignAptId');
+    function sync(){
+      var m = Array.prototype.find.call(document.querySelectorAll('#assignAptList option'), function(o){ return o.value === inp.value; });
+      hid.value = m ? m.dataset.id : '';
+      inp.setCustomValidity(m || !inp.value ? '' : 'Pick an apartment from the suggestions');
+    }
+    inp.addEventListener('input', sync);
+    inp.form.addEventListener('submit', function(e){ sync(); if(!hid.value){ e.preventDefault(); inp.reportValidity(); } });
+  })();
 
   function openInvoiceModal(id, hasPhoto){
     var f = document.getElementById('invoiceForm');
