@@ -65,6 +65,7 @@ MARKETING_FEATURES = [
     ("hubs", "Hubs"),
     ("assign", "Assign"),
     ("standees", "Standees"),
+    ("umbrellas", "Umbrellas"),
     ("export", "Export"),
 ]
 MARKETING_FEATURE_KEYS = [k for k, _ in MARKETING_FEATURES]

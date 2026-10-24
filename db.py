@@ -179,6 +179,63 @@ class SQLiteDatabase:
                 path TEXT NOT NULL,
                 uploaded_at TEXT NOT NULL DEFAULT ''
             );
+
+            CREATE TABLE IF NOT EXISTS umbrellas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                photo_path TEXT NOT NULL DEFAULT '',
+                total_units INTEGER NOT NULL DEFAULT 0,
+                storage_location TEXT NOT NULL DEFAULT '',
+                active INTEGER NOT NULL DEFAULT 1,
+                replaced_by INTEGER REFERENCES umbrellas(id),
+                damaged_resolved INTEGER NOT NULL DEFAULT 0,
+                created_by TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT ''
+            );
+
+            CREATE TABLE IF NOT EXISTS umbrella_reprints (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                umbrella_id INTEGER NOT NULL REFERENCES umbrellas(id) ON DELETE CASCADE,
+                added_units INTEGER NOT NULL DEFAULT 0,
+                note TEXT NOT NULL DEFAULT '',
+                added_by TEXT NOT NULL DEFAULT '',
+                added_at TEXT NOT NULL DEFAULT ''
+            );
+
+            CREATE TABLE IF NOT EXISTS umbrella_assignments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                umbrella_id INTEGER NOT NULL REFERENCES umbrellas(id),
+                apartment_id INTEGER NOT NULL REFERENCES apartments(id),
+                assigned_to TEXT NOT NULL DEFAULT '',
+                quantity INTEGER NOT NULL DEFAULT 0,
+                duration_days INTEGER NOT NULL DEFAULT 0,
+                collection_location TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'Assigned',
+                placed_at TEXT NOT NULL DEFAULT '',
+                placed_by TEXT NOT NULL DEFAULT '',
+                collect_by TEXT NOT NULL DEFAULT '',
+                collected_at TEXT NOT NULL DEFAULT '',
+                collected_by TEXT NOT NULL DEFAULT '',
+                quantity_returned INTEGER NOT NULL DEFAULT 0,
+                quantity_damaged INTEGER NOT NULL DEFAULT 0,
+                quantity_missing INTEGER NOT NULL DEFAULT 0,
+                damage_note TEXT NOT NULL DEFAULT '',
+                drop_location TEXT NOT NULL DEFAULT '',
+                redeployed_to INTEGER,
+                invoice_photo TEXT NOT NULL DEFAULT '',
+                invoice_note TEXT NOT NULL DEFAULT '',
+                created_by TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL DEFAULT ''
+            );
+
+            CREATE TABLE IF NOT EXISTS umbrella_photos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                assignment_id INTEGER NOT NULL REFERENCES umbrella_assignments(id) ON DELETE CASCADE,
+                kind TEXT NOT NULL DEFAULT 'placement',
+                path TEXT NOT NULL,
+                uploaded_at TEXT NOT NULL DEFAULT ''
+            );
             """
         )
         self.conn.commit()
@@ -196,6 +253,14 @@ class SQLiteDatabase:
             "ALTER TABLE standee_assignments ADD COLUMN invoice_photo TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE standee_assignments ADD COLUMN invoice_note TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE standee_assignments ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE umbrellas ADD COLUMN active INTEGER NOT NULL DEFAULT 1",
+            "ALTER TABLE umbrellas ADD COLUMN replaced_by INTEGER REFERENCES umbrellas(id)",
+            "ALTER TABLE umbrellas ADD COLUMN damaged_resolved INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE umbrella_assignments ADD COLUMN quantity_missing INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE umbrella_assignments ADD COLUMN redeployed_to INTEGER",
+            "ALTER TABLE umbrella_assignments ADD COLUMN invoice_photo TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE umbrella_assignments ADD COLUMN invoice_note TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE umbrella_assignments ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE apartments ADD COLUMN recollect_at TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE collections ADD COLUMN previous_contact_name TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE collections ADD COLUMN previous_phone TEXT NOT NULL DEFAULT ''",
@@ -853,6 +918,286 @@ class SQLiteDatabase:
         ).fetchall()
         return [dict(r) for r in rows]
 
+    # ── umbrellas ─────────────────────────────────────────────────────────
+    def add_umbrella(self, name, photo_path, total_units, storage_location, created_by):
+        try:
+            cur = self.conn.execute(
+                "INSERT INTO umbrellas (name, photo_path, total_units, storage_location, "
+                "created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (name, photo_path, int(total_units), storage_location, created_by, _now()),
+            )
+            self.conn.commit()
+            return cur.lastrowid
+        except sqlite3.IntegrityError:
+            return None
+
+    def list_umbrellas(self):
+        rows = self.conn.execute("SELECT * FROM umbrellas ORDER BY name").fetchall()
+        return [dict(r) for r in rows]
+
+    def get_umbrella(self, umbrella_id):
+        r = self.conn.execute("SELECT * FROM umbrellas WHERE id=?", (int(umbrella_id),)).fetchone()
+        return dict(r) if r else None
+
+    def retire_umbrella(self, umbrella_id, replaced_by=None):
+        self.conn.execute(
+            "UPDATE umbrellas SET active=0, replaced_by=? WHERE id=?",
+            (int(replaced_by) if replaced_by else None, int(umbrella_id)),
+        )
+        self.conn.commit()
+
+    def update_umbrella(self, umbrella_id, name=None, total_units=None,
+                       storage_location=None, photo_path=None):
+        sets, vals = [], []
+        for col, val in (
+            ("name", name), ("total_units", total_units),
+            ("storage_location", storage_location), ("photo_path", photo_path),
+        ):
+            if val is not None:
+                sets.append(f"{col}=?")
+                vals.append(int(val) if col == "total_units" else val)
+        if not sets:
+            return True
+        vals.append(int(umbrella_id))
+        try:
+            self.conn.execute(f"UPDATE umbrellas SET {', '.join(sets)} WHERE id=?", vals)
+            self.conn.commit()
+            return True
+        except sqlite3.IntegrityError:
+            return False
+
+    def umbrella_in_use(self, umbrella_id):
+        """Assignments referencing it + umbrellas that name it as their replacement."""
+        sid = int(umbrella_id)
+        a = self.conn.execute(
+            "SELECT COUNT(*) FROM umbrella_assignments WHERE umbrella_id=?", (sid,)
+        ).fetchone()[0]
+        r = self.conn.execute(
+            "SELECT COUNT(*) FROM umbrellas WHERE replaced_by=?", (sid,)
+        ).fetchone()[0]
+        return a + r
+
+    def delete_umbrella(self, umbrella_id):
+        sid = int(umbrella_id)
+        self.conn.execute("DELETE FROM umbrella_reprints WHERE umbrella_id=?", (sid,))
+        self.conn.execute("DELETE FROM umbrellas WHERE id=?", (sid,))
+        self.conn.commit()
+
+    def reprint_umbrella(self, umbrella_id, added_units, note, added_by, resolve_damaged=False):
+        umbrella_id = int(umbrella_id)
+        added_units = int(added_units)
+        self.conn.execute(
+            "INSERT INTO umbrella_reprints (umbrella_id, added_units, note, added_by, added_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (umbrella_id, added_units, note, added_by, _now()),
+        )
+        self.conn.execute(
+            "UPDATE umbrellas SET total_units = total_units + ? WHERE id=?",
+            (added_units, umbrella_id),
+        )
+        if resolve_damaged:
+            current_damaged = self.umbrella_stats().get(umbrella_id, {}).get("damaged", 0)
+            resolve_amt = min(added_units, current_damaged)
+            if resolve_amt > 0:
+                self.conn.execute(
+                    "UPDATE umbrellas SET damaged_resolved = damaged_resolved + ? WHERE id=?",
+                    (resolve_amt, umbrella_id),
+                )
+        self.conn.commit()
+
+    def reprint_history(self, umbrella_id):
+        rows = self.conn.execute(
+            "SELECT * FROM umbrella_reprints WHERE umbrella_id=? ORDER BY id DESC", (int(umbrella_id),)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def umbrella_stats(self):
+        """{umbrella_id: {placed, damaged, damaged_raw, lost, available}}
+
+        `damaged` is the displayed count (raw damaged minus units already covered
+        by a "reprint to replace damaged" action) — a dismissible indicator.
+        `available` is always computed off the raw damaged count: printing
+        replacements doesn't un-damage the physical units still sitting around,
+        so it must not be double-counted into availability. A discontinued
+        (inactive) umbrella always reports `available: 0` — those units can
+        never be assigned again regardless of the arithmetic, so nothing about
+        it should look "ready to use" anywhere in the app.
+        """
+        placed, damaged_raw, lost = {}, {}, {}
+        for r in self.conn.execute(
+            "SELECT umbrella_id, SUM(quantity) q FROM umbrella_assignments "
+            "WHERE status='Placed' GROUP BY umbrella_id"
+        ):
+            placed[r["umbrella_id"]] = r["q"] or 0
+        for r in self.conn.execute(
+            "SELECT umbrella_id, quantity, quantity_returned, quantity_damaged, quantity_missing "
+            "FROM umbrella_assignments WHERE status='Collected'"
+        ):
+            sid = r["umbrella_id"]
+            damaged_raw[sid] = damaged_raw.get(sid, 0) + (r["quantity_damaged"] or 0)
+            explicit = r["quantity_missing"] or 0
+            implicit = (r["quantity"] or 0) - (r["quantity_returned"] or 0) - (r["quantity_damaged"] or 0)
+            missing = explicit if explicit else max(0, implicit)
+            if missing > 0:
+                lost[sid] = lost.get(sid, 0) + missing
+        out = {}
+        for s in self.list_umbrellas():
+            sid = s["id"]
+            p, d_raw, l = placed.get(sid, 0), damaged_raw.get(sid, 0), lost.get(sid, 0)
+            resolved = min(s.get("damaged_resolved") or 0, d_raw)
+            available = (s["total_units"] - p - d_raw - l) if s.get("active") else 0
+            out[sid] = {
+                "placed": p, "damaged": d_raw - resolved, "damaged_raw": d_raw, "lost": l,
+                "available": available,
+            }
+        return out
+
+    def active_umbrella_placements(self):
+        rows = self.conn.execute(
+            """SELECT sa.umbrella_id, s.name AS umbrella_name, s.photo_path AS umbrella_photo,
+                      sa.apartment_id, a.name AS apartment_name, a.hub AS apartment_hub, sa.quantity
+               FROM umbrella_assignments sa
+               JOIN umbrellas s ON s.id = sa.umbrella_id
+               JOIN apartments a ON a.id = sa.apartment_id
+               WHERE sa.status='Placed' ORDER BY a.name"""
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def create_umbrella_assignment(self, umbrella_id, apartment_id, assigned_to, quantity,
+                                   duration_days, collection_location, created_by,
+                                   invoice_photo="", invoice_note=""):
+        now = _now()
+        cur = self.conn.execute(
+            "INSERT INTO umbrella_assignments (umbrella_id, apartment_id, assigned_to, quantity, "
+            "duration_days, collection_location, status, invoice_photo, invoice_note, "
+            "created_by, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, 'Assigned', ?, ?, ?, ?, ?)",
+            (int(umbrella_id), int(apartment_id), assigned_to, int(quantity),
+             int(duration_days), collection_location, invoice_photo, invoice_note,
+             created_by, now, now),
+        )
+        self.conn.commit()
+        return cur.lastrowid
+
+    def set_assignment_invoice(self, assignment_id, invoice_photo, invoice_note, updated_by):
+        """Update the payment-proof photo (only if a new one is given) + note."""
+        sets, vals = ["invoice_note=?", "updated_at=?"], [invoice_note, _now()]
+        if invoice_photo:
+            sets.insert(0, "invoice_photo=?")
+            vals.insert(0, invoice_photo)
+        vals.append(int(assignment_id))
+        self.conn.execute(
+            f"UPDATE umbrella_assignments SET {', '.join(sets)} WHERE id=?", vals
+        )
+        self.conn.commit()
+
+    def list_umbrella_assignments(self):
+        rows = self.conn.execute(
+            """SELECT sa.*, s.name AS umbrella_name, s.photo_path AS umbrella_photo,
+                      a.name AS apartment_name, a.hub AS apartment_hub
+               FROM umbrella_assignments sa
+               JOIN umbrellas s ON s.id = sa.umbrella_id
+               JOIN apartments a ON a.id = sa.apartment_id
+               ORDER BY sa.id DESC"""
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def list_umbrella_assignments_for_btl(self, username):
+        rows = self.conn.execute(
+            """SELECT sa.*, s.name AS umbrella_name, s.photo_path AS umbrella_photo,
+                      a.name AS apartment_name, a.hub AS apartment_hub,
+                      a.location_link AS apartment_location_link
+               FROM umbrella_assignments sa
+               JOIN umbrellas s ON s.id = sa.umbrella_id
+               JOIN apartments a ON a.id = sa.apartment_id
+               WHERE sa.assigned_to=? ORDER BY sa.id DESC""",
+            (username,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_umbrella_assignment(self, assignment_id):
+        r = self.conn.execute(
+            """SELECT sa.*, s.name AS umbrella_name, s.photo_path AS umbrella_photo,
+                      a.name AS apartment_name, a.hub AS apartment_hub,
+                      a.location_link AS apartment_location_link
+               FROM umbrella_assignments sa
+               JOIN umbrellas s ON s.id = sa.umbrella_id
+               JOIN apartments a ON a.id = sa.apartment_id
+               WHERE sa.id=?""",
+            (int(assignment_id),),
+        ).fetchone()
+        return dict(r) if r else None
+
+    def update_assignment_quantity(self, assignment_id, quantity):
+        self.conn.execute(
+            "UPDATE umbrella_assignments SET quantity=?, updated_at=? WHERE id=?",
+            (int(quantity), _now(), int(assignment_id)),
+        )
+        self.conn.commit()
+
+    def update_assignment_coordinator(self, assignment_id, assigned_to):
+        self.conn.execute(
+            "UPDATE umbrella_assignments SET assigned_to=?, updated_at=? WHERE id=?",
+            (assigned_to, _now(), int(assignment_id)),
+        )
+        self.conn.commit()
+
+    def delete_umbrella_assignment(self, assignment_id):
+        aid = int(assignment_id)
+        self.conn.execute("DELETE FROM umbrella_photos WHERE assignment_id=?", (aid,))
+        self.conn.execute("UPDATE umbrella_assignments SET redeployed_to=NULL WHERE redeployed_to=?", (aid,))
+        self.conn.execute("DELETE FROM umbrella_assignments WHERE id=?", (aid,))
+        self.conn.commit()
+
+    def confirm_placement(self, assignment_id, placed_by, photo_paths):
+        assignment_id = int(assignment_id)
+        row = self.conn.execute(
+            "SELECT duration_days FROM umbrella_assignments WHERE id=?", (assignment_id,)
+        ).fetchone()
+        now = _now()
+        collect_by = (
+            datetime.now(IST) + timedelta(days=int(row["duration_days"] or 0))
+        ).strftime("%Y-%m-%d") if row else ""
+        self.conn.execute(
+            "UPDATE umbrella_assignments SET status='Placed', placed_at=?, placed_by=?, "
+            "collect_by=?, updated_at=? WHERE id=?",
+            (now, placed_by, collect_by, now, assignment_id),
+        )
+        for p in photo_paths:
+            self.conn.execute(
+                "INSERT INTO umbrella_photos (assignment_id, kind, path, uploaded_at) "
+                "VALUES (?, 'placement', ?, ?)",
+                (assignment_id, p, now),
+            )
+        self.conn.commit()
+
+    def collect_umbrella_assignment(self, assignment_id, quantity_returned, quantity_damaged,
+                                    damage_note, drop_location, collected_by, photo_paths,
+                                    quantity_missing=0, redeployed_to=None):
+        assignment_id = int(assignment_id)
+        now = _now()
+        self.conn.execute(
+            "UPDATE umbrella_assignments SET status='Collected', collected_at=?, collected_by=?, "
+            "quantity_returned=?, quantity_damaged=?, quantity_missing=?, damage_note=?, "
+            "drop_location=?, redeployed_to=?, updated_at=? WHERE id=?",
+            (now, collected_by, int(quantity_returned), int(quantity_damaged),
+             int(quantity_missing), damage_note, drop_location,
+             int(redeployed_to) if redeployed_to else None, now, assignment_id),
+        )
+        for p in photo_paths:
+            self.conn.execute(
+                "INSERT INTO umbrella_photos (assignment_id, kind, path, uploaded_at) "
+                "VALUES (?, 'damage', ?, ?)",
+                (assignment_id, p, now),
+            )
+        self.conn.commit()
+
+    def photos_for(self, assignment_id):
+        rows = self.conn.execute(
+            "SELECT * FROM umbrella_photos WHERE assignment_id=? ORDER BY id", (int(assignment_id),)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
     # ── media (local dev writes to disk in app._save_photos; nothing to do here) ──
     def ensure_media_bucket(self):
         return None
@@ -1384,6 +1729,235 @@ class SupabaseDatabase:
     def photos_for(self, assignment_id):
         return (
             self.sb.table("standee_photos").select("*").eq("assignment_id", int(assignment_id))
+            .order("id").execute().data
+        )
+
+    # ── umbrellas ──
+    def add_umbrella(self, name, photo_path, total_units, storage_location, created_by):
+        try:
+            r = self.sb.table("umbrellas").insert({
+                "name": name, "photo_path": photo_path, "total_units": int(total_units),
+                "storage_location": storage_location, "created_by": created_by, "created_at": _now(),
+            }).execute()
+            return r.data[0]["id"] if r.data else None
+        except Exception:
+            return None
+
+    def list_umbrellas(self):
+        return self.sb.table("umbrellas").select("*").order("name").execute().data
+
+    def get_umbrella(self, umbrella_id):
+        r = self.sb.table("umbrellas").select("*").eq("id", int(umbrella_id)).limit(1).execute()
+        return r.data[0] if r.data else None
+
+    def retire_umbrella(self, umbrella_id, replaced_by=None):
+        self.sb.table("umbrellas").update({
+            "active": False, "replaced_by": int(replaced_by) if replaced_by else None,
+        }).eq("id", int(umbrella_id)).execute()
+
+    def update_umbrella(self, umbrella_id, name=None, total_units=None,
+                       storage_location=None, photo_path=None):
+        upd = {}
+        if name is not None:
+            upd["name"] = name
+        if total_units is not None:
+            upd["total_units"] = int(total_units)
+        if storage_location is not None:
+            upd["storage_location"] = storage_location
+        if photo_path is not None:
+            upd["photo_path"] = photo_path
+        if not upd:
+            return True
+        try:
+            self.sb.table("umbrellas").update(upd).eq("id", int(umbrella_id)).execute()
+            return True
+        except Exception:
+            return False
+
+    def umbrella_in_use(self, umbrella_id):
+        sid = int(umbrella_id)
+        a = (self.sb.table("umbrella_assignments").select("id", count="exact")
+             .eq("umbrella_id", sid).limit(1).execute().count) or 0
+        r = (self.sb.table("umbrellas").select("id", count="exact")
+             .eq("replaced_by", sid).limit(1).execute().count) or 0
+        return a + r
+
+    def delete_umbrella(self, umbrella_id):
+        sid = int(umbrella_id)
+        self.sb.table("umbrella_reprints").delete().eq("umbrella_id", sid).execute()
+        self.sb.table("umbrellas").delete().eq("id", sid).execute()
+
+    def reprint_umbrella(self, umbrella_id, added_units, note, added_by, resolve_damaged=False):
+        umbrella_id = int(umbrella_id)
+        added_units = int(added_units)
+        self.sb.table("umbrella_reprints").insert({
+            "umbrella_id": umbrella_id, "added_units": added_units, "note": note,
+            "added_by": added_by, "added_at": _now(),
+        }).execute()
+        s = self.get_umbrella(umbrella_id)
+        new_total = (s["total_units"] if s else 0) + added_units
+        self.sb.table("umbrellas").update({"total_units": new_total}).eq("id", umbrella_id).execute()
+        if resolve_damaged:
+            current_damaged = self.umbrella_stats().get(umbrella_id, {}).get("damaged", 0)
+            resolve_amt = min(added_units, current_damaged)
+            if resolve_amt > 0:
+                new_resolved = ((s.get("damaged_resolved") or 0) if s else 0) + resolve_amt
+                self.sb.table("umbrellas").update({"damaged_resolved": new_resolved}).eq("id", umbrella_id).execute()
+
+    def reprint_history(self, umbrella_id):
+        return (
+            self.sb.table("umbrella_reprints").select("*").eq("umbrella_id", int(umbrella_id))
+            .order("id", desc=True).execute().data
+        )
+
+    def umbrella_stats(self):
+        placed, damaged_raw, lost = {}, {}, {}
+        for r in self.sb.table("umbrella_assignments").select("umbrella_id,quantity").eq("status", "Placed").execute().data:
+            placed[r["umbrella_id"]] = placed.get(r["umbrella_id"], 0) + (r["quantity"] or 0)
+        for r in self.sb.table("umbrella_assignments").select(
+            "umbrella_id,quantity,quantity_returned,quantity_damaged,quantity_missing"
+        ).eq("status", "Collected").execute().data:
+            sid = r["umbrella_id"]
+            damaged_raw[sid] = damaged_raw.get(sid, 0) + (r["quantity_damaged"] or 0)
+            explicit = r.get("quantity_missing") or 0
+            implicit = (r["quantity"] or 0) - (r["quantity_returned"] or 0) - (r["quantity_damaged"] or 0)
+            missing = explicit if explicit else max(0, implicit)
+            if missing > 0:
+                lost[sid] = lost.get(sid, 0) + missing
+        out = {}
+        for s in self.list_umbrellas():
+            sid = s["id"]
+            p, d_raw, l = placed.get(sid, 0), damaged_raw.get(sid, 0), lost.get(sid, 0)
+            resolved = min(s.get("damaged_resolved") or 0, d_raw)
+            available = (s["total_units"] - p - d_raw - l) if s.get("active") else 0
+            out[sid] = {
+                "placed": p, "damaged": d_raw - resolved, "damaged_raw": d_raw, "lost": l,
+                "available": available,
+            }
+        return out
+
+    def active_umbrella_placements(self):
+        try:
+            rows = self.sb.table("umbrella_assignments").select(
+                "umbrella_id, quantity, umbrellas!inner(name,photo_path), apartment_id, apartments!inner(name,hub)"
+            ).eq("status", "Placed").execute().data
+        except Exception:
+            return []
+        out = [{
+            "umbrella_id": r["umbrella_id"], "umbrella_name": r["umbrellas"]["name"],
+            "umbrella_photo": r["umbrellas"].get("photo_path", ""),
+            "apartment_id": r["apartment_id"], "apartment_name": r["apartments"]["name"],
+            "apartment_hub": r["apartments"]["hub"], "quantity": r["quantity"],
+        } for r in rows]
+        out.sort(key=lambda x: x["apartment_name"])
+        return out
+
+    def create_umbrella_assignment(self, umbrella_id, apartment_id, assigned_to, quantity,
+                                   duration_days, collection_location, created_by,
+                                   invoice_photo="", invoice_note=""):
+        now = _now()
+        r = self.sb.table("umbrella_assignments").insert({
+            "umbrella_id": int(umbrella_id), "apartment_id": int(apartment_id),
+            "assigned_to": assigned_to, "quantity": int(quantity),
+            "duration_days": int(duration_days), "collection_location": collection_location,
+            "status": "Assigned", "invoice_photo": invoice_photo, "invoice_note": invoice_note,
+            "created_by": created_by, "created_at": now, "updated_at": now,
+        }).execute()
+        return r.data[0]["id"] if r.data else None
+
+    def set_assignment_invoice(self, assignment_id, invoice_photo, invoice_note, updated_by):
+        upd = {"invoice_note": invoice_note, "updated_at": _now()}
+        if invoice_photo:
+            upd["invoice_photo"] = invoice_photo
+        self.sb.table("umbrella_assignments").update(upd).eq("id", int(assignment_id)).execute()
+
+    def _join_assignment_rows(self, rows):
+        out = []
+        for r in rows:
+            d = dict(r)
+            std = r.get("umbrellas") or {}
+            d["umbrella_name"] = std.get("name", "")
+            d["umbrella_photo"] = std.get("photo_path", "")
+            apt = r.get("apartments") or {}
+            d["apartment_name"] = apt.get("name", "")
+            d["apartment_hub"] = apt.get("hub", "")
+            d["apartment_location_link"] = apt.get("location_link", "")
+            out.append(d)
+        return out
+
+    def list_umbrella_assignments(self):
+        rows = self.sb.table("umbrella_assignments").select(
+            "*, umbrellas!inner(name,photo_path), apartments!inner(name,hub)"
+        ).order("id", desc=True).execute().data
+        return self._join_assignment_rows(rows)
+
+    def list_umbrella_assignments_for_btl(self, username):
+        rows = self.sb.table("umbrella_assignments").select(
+            "*, umbrellas!inner(name,photo_path), apartments!inner(name,hub,location_link)"
+        ).eq("assigned_to", username).order("id", desc=True).execute().data
+        return self._join_assignment_rows(rows)
+
+    def get_umbrella_assignment(self, assignment_id):
+        rows = self.sb.table("umbrella_assignments").select(
+            "*, umbrellas!inner(name,photo_path), apartments!inner(name,hub,location_link)"
+        ).eq("id", int(assignment_id)).limit(1).execute().data
+        joined = self._join_assignment_rows(rows)
+        return joined[0] if joined else None
+
+    def update_assignment_quantity(self, assignment_id, quantity):
+        self.sb.table("umbrella_assignments").update(
+            {"quantity": int(quantity), "updated_at": _now()}
+        ).eq("id", int(assignment_id)).execute()
+
+    def update_assignment_coordinator(self, assignment_id, assigned_to):
+        self.sb.table("umbrella_assignments").update(
+            {"assigned_to": assigned_to, "updated_at": _now()}
+        ).eq("id", int(assignment_id)).execute()
+
+    def delete_umbrella_assignment(self, assignment_id):
+        aid = int(assignment_id)
+        self.sb.table("umbrella_photos").delete().eq("assignment_id", aid).execute()
+        self.sb.table("umbrella_assignments").update({"redeployed_to": None}).eq("redeployed_to", aid).execute()
+        self.sb.table("umbrella_assignments").delete().eq("id", aid).execute()
+
+    def confirm_placement(self, assignment_id, placed_by, photo_paths):
+        assignment_id = int(assignment_id)
+        r = self.sb.table("umbrella_assignments").select("duration_days").eq("id", assignment_id).limit(1).execute()
+        duration = r.data[0]["duration_days"] if r.data else 0
+        now = _now()
+        collect_by = (datetime.now(IST) + timedelta(days=int(duration or 0))).strftime("%Y-%m-%d")
+        self.sb.table("umbrella_assignments").update({
+            "status": "Placed", "placed_at": now, "placed_by": placed_by,
+            "collect_by": collect_by, "updated_at": now,
+        }).eq("id", assignment_id).execute()
+        if photo_paths:
+            self.sb.table("umbrella_photos").insert([
+                {"assignment_id": assignment_id, "kind": "placement", "path": p, "uploaded_at": now}
+                for p in photo_paths
+            ]).execute()
+
+    def collect_umbrella_assignment(self, assignment_id, quantity_returned, quantity_damaged,
+                                    damage_note, drop_location, collected_by, photo_paths,
+                                    quantity_missing=0, redeployed_to=None):
+        assignment_id = int(assignment_id)
+        now = _now()
+        self.sb.table("umbrella_assignments").update({
+            "status": "Collected", "collected_at": now, "collected_by": collected_by,
+            "quantity_returned": int(quantity_returned), "quantity_damaged": int(quantity_damaged),
+            "quantity_missing": int(quantity_missing),
+            "damage_note": damage_note, "drop_location": drop_location,
+            "redeployed_to": int(redeployed_to) if redeployed_to else None,
+            "updated_at": now,
+        }).eq("id", assignment_id).execute()
+        if photo_paths:
+            self.sb.table("umbrella_photos").insert([
+                {"assignment_id": assignment_id, "kind": "damage", "path": p, "uploaded_at": now}
+                for p in photo_paths
+            ]).execute()
+
+    def photos_for(self, assignment_id):
+        return (
+            self.sb.table("umbrella_photos").select("*").eq("assignment_id", int(assignment_id))
             .order("id").execute().data
         )
 

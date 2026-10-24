@@ -116,13 +116,13 @@ def _apartment_stats(apartments):
     }
 
 
-def _save_photos(files, subdir):
+def _save_photos(files, subdir, root="standees"):
     """Persist uploaded image files. On the Supabase backend they go to the public
     'media' Storage bucket (returns absolute https URLs); locally they go under
     static/uploads/ (returns 'uploads/...' paths). Use the `media` filter / helper
     to turn either form into a browser URL."""
     saved = []
-    folder = os.path.join(app.static_folder, "uploads", "standees", str(subdir))
+    folder = os.path.join(app.static_folder, "uploads", root, str(subdir))
     for f in files or []:
         if not f or not f.filename:
             continue
@@ -134,13 +134,13 @@ def _save_photos(files, subdir):
             data = f.read()
             ctype = f.mimetype or mimetypes.guess_type(fname)[0] or "application/octet-stream"
             try:
-                saved.append(db.upload_media(f"standees/{subdir}/{fname}", data, ctype))
+                saved.append(db.upload_media(f"{root}/{subdir}/{fname}", data, ctype))
             except Exception:
-                app.logger.exception("media upload failed: standees/%s/%s", subdir, fname)
+                app.logger.exception("media upload failed: %s/%s/%s", root, subdir, fname)
         else:
             os.makedirs(folder, exist_ok=True)
             f.save(os.path.join(folder, fname))
-            saved.append(f"uploads/standees/{subdir}/{fname}")
+            saved.append(f"uploads/{root}/{subdir}/{fname}")
     return saved
 
 
@@ -173,6 +173,7 @@ def home():
     dest = {
         "apartments": "marketing_dashboard", "hubs": "marketing_hubs_page",
         "assign": "marketing_assign_page", "standees": "marketing_standees_page",
+        "umbrellas": "marketing_umbrellas_page",
         "export": "marketing_export_page",
     }.get(first)
     if dest:
@@ -1126,6 +1127,424 @@ def btl_standee_collect(assignment_id):
     return redirect(url_for("btl_standees_page"))
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+#  Marketing · Umbrella tracker
+# ═══════════════════════════════════════════════════════════════════════════
+@app.route("/marketing/umbrellas")
+@feature_required("umbrellas", "read")
+def marketing_umbrellas_page():
+    umbrellas = db.list_umbrellas()
+    stats = db.umbrella_stats()
+    return render_template(
+        "marketing/umbrellas.html",
+        active="umbrellas",
+        umbrellas=umbrellas,
+        umbrellas_by_id={s["id"]: s for s in umbrellas},
+        stats=stats,
+        apartments=db.list_apartments(),
+        btl_users=db.btl_users(),
+        assignments=db.list_umbrella_assignments(),
+        active_placements=db.active_umbrella_placements(),
+        hub_names=db.hub_names(),
+    )
+
+
+@app.route("/marketing/umbrellas/add", methods=["POST"])
+@feature_required("umbrellas", "edit")
+def marketing_umbrella_add():
+    name = request.form.get("name", "").strip()
+    total = request.form.get("total_units", "0").strip()
+    loc = request.form.get("storage_location", "").strip()
+    if not name:
+        flash("Umbrella name is required", "danger")
+        return redirect(url_for("marketing_umbrellas_page"))
+    try:
+        total_units = int(total)
+    except ValueError:
+        total_units = 0
+    saved = _save_photos([request.files.get("photo")], "designs", root="umbrellas")
+    umbrella_id = db.add_umbrella(name, saved[0] if saved else "", total_units, loc, session["user"])
+    if umbrella_id is None:
+        flash(f"Umbrella '{name}' already exists", "danger")
+    else:
+        flash(f"Added umbrella '{name}'", "success")
+    return redirect(url_for("marketing_umbrellas_page"))
+
+
+@app.route("/marketing/umbrellas/<int:umbrella_id>/reprint", methods=["POST"])
+@feature_required("umbrellas", "edit")
+def marketing_umbrella_reprint(umbrella_id):
+    try:
+        added = int(request.form.get("added_units", "0"))
+    except ValueError:
+        added = 0
+    note = request.form.get("note", "").strip()
+    resolve_damaged = request.form.get("resolve_damaged") == "1"
+    if added <= 0:
+        flash("Enter a positive number of units", "danger")
+    else:
+        db.reprint_umbrella(umbrella_id, added, note, session["user"], resolve_damaged=resolve_damaged)
+        msg = f"Added {added} unit(s)"
+        if resolve_damaged:
+            msg += " · damaged count updated"
+        flash(msg, "success")
+    return redirect(url_for("marketing_umbrellas_page"))
+
+
+@app.route("/marketing/umbrellas/<int:umbrella_id>/replace", methods=["POST"])
+@feature_required("umbrellas", "edit")
+def marketing_umbrella_replace(umbrella_id):
+    old = db.get_umbrella(umbrella_id)
+    new_name = request.form.get("new_name", "").strip()
+    new_total = request.form.get("new_total_units", "0").strip()
+    new_storage = request.form.get("new_storage_location", "").strip()
+    if not old:
+        flash("Umbrella not found", "danger")
+        return redirect(url_for("marketing_umbrellas_page"))
+    if not new_name:
+        flash("New creative needs a name", "danger")
+        return redirect(url_for("marketing_umbrellas_page"))
+    try:
+        new_total_units = int(new_total)
+    except ValueError:
+        new_total_units = 0
+    saved = _save_photos([request.files.get("new_photo")], "designs", root="umbrellas")
+    new_id = db.add_umbrella(
+        new_name, saved[0] if saved else "", new_total_units,
+        new_storage or old["storage_location"], session["user"],
+    )
+    if new_id is None:
+        flash(f"An umbrella named '{new_name}' already exists", "danger")
+        return redirect(url_for("marketing_umbrellas_page"))
+    db.retire_umbrella(umbrella_id, replaced_by=new_id)
+    flash(f"'{old['name']}' retired · new creative '{new_name}' added", "success")
+    return redirect(url_for("marketing_umbrellas_page"))
+
+
+@app.route("/marketing/umbrellas/<int:umbrella_id>/edit", methods=["POST"])
+@feature_required("umbrellas", "edit")
+def marketing_umbrella_edit(umbrella_id):
+    s = db.get_umbrella(umbrella_id)
+    if not s:
+        flash("Umbrella not found", "danger")
+        return redirect(url_for("marketing_umbrellas_page"))
+    name = request.form.get("name", "").strip()
+    storage = request.form.get("storage_location", "").strip()
+    try:
+        total = int(request.form.get("total_units", str(s["total_units"])) or 0)
+    except ValueError:
+        total = s["total_units"]
+    if not name:
+        flash("Umbrella name is required", "danger")
+        return redirect(url_for("marketing_umbrellas_page"))
+    saved = _save_photos([request.files.get("photo")], "designs", root="umbrellas")
+    ok = db.update_umbrella(
+        umbrella_id, name=name, total_units=max(0, total),
+        storage_location=storage, photo_path=(saved[0] if saved else None),
+    )
+    flash("Umbrella updated" if ok else f"An umbrella named '{name}' already exists",
+          "success" if ok else "danger")
+    return redirect(url_for("marketing_umbrellas_page"))
+
+
+@app.route("/marketing/umbrellas/<int:umbrella_id>/delete", methods=["POST"])
+@feature_required("umbrellas", "read")
+@admin_required
+def marketing_umbrella_delete(umbrella_id):
+    s = db.get_umbrella(umbrella_id)
+    if not s:
+        flash("Umbrella not found", "danger")
+        return redirect(url_for("marketing_umbrellas_page"))
+    n = db.umbrella_in_use(umbrella_id)
+    if n:
+        flash(f"Can't delete '{s['name']}' — it has {n} assignment or replacement link(s). "
+              "Use Replace to discontinue it instead.", "danger")
+    else:
+        db.delete_umbrella(umbrella_id)
+        flash(f"Deleted umbrella '{s['name']}'", "success")
+    return redirect(url_for("marketing_umbrellas_page"))
+
+
+@app.route("/marketing/umbrellas/<int:umbrella_id>/detail")
+@feature_required("umbrellas", "read")
+def marketing_umbrella_detail(umbrella_id):
+    s = db.get_umbrella(umbrella_id)
+    if not s:
+        return {"error": "not found"}, 404
+    all_umbrellas = db.list_umbrellas()
+    replaced_by = next((x for x in all_umbrellas if x["id"] == s.get("replaced_by")), None)
+    replaces = next((x for x in all_umbrellas if x.get("replaced_by") == umbrella_id), None)
+    history = [
+        a for a in db.list_umbrella_assignments() if a["umbrella_id"] == umbrella_id
+    ]
+    s["photo_url"] = _media_url(s.get("photo_path"))
+    s["stats"] = db.umbrella_stats().get(umbrella_id, {})
+    s["replaced_by_name"] = replaced_by["name"] if replaced_by else None
+    s["replaced_by_id"] = replaced_by["id"] if replaced_by else None
+    s["replaces_name"] = replaces["name"] if replaces else None
+    s["replaces_id"] = replaces["id"] if replaces else None
+    s["reprints"] = db.reprint_history(umbrella_id)
+    s["assignments"] = [
+        {
+            "id": a["id"], "apartment_name": a["apartment_name"], "assigned_to": a["assigned_to"],
+            "quantity": a["quantity"], "status": a["status"], "placed_at": a.get("placed_at"),
+            "collect_by": a.get("collect_by"), "collected_at": a.get("collected_at"),
+            "quantity_returned": a.get("quantity_returned"), "quantity_damaged": a.get("quantity_damaged"),
+            "quantity_missing": a.get("quantity_missing"),
+        }
+        for a in sorted(history, key=lambda x: x["id"], reverse=True)
+    ]
+    return s
+
+
+@app.route("/marketing/umbrellas/assign", methods=["POST"])
+@feature_required("umbrellas", "edit")
+def marketing_umbrella_assign():
+    umbrella_id = request.form.get("umbrella_id", "").strip()
+    apartment_id = request.form.get("apartment_id", "").strip()
+    assigned_to = request.form.get("assigned_to", "").strip()
+    quantity = request.form.get("quantity", "").strip()
+    duration_days = request.form.get("duration_days", "").strip()
+    valid_btl = {u["username"] for u in db.btl_users()}
+    if not all([umbrella_id, apartment_id, assigned_to, quantity, duration_days]) or assigned_to not in valid_btl:
+        flash("Umbrella, apartment, BTL coordinator, quantity and duration are all required", "danger")
+        return redirect(url_for("marketing_umbrellas_page"))
+    try:
+        qty, days = int(quantity), int(duration_days)
+    except ValueError:
+        flash("Quantity and duration must be numbers", "danger")
+        return redirect(url_for("marketing_umbrellas_page"))
+    loc = request.form.get("collection_location", "").strip()
+    inv = _save_photos([request.files.get("invoice_photo")], "invoices", root="umbrellas")
+    db.create_umbrella_assignment(
+        umbrella_id, apartment_id, assigned_to, qty, days, loc, session["user"],
+        invoice_photo=(inv[0] if inv else ""),
+    )
+    flash("Umbrella assigned", "success")
+    return redirect(url_for("marketing_umbrellas_page") + "#assign")
+
+
+@app.route("/marketing/umbrellas/assignment/<int:assignment_id>/invoice", methods=["POST"])
+@feature_required("umbrellas", "edit")
+def marketing_umbrella_assignment_invoice(assignment_id):
+    a = db.get_umbrella_assignment(assignment_id)
+    back = url_for("marketing_umbrellas_page") + "#assign"
+    if not a:
+        flash("Assignment not found", "danger")
+        return redirect(back)
+    inv = _save_photos([request.files.get("invoice_photo")], "invoices", root="umbrellas")
+    if not inv:
+        flash("Choose a payment proof photo to upload", "danger")
+        return redirect(back)
+    db.set_assignment_invoice(assignment_id, inv[0], "", session["user"])
+    flash(f"Payment proof updated for {a['umbrella_name']} @ {a['apartment_name']}", "success")
+    return redirect(back)
+
+
+@app.route("/marketing/umbrellas/assignment/<int:assignment_id>/quantity", methods=["POST"])
+@feature_required("umbrellas", "edit")
+def marketing_umbrella_assignment_quantity(assignment_id):
+    a = db.get_umbrella_assignment(assignment_id)
+    back = url_for("marketing_umbrellas_page") + "#assign"
+    if not a:
+        flash("Assignment not found", "danger")
+        return redirect(back)
+    if a["status"] == "Collected":
+        flash("That assignment is already collected — its quantity is locked", "danger")
+        return redirect(back)
+    try:
+        qty = int(request.form.get("quantity", ""))
+    except ValueError:
+        qty = 0
+    if qty < 1:
+        flash("Quantity must be at least 1", "danger")
+    elif qty == a["quantity"]:
+        flash("Quantity unchanged", "info")
+    else:
+        db.update_assignment_quantity(assignment_id, qty)
+        flash(f"{a['umbrella_name']} @ {a['apartment_name']}: quantity {a['quantity']} → {qty}", "success")
+    return redirect(back)
+
+
+@app.route("/marketing/umbrellas/assignment/<int:assignment_id>/edit", methods=["POST"])
+@feature_required("umbrellas", "edit")
+def marketing_umbrella_assignment_edit(assignment_id):
+    a = db.get_umbrella_assignment(assignment_id)
+    back = url_for("marketing_umbrellas_page") + "#assign"
+    if not a:
+        flash("Assignment not found", "danger")
+        return redirect(back)
+    if a["status"] == "Collected":
+        flash("That assignment is already collected — it can't be edited", "danger")
+        return redirect(back)
+    assigned_to = request.form.get("assigned_to", "").strip()
+    if assigned_to not in {u["username"] for u in db.btl_users()}:
+        flash("Select a valid BTL coordinator", "danger")
+        return redirect(back)
+    try:
+        qty = int(request.form.get("quantity", ""))
+    except ValueError:
+        qty = 0
+    if qty < 1:
+        flash("Quantity must be at least 1", "danger")
+        return redirect(back)
+    if assigned_to != a["assigned_to"]:
+        db.update_assignment_coordinator(assignment_id, assigned_to)
+    if qty != a["quantity"]:
+        db.update_assignment_quantity(assignment_id, qty)
+    flash(f"Updated {a['umbrella_name']} @ {a['apartment_name']}", "success")
+    return redirect(back)
+
+
+@app.route("/marketing/umbrellas/assignment/<int:assignment_id>/delete", methods=["POST"])
+@feature_required("umbrellas", "read")
+@admin_required
+def marketing_umbrella_assignment_delete(assignment_id):
+    a = db.get_umbrella_assignment(assignment_id)
+    if a:
+        db.delete_umbrella_assignment(assignment_id)
+        flash(f"Deleted assignment {a['umbrella_name']} @ {a['apartment_name']}", "success")
+    else:
+        flash("Assignment not found", "danger")
+    return redirect(url_for("marketing_umbrellas_page") + "#assign")
+
+
+@app.route("/marketing/umbrellas/assignment/<int:assignment_id>")
+@feature_required("umbrellas", "read")
+def marketing_umbrella_assignment_detail(assignment_id):
+    a = db.get_umbrella_assignment(assignment_id)
+    if not a:
+        return {"error": "not found"}, 404
+    a["photos"] = [
+        {"kind": p["kind"], "url": _media_url(p["path"]), "uploaded_at": p["uploaded_at"]}
+        for p in db.photos_for(assignment_id)
+    ]
+    a["invoice_url"] = _media_url(a.get("invoice_photo"))
+    a["umbrella_photo_url"] = _media_url(a.get("umbrella_photo"))
+    return a
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  BTL · Umbrella tracker
+# ═══════════════════════════════════════════════════════════════════════════
+@app.route("/btl/umbrellas")
+@role_required("btl")
+def btl_umbrellas_page():
+    assignments = db.list_umbrella_assignments_for_btl(session["user"])
+    return render_template(
+        "btl/umbrellas.html",
+        active="umbrellas",
+        assignments=assignments,
+        today=date.today().isoformat(),
+        counts={
+            "all": len(assignments),
+            "Assigned": len([a for a in assignments if a["status"] == "Assigned"]),
+            "Placed": len([a for a in assignments if a["status"] == "Placed"]),
+            "Collected": len([a for a in assignments if a["status"] == "Collected"]),
+        },
+    )
+
+
+@app.route("/btl/umbrellas/<int:assignment_id>")
+@role_required("btl")
+def btl_umbrella_detail(assignment_id):
+    a = db.get_umbrella_assignment(assignment_id)
+    if not a or a["assigned_to"] != session["user"]:
+        flash("That task is not assigned to you", "danger")
+        return redirect(url_for("btl_umbrellas_page"))
+    pending = [
+        x for x in db.list_umbrella_assignments_for_btl(session["user"])
+        if x["status"] == "Assigned" and x["id"] != assignment_id
+    ]
+    return render_template(
+        "btl/umbrella_detail.html",
+        a=a,
+        collection=db.get_collection(a["apartment_id"]),
+        photos=db.photos_for(assignment_id),
+        hub_names=db.hub_names(),
+        pending_assignments=pending,
+    )
+
+
+@app.route("/btl/umbrellas/<int:assignment_id>/place", methods=["GET", "POST"])
+@role_required("btl")
+def btl_umbrella_place(assignment_id):
+    if request.method == "GET":
+        return redirect(url_for("btl_umbrella_detail", assignment_id=assignment_id))
+    a = db.get_umbrella_assignment(assignment_id)
+    if not a or a["assigned_to"] != session["user"] or a["status"] != "Assigned":
+        flash("This task can't be placed right now", "danger")
+        return redirect(url_for("btl_umbrellas_page"))
+    saved = _save_photos(request.files.getlist("photos"), assignment_id, root="umbrellas")
+    if not saved:
+        flash("Add at least one photo to confirm placement", "danger")
+        return redirect(url_for("btl_umbrella_detail", assignment_id=assignment_id))
+    db.confirm_placement(assignment_id, session["user"], saved)
+    flash("Placement confirmed", "success")
+    return redirect(url_for("btl_umbrellas_page"))
+
+
+@app.route("/btl/umbrellas/<int:assignment_id>/collect", methods=["GET", "POST"])
+@role_required("btl")
+def btl_umbrella_collect(assignment_id):
+    if request.method == "GET":
+        return redirect(url_for("btl_umbrella_detail", assignment_id=assignment_id))
+    a = db.get_umbrella_assignment(assignment_id)
+    if not a or a["assigned_to"] != session["user"] or a["status"] != "Placed":
+        flash("This task can't be collected right now", "danger")
+        return redirect(url_for("btl_umbrellas_page"))
+    qty = int(a["quantity"] or 0)
+
+    def _int(name, default=0):
+        try:
+            return int(request.form.get(name, str(default)) or default)
+        except ValueError:
+            return default
+
+    # Damaged + missing are what the coordinator explicitly reported, so they win;
+    # "returned" is then whatever's left (never letting the three exceed quantity).
+    damaged = 0
+    if request.form.get("damaged_flag") == "yes":
+        damaged = min(max(1, _int("quantity_damaged", 1)), qty)
+    missing = 0
+    if request.form.get("missing_flag") == "yes":
+        missing = min(max(1, _int("quantity_missing", 1)), max(0, qty - damaged))
+    returned = max(0, min(_int("quantity_returned", qty), qty - damaged - missing))
+    note = request.form.get("damage_note", "").strip() if damaged else ""
+
+    # where it goes next: a hub, or redeployed to one of my pending assignments
+    drop_type = request.form.get("drop_type", "hub")
+    redeploy_id, dest = None, None
+    if drop_type == "assignment":
+        rid = _int("drop_assignment_id")
+        dest = db.get_umbrella_assignment(rid) if rid else None
+        if not dest or dest["assigned_to"] != session["user"] or dest["status"] != "Assigned":
+            flash("Pick a valid pending assignment to redeploy to", "danger")
+            return redirect(url_for("btl_umbrella_detail", assignment_id=assignment_id))
+        redeploy_id = rid
+        loc = f"→ {dest['umbrella_name']} @ {dest['apartment_name']}"
+    else:
+        loc = request.form.get("drop_hub", "").strip() or a["apartment_hub"]
+
+    saved = _save_photos(request.files.getlist("damage_photos"), assignment_id, root="umbrellas") if damaged else []
+    try:
+        db.collect_umbrella_assignment(
+            assignment_id, returned, damaged, note, loc, session["user"], saved,
+            quantity_missing=missing, redeployed_to=redeploy_id,
+        )
+        if redeploy_id:
+            db.confirm_placement(redeploy_id, session["user"], [])
+    except Exception:
+        app.logger.exception("umbrella collect failed (assignment %s)", assignment_id)
+        flash("Couldn't save the collection — please try again in a moment.", "danger")
+        return redirect(url_for("btl_umbrella_detail", assignment_id=assignment_id))
+    if redeploy_id:
+        flash(f"Collected · redeployed to {dest['apartment_name']} ({dest['umbrella_name']})", "success")
+    else:
+        flash("Umbrella collected", "success")
+    return redirect(url_for("btl_umbrellas_page"))
+
+
 # ── errors ───────────────────────────────────────────────────────────────
 @app.errorhandler(404)
 def not_found(e):
@@ -1136,6 +1555,8 @@ def not_found(e):
 @app.errorhandler(405)
 def method_not_allowed(e):
     # Usually a refresh/back-button on a form URL. Send them somewhere useful.
+    if request.path.startswith("/btl/umbrellas"):
+        return redirect(url_for("btl_umbrellas_page"))
     if request.path.startswith("/btl/"):
         return redirect(url_for("btl_standees_page"))
     if request.path.startswith("/marketing/"):

@@ -196,6 +196,94 @@ create table if not exists standee_photos (
 );
 create index if not exists standee_photos_assignment_idx on standee_photos (assignment_id);
 
+-- ═══ Umbrellas (separate from standees; same flow) ═══
+-- U1. umbrellas table & columns
+create table if not exists umbrellas (
+    id                bigint generated always as identity primary key,
+    name              text not null unique,
+    photo_path        text not null default '',
+    total_units       integer not null default 0,
+    storage_location  text not null default '',
+    active            boolean not null default true,
+    replaced_by       bigint references umbrellas (id),
+    damaged_resolved  integer not null default 0,
+    created_by        text not null default '',
+    created_at        text not null default ''
+);
+
+alter table umbrellas add column if not exists photo_path text not null default '';
+alter table umbrellas add column if not exists active boolean not null default true;
+alter table umbrellas add column if not exists replaced_by bigint references umbrellas (id);
+alter table umbrellas add column if not exists damaged_resolved integer not null default 0;
+alter table umbrellas add column if not exists created_by text not null default '';
+
+-- U2. umbrella_reprints table
+create table if not exists umbrella_reprints (
+    id           bigint generated always as identity primary key,
+    umbrella_id   bigint not null references umbrellas (id) on delete cascade,
+    added_units  integer not null default 0,
+    note         text not null default '',
+    added_by     text not null default '',
+    added_at     text not null default ''
+);
+create index if not exists umbrella_reprints_umbrella_idx on umbrella_reprints (umbrella_id);
+
+-- U3. umbrella_assignments table & columns
+create table if not exists umbrella_assignments (
+    id                   bigint generated always as identity primary key,
+    umbrella_id           bigint not null references umbrellas (id),
+    apartment_id         bigint not null references apartments (id),
+    assigned_to          text not null default '',
+    quantity             integer not null default 0,
+    duration_days        integer not null default 0,
+    collection_location  text not null default '',
+    status               text not null default 'Assigned' check (status in ('Assigned','Placed','Collected')),
+    placed_at            text not null default '',
+    placed_by            text not null default '',
+    collect_by           text not null default '',
+    collected_at         text not null default '',
+    collected_by         text not null default '',
+    quantity_returned    integer not null default 0,
+    quantity_damaged     integer not null default 0,
+    quantity_missing     integer not null default 0,
+    damage_note          text not null default '',
+    drop_location        text not null default '',
+    redeployed_to        bigint,
+    invoice_photo        text not null default '',
+    invoice_note         text not null default '',
+    created_by           text not null default '',
+    created_at           text not null default '',
+    updated_at           text not null default ''
+);
+
+alter table umbrella_assignments add column if not exists quantity_missing integer not null default 0;
+alter table umbrella_assignments add column if not exists redeployed_to bigint;
+alter table umbrella_assignments add column if not exists damage_note text not null default '';
+alter table umbrella_assignments add column if not exists drop_location text not null default '';
+alter table umbrella_assignments add column if not exists quantity_returned integer not null default 0;
+alter table umbrella_assignments add column if not exists quantity_damaged integer not null default 0;
+alter table umbrella_assignments add column if not exists collect_by text not null default '';
+alter table umbrella_assignments add column if not exists collected_at text not null default '';
+alter table umbrella_assignments add column if not exists collected_by text not null default '';
+alter table umbrella_assignments add column if not exists placed_at text not null default '';
+alter table umbrella_assignments add column if not exists placed_by text not null default '';
+alter table umbrella_assignments add column if not exists invoice_photo text not null default '';
+alter table umbrella_assignments add column if not exists invoice_note text not null default '';
+alter table umbrella_assignments add column if not exists updated_at text not null default '';
+
+create index if not exists umbrella_assignments_assigned_to_idx on umbrella_assignments (assigned_to);
+create index if not exists umbrella_assignments_status_idx on umbrella_assignments (status);
+
+-- U4. umbrella_photos table
+create table if not exists umbrella_photos (
+    id              bigint generated always as identity primary key,
+    assignment_id   bigint not null references umbrella_assignments (id) on delete cascade,
+    kind            text not null default 'placement' check (kind in ('placement','damage')),
+    path            text not null,
+    uploaded_at     text not null default ''
+);
+create index if not exists umbrella_photos_assignment_idx on umbrella_photos (assignment_id);
+
 -- 11. Ensure user gowtham exists and is admin (without deleting any other user)
 insert into users (username, name, password_hash, workspace, is_admin, active, created_at)
 values ('gowtham', 'Gowtham', 'pbkdf2:sha256:1000000$KDAxpOjN07lI4FMT$bc119260872e409c318b2f913395195178bd39c05bfb92fae606c1e648f8d85d', 'marketing', true, true, '')

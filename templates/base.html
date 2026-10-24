@@ -224,6 +224,9 @@
         {% if can('standees') %}
         <a href="/marketing/standees" class="nav-link {{ 'active' if active == 'standees' }}"><i class="bi bi-signpost-2"></i>Standees</a>
         {% endif %}
+        {% if can('umbrellas') %}
+        <a href="/marketing/umbrellas" class="nav-link {{ 'active' if active == 'umbrellas' }}"><i class="bi bi-umbrella"></i>Umbrellas</a>
+        {% endif %}
         {% if can('export') or can('apartments') or is_admin %}
         <div class="sidebar-section">Manage</div>
         {% endif %}
@@ -239,6 +242,7 @@
       {% else %}
         <a href="/btl" class="nav-link {{ 'active' if active == 'dashboard' }}"><i class="bi bi-grid-1x2"></i>Apartment Detail Collection</a>
         <a href="/btl/standees" class="nav-link {{ 'active' if active == 'standees' }}"><i class="bi bi-signpost-2"></i>Standee Tracker</a>
+        <a href="/btl/umbrellas" class="nav-link {{ 'active' if active == 'umbrellas' }}"><i class="bi bi-umbrella"></i>Umbrella Tracker</a>
       {% endif %}
     </nav>
     <div class="sidebar-foot">

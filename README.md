@@ -47,6 +47,9 @@ is seeded from `ADMIN_USERNAME` / `ADMIN_PASSWORD` (default `admin` / `admin123`
    alter table standee_assignments add column if not exists redeployed_to bigint;
    update users set is_admin = true where username = 'gowtham';
    ```
+   Umbrellas have their own tables (`umbrellas`, `umbrella_reprints`, `umbrella_assignments`,
+   `umbrella_photos`). To add them to an existing database, run the "Umbrellas" block of
+   `supabase_schema.sql` (everything is `create ... if not exists`, nothing is dropped).
 2. **Render** — Web Service from this repo:
    - Build: `pip install -r requirements.txt`
    - Start: `gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120`
