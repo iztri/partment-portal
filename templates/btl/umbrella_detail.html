@@ -30,6 +30,7 @@
   <a href="/btl/umbrellas" class="btn btn-default btn-sm"><i class="bi bi-arrow-left"></i>Back</a>
 </div>
 
+{% if not a.is_hub %}
 <div class="card">
   <div class="card-head"><h2>Contact</h2></div>
   <div class="card-body">
@@ -52,6 +53,9 @@
     {% endif %}
   </div>
 </div>
+{% else %}
+<div class="alert alert-info"><i class="bi bi-pin-map-fill"></i><span>Hub placement — {{ a.apartment_name }}.{% if a.collection_location %} Pickup: {{ a.collection_location }}.{% endif %}</span></div>
+{% endif %}
 
 {% if a.invoice_photo %}
 <div class="card">

@@ -230,7 +230,8 @@ create index if not exists umbrella_reprints_umbrella_idx on umbrella_reprints (
 create table if not exists umbrella_assignments (
     id                   bigint generated always as identity primary key,
     umbrella_id          bigint not null references umbrellas (id),
-    apartment_id         bigint not null references apartments (id),
+    apartment_id         bigint references apartments (id),   -- null when assigned to a hub
+    hub_name             text not null default '',
     assigned_to          text not null default '',
     quantity             integer not null default 0,
     collection_location  text not null default '',
@@ -243,6 +244,8 @@ create table if not exists umbrella_assignments (
     created_at           text not null default '',
     updated_at           text not null default ''
 );
+alter table umbrella_assignments alter column apartment_id drop not null;
+alter table umbrella_assignments add column if not exists hub_name text not null default '';
 create index if not exists umbrella_assignments_assigned_to_idx on umbrella_assignments (assigned_to);
 create index if not exists umbrella_assignments_status_idx on umbrella_assignments (status);
 create index if not exists umbrella_assignments_umbrella_idx on umbrella_assignments (umbrella_id);

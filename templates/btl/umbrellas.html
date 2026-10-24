@@ -113,7 +113,7 @@
         {% if a.status == 'Assigned' %}<span class="badge badge-live">To place</span>
         {% else %}<span class="badge badge-alt">Placed</span>{% endif %}
       </div>
-      <div class="meta"><i class="bi bi-building"></i> {{ a.apartment_name }} · {{ a.apartment_hub }} · <span class="subtle">#{{ a.id }}</span></div>
+      <div class="meta"><i class="bi bi-{{ 'pin-map' if a.is_hub else 'building' }}"></i> {{ a.apartment_name }}{% if a.is_hub %} (hub){% else %} · {{ a.apartment_hub }}{% endif %} · <span class="subtle">#{{ a.id }}</span></div>
       {% if a.status == 'Placed' and a.placed_at %}<div class="meta">Placed on <strong>{{ a.placed_at[:10] }}</strong></div>{% endif %}
     </div>
     <div class="st-cta">

@@ -133,12 +133,23 @@
         <div class="alert alert-warning" style="margin-bottom:14px;"><i class="bi bi-exclamation-triangle-fill"></i><span>No BTL users yet — add one on <a href="/marketing/team">Team</a>.</span></div>
         {% endif %}
         <form method="post" action="/marketing/umbrellas/assign" enctype="multipart/form-data">
-          <div class="field"><label>Apartment</label>
+          <div class="field"><label>Assign to</label>
+            <div class="yesno" style="display:flex; gap:14px; margin-bottom:8px;">
+              <label style="font-weight:500;"><input type="radio" name="target_type" value="apartment" checked> Apartment</label>
+              <label style="font-weight:500;"><input type="radio" name="target_type" value="hub"> Hub</label>
+            </div>
+            <div id="tgtApt">
             <input type="text" id="assignAptSearch" list="assignAptList" placeholder="Type to search apartment…" autocomplete="off" required>
             <input type="hidden" name="apartment_id" id="assignAptId">
             <datalist id="assignAptList">
               {% for a in apartments %}<option value="{{ a.name }} ({{ a.hub }})" data-id="{{ a.id }}"></option>{% endfor %}
             </datalist></div>
+            <div id="tgtHub" hidden>
+              <select name="hub_name" id="assignHubSelect" disabled>
+                <option value="">— Select hub —</option>
+                {% for h in hub_names %}<option>{{ h }}</option>{% endfor %}
+              </select>
+            </div></div>
           <div class="field"><label>Umbrella</label>
             <select name="umbrella_id" id="assignUmbrellaSelect" required>
               <option value="">— Select —</option>
@@ -179,7 +190,7 @@
               {% for a in assignments %}
               <tr>
                 <td class="num">{{ a.id }}</td>
-                <td class="strong">{{ a.apartment_name }}</td>
+                <td class="strong">{{ a.apartment_name }}{% if a.is_hub %} <span class="badge badge-off">Hub</span>{% endif %}</td>
                 <td class="muted">{% if a.umbrella_photo %}<img class="thumb" src="{{ a.umbrella_photo | media }}">{% endif %}{{ a.umbrella_name }}</td>
                 <td>{{ a.quantity }}</td>
                 <td class="muted">{{ a.assigned_to }}</td>
@@ -639,6 +650,21 @@
     document.getElementById('editAsgQty').value = qty;
     new bootstrap.Modal(document.getElementById('editAsgModal')).show();
   }
+
+  (function(){
+    var apt = document.getElementById('assignAptSearch');
+    if(!apt) return;
+    var hub = document.getElementById('assignHubSelect');
+    document.querySelectorAll('input[name="target_type"]').forEach(function(r){
+      r.addEventListener('change', function(){
+        var toHub = this.value === 'hub';
+        document.getElementById('tgtApt').hidden = toHub;
+        document.getElementById('tgtHub').hidden = !toHub;
+        apt.required = !toHub; apt.disabled = toHub;
+        hub.required = toHub; hub.disabled = !toHub;
+      });
+    });
+  })();
 
   (function(){
     var inp = document.getElementById('assignAptSearch');

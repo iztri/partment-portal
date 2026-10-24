@@ -1294,12 +1294,16 @@ def marketing_umbrella_detail(umbrella_id):
 @feature_required("umbrellas", "edit")
 def marketing_umbrella_assign():
     umbrella_id = request.form.get("umbrella_id", "").strip()
-    apartment_id = request.form.get("apartment_id", "").strip()
+    to_hub = request.form.get("target_type") == "hub"
+    apartment_id = "" if to_hub else request.form.get("apartment_id", "").strip()
+    hub_name = request.form.get("hub_name", "").strip() if to_hub else ""
+    if to_hub and hub_name not in set(db.hub_names()):
+        hub_name = ""
     assigned_to = request.form.get("assigned_to", "").strip()
     quantity = request.form.get("quantity", "").strip()
     valid_btl = {u["username"] for u in db.btl_users()}
-    if not all([umbrella_id, apartment_id, assigned_to, quantity]) or assigned_to not in valid_btl:
-        flash("Umbrella, apartment, BTL coordinator and quantity are all required", "danger")
+    if not all([umbrella_id, apartment_id or hub_name, assigned_to, quantity]) or assigned_to not in valid_btl:
+        flash("Umbrella, apartment or hub, BTL coordinator and quantity are all required", "danger")
         return redirect(url_for("marketing_umbrellas_page"))
     try:
         qty = int(quantity)
@@ -1313,7 +1317,7 @@ def marketing_umbrella_assign():
     inv = _save_photos([request.files.get("invoice_photo")], "invoices", root="umbrellas")
     db.create_umbrella_assignment(
         umbrella_id, apartment_id, assigned_to, qty, loc, session["user"],
-        invoice_photo=(inv[0] if inv else ""),
+        invoice_photo=(inv[0] if inv else ""), hub_name=hub_name,
     )
     flash("Umbrella assigned", "success")
     return redirect(url_for("marketing_umbrellas_page") + "#assign")
@@ -1424,7 +1428,7 @@ def btl_umbrella_detail(assignment_id):
     return render_template(
         "btl/umbrella_detail.html",
         a=a,
-        collection=db.get_collection(a["apartment_id"]),
+        collection=db.get_collection(a["apartment_id"]) if a["apartment_id"] else None,
         photos=db.umbrella_photos_for(assignment_id),
     )
 

@@ -205,7 +205,8 @@ class SQLiteDatabase:
             CREATE TABLE IF NOT EXISTS umbrella_assignments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 umbrella_id INTEGER NOT NULL REFERENCES umbrellas(id),
-                apartment_id INTEGER NOT NULL REFERENCES apartments(id),
+                apartment_id INTEGER REFERENCES apartments(id),   -- NULL when assigned to a hub
+                hub_name TEXT NOT NULL DEFAULT '',
                 assigned_to TEXT NOT NULL DEFAULT '',
                 quantity INTEGER NOT NULL DEFAULT 0,
                 collection_location TEXT NOT NULL DEFAULT '',
@@ -1009,24 +1010,28 @@ class SQLiteDatabase:
     def active_umbrella_placements(self):
         rows = self.conn.execute(
             """SELECT ua.umbrella_id, u.name AS umbrella_name, u.photo_path AS umbrella_photo,
-                      ua.apartment_id, a.name AS apartment_name, a.hub AS apartment_hub, ua.quantity
+                      ua.apartment_id, COALESCE(a.name, ua.hub_name) AS apartment_name,
+                      COALESCE(a.hub, ua.hub_name) AS apartment_hub, ua.quantity,
+                      (ua.apartment_id IS NULL) AS is_hub
                FROM umbrella_assignments ua
                JOIN umbrellas u ON u.id = ua.umbrella_id
-               JOIN apartments a ON a.id = ua.apartment_id
-               WHERE ua.status='Placed' ORDER BY a.name"""
+               LEFT JOIN apartments a ON a.id = ua.apartment_id
+               WHERE ua.status='Placed' ORDER BY apartment_name"""
         ).fetchall()
         return [dict(r) for r in rows]
 
     def create_umbrella_assignment(self, umbrella_id, apartment_id, assigned_to, quantity,
                                    collection_location, created_by,
-                                   invoice_photo="", invoice_note=""):
+                                   invoice_photo="", invoice_note="", hub_name=""):
+        """Assign to an apartment (apartment_id) or, if that's None, to a hub (hub_name)."""
         now = _now()
         cur = self.conn.execute(
-            "INSERT INTO umbrella_assignments (umbrella_id, apartment_id, assigned_to, quantity, "
+            "INSERT INTO umbrella_assignments (umbrella_id, apartment_id, hub_name, assigned_to, quantity, "
             "collection_location, status, invoice_photo, invoice_note, "
             "created_by, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, 'Assigned', ?, ?, ?, ?, ?)",
-            (int(umbrella_id), int(apartment_id), assigned_to, int(quantity),
+            "VALUES (?, ?, ?, ?, ?, ?, 'Assigned', ?, ?, ?, ?, ?)",
+            (int(umbrella_id), int(apartment_id) if apartment_id else None, hub_name or "",
+             assigned_to, int(quantity),
              collection_location, invoice_photo, invoice_note, created_by, now, now),
         )
         self.conn.commit()
@@ -1047,10 +1052,11 @@ class SQLiteDatabase:
     def list_umbrella_assignments(self):
         rows = self.conn.execute(
             """SELECT ua.*, u.name AS umbrella_name, u.photo_path AS umbrella_photo,
-                      a.name AS apartment_name, a.hub AS apartment_hub
+                      COALESCE(a.name, ua.hub_name) AS apartment_name, COALESCE(a.hub, ua.hub_name) AS apartment_hub,
+                      (ua.apartment_id IS NULL) AS is_hub
                FROM umbrella_assignments ua
                JOIN umbrellas u ON u.id = ua.umbrella_id
-               JOIN apartments a ON a.id = ua.apartment_id
+               LEFT JOIN apartments a ON a.id = ua.apartment_id
                ORDER BY ua.id DESC"""
         ).fetchall()
         return [dict(r) for r in rows]
@@ -1058,11 +1064,12 @@ class SQLiteDatabase:
     def list_umbrella_assignments_for_btl(self, username):
         rows = self.conn.execute(
             """SELECT ua.*, u.name AS umbrella_name, u.photo_path AS umbrella_photo,
-                      a.name AS apartment_name, a.hub AS apartment_hub,
+                      COALESCE(a.name, ua.hub_name) AS apartment_name, COALESCE(a.hub, ua.hub_name) AS apartment_hub,
+                      (ua.apartment_id IS NULL) AS is_hub,
                       a.location_link AS apartment_location_link
                FROM umbrella_assignments ua
                JOIN umbrellas u ON u.id = ua.umbrella_id
-               JOIN apartments a ON a.id = ua.apartment_id
+               LEFT JOIN apartments a ON a.id = ua.apartment_id
                WHERE ua.assigned_to=? ORDER BY ua.id DESC""",
             (username,),
         ).fetchall()
@@ -1071,11 +1078,12 @@ class SQLiteDatabase:
     def get_umbrella_assignment(self, assignment_id):
         r = self.conn.execute(
             """SELECT ua.*, u.name AS umbrella_name, u.photo_path AS umbrella_photo,
-                      a.name AS apartment_name, a.hub AS apartment_hub,
+                      COALESCE(a.name, ua.hub_name) AS apartment_name, COALESCE(a.hub, ua.hub_name) AS apartment_hub,
+                      (ua.apartment_id IS NULL) AS is_hub,
                       a.location_link AS apartment_location_link
                FROM umbrella_assignments ua
                JOIN umbrellas u ON u.id = ua.umbrella_id
-               JOIN apartments a ON a.id = ua.apartment_id
+               LEFT JOIN apartments a ON a.id = ua.apartment_id
                WHERE ua.id=?""",
             (int(assignment_id),),
         ).fetchone()
@@ -1746,25 +1754,28 @@ class SupabaseDatabase:
     def active_umbrella_placements(self):
         try:
             rows = self.sb.table("umbrella_assignments").select(
-                "umbrella_id, quantity, umbrellas!inner(name,photo_path), apartment_id, apartments!inner(name,hub)"
+                "umbrella_id, quantity, hub_name, umbrellas!inner(name,photo_path), apartment_id, apartments(name,hub)"
             ).eq("status", "Placed").execute().data
         except Exception:
             return []
         out = [{
             "umbrella_id": r["umbrella_id"], "umbrella_name": r["umbrellas"]["name"],
             "umbrella_photo": r["umbrellas"].get("photo_path", ""),
-            "apartment_id": r["apartment_id"], "apartment_name": r["apartments"]["name"],
-            "apartment_hub": r["apartments"]["hub"], "quantity": r["quantity"],
+            "apartment_id": r["apartment_id"],
+            "apartment_name": (r.get("apartments") or {}).get("name") or r.get("hub_name", ""),
+            "apartment_hub": (r.get("apartments") or {}).get("hub") or r.get("hub_name", ""),
+            "quantity": r["quantity"], "is_hub": not r["apartment_id"],
         } for r in rows]
         out.sort(key=lambda x: x["apartment_name"])
         return out
 
     def create_umbrella_assignment(self, umbrella_id, apartment_id, assigned_to, quantity,
                                    collection_location, created_by,
-                                   invoice_photo="", invoice_note=""):
+                                   invoice_photo="", invoice_note="", hub_name=""):
         now = _now()
         r = self.sb.table("umbrella_assignments").insert({
-            "umbrella_id": int(umbrella_id), "apartment_id": int(apartment_id),
+            "umbrella_id": int(umbrella_id),
+            "apartment_id": int(apartment_id) if apartment_id else None, "hub_name": hub_name or "",
             "assigned_to": assigned_to, "quantity": int(quantity),
             "collection_location": collection_location,
             "status": "Assigned", "invoice_photo": invoice_photo, "invoice_note": invoice_note,
@@ -1786,27 +1797,28 @@ class SupabaseDatabase:
             d["umbrella_name"] = umb.get("name", "")
             d["umbrella_photo"] = umb.get("photo_path", "")
             apt = r.get("apartments") or {}
-            d["apartment_name"] = apt.get("name", "")
-            d["apartment_hub"] = apt.get("hub", "")
-            d["apartment_location_link"] = apt.get("location_link", "")
+            d["apartment_name"] = apt.get("name") or r.get("hub_name", "")
+            d["apartment_hub"] = apt.get("hub") or r.get("hub_name", "")
+            d["apartment_location_link"] = apt.get("location_link") or ""
+            d["is_hub"] = not r.get("apartment_id")
             out.append(d)
         return out
 
     def list_umbrella_assignments(self):
         rows = self.sb.table("umbrella_assignments").select(
-            "*, umbrellas!inner(name,photo_path), apartments!inner(name,hub)"
+            "*, umbrellas!inner(name,photo_path), apartments(name,hub)"
         ).order("id", desc=True).execute().data
         return self._join_umbrella_assignment_rows(rows)
 
     def list_umbrella_assignments_for_btl(self, username):
         rows = self.sb.table("umbrella_assignments").select(
-            "*, umbrellas!inner(name,photo_path), apartments!inner(name,hub,location_link)"
+            "*, umbrellas!inner(name,photo_path), apartments(name,hub,location_link)"
         ).eq("assigned_to", username).order("id", desc=True).execute().data
         return self._join_umbrella_assignment_rows(rows)
 
     def get_umbrella_assignment(self, assignment_id):
         rows = self.sb.table("umbrella_assignments").select(
-            "*, umbrellas!inner(name,photo_path), apartments!inner(name,hub,location_link)"
+            "*, umbrellas!inner(name,photo_path), apartments(name,hub,location_link)"
         ).eq("id", int(assignment_id)).limit(1).execute().data
         joined = self._join_umbrella_assignment_rows(rows)
         return joined[0] if joined else None
