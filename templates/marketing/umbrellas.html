@@ -676,7 +676,7 @@
       inp.setCustomValidity(m || !inp.value ? '' : 'Pick an apartment from the suggestions');
     }
     inp.addEventListener('input', sync);
-    inp.form.addEventListener('submit', function(e){ sync(); if(!hid.value){ e.preventDefault(); inp.reportValidity(); } });
+    inp.form.addEventListener('submit', function(e){ if(inp.disabled) return; sync(); if(!hid.value){ e.preventDefault(); inp.reportValidity(); } });
   })();
 
   function openInvoiceModal(id, hasPhoto){
