@@ -43,7 +43,6 @@
     border-radius:var(--r); padding:16px 18px; margin-bottom:12px; box-shadow:var(--shadow);}
   .st[data-status="Assigned"]{border-left-color:var(--st-live-fg);}
   .st[data-status="Placed"]{border-left-color:var(--accent);}
-  .st[data-status="Collected"]{border-left-color:var(--st-off-fg);}
   .st-top{display:flex; justify-content:space-between; align-items:flex-start; gap:10px;}
   .st-name{display:flex; align-items:center; gap:8px;}
   .st-name img{width:34px; height:34px; border-radius:8px; object-fit:cover; border:1px solid var(--border); flex-shrink:0;}
@@ -67,28 +66,8 @@
 {% block content %}
 <div class="page-head">
   <h1>Umbrella Tracker</h1>
-  <p>Where to place umbrellas, and when to collect them back.</p>
+  <p>Where to place umbrellas.</p>
 </div>
-
-{% set due_today = assignments|selectattr('status','equalto','Placed')|selectattr('collect_by','equalto',today)|list %}
-{% if due_today %}
-<div class="card" style="border-left:3px solid var(--warn-fg); margin-bottom:18px;">
-  <div class="card-head"><h2><i class="bi bi-calendar-check"></i> Collect today</h2></div>
-  <div class="card-body flush">
-    <div class="tbl-wrap">
-      <table class="tbl"><tbody>
-        {% for a in due_today %}
-        <tr>
-          <td class="strong">{{ a.umbrella_name }}</td>
-          <td class="muted">{{ a.apartment_name }} · {{ a.quantity }} unit{{ '' if a.quantity == 1 else 's' }}</td>
-          <td style="text-align:right;"><a href="/btl/umbrellas/{{ a.id }}" class="btn btn-primary btn-sm">Collect</a></td>
-        </tr>
-        {% endfor %}
-      </tbody></table>
-    </div>
-  </div>
-</div>
-{% endif %}
 
 <div class="card">
   <div class="card-head">
@@ -104,7 +83,6 @@
       <div class="cal-g" id="calGrid"></div>
       <div class="cal-legend">
         <span><span class="dot" style="background:#1565c0;"></span>To place</span>
-        <span><span class="dot" style="background:#c62828;"></span>To remove (collect back)</span>
       </div>
     </div>
   </div>
@@ -114,7 +92,6 @@
   <div class="stat"><div class="n">{{ counts.all }}</div><div class="l">All</div></div>
   <div class="stat live"><div class="n">{{ counts.Assigned }}</div><div class="l">To place</div></div>
   <div class="stat accent"><div class="n">{{ counts.Placed }}</div><div class="l">Placed</div></div>
-  <div class="stat off"><div class="n">{{ counts.Collected }}</div><div class="l">Collected</div></div>
 </div>
 
 <input type="text" id="q" placeholder="Search apartment or umbrella…" style="max-width:100%; width:340px;">
@@ -122,7 +99,6 @@
   <button class="on" data-f="all">All</button>
   <button data-f="Assigned">To place</button>
   <button data-f="Placed">Placed</button>
-  <button data-f="Collected">Collected</button>
 </div>
 
 {% for a in assignments %}
@@ -135,17 +111,15 @@
           <h3>{{ a.umbrella_name }} <span class="subtle" style="font-weight:500;">× {{ a.quantity }}</span></h3>
         </div>
         {% if a.status == 'Assigned' %}<span class="badge badge-live">To place</span>
-        {% elif a.status == 'Placed' %}<span class="badge badge-alt">Placed</span>
-        {% else %}<span class="badge badge-ok">Collected</span>{% endif %}
+        {% else %}<span class="badge badge-alt">Placed</span>{% endif %}
       </div>
       <div class="meta"><i class="bi bi-building"></i> {{ a.apartment_name }} · {{ a.apartment_hub }} · <span class="subtle">#{{ a.id }}</span></div>
-      {% if a.status == 'Placed' %}<div class="meta">Collect by <strong>{{ a.collect_by }}</strong></div>{% endif %}
-      {% if a.status == 'Collected' %}<div class="meta">Returned {{ a.quantity_returned }}{% if a.quantity_damaged %} · {{ a.quantity_damaged }} damaged{% endif %}</div>{% endif %}
+      {% if a.status == 'Placed' and a.placed_at %}<div class="meta">Placed on <strong>{{ a.placed_at[:10] }}</strong></div>{% endif %}
     </div>
     <div class="st-cta">
-      <a href="/btl/umbrellas/{{ a.id }}" class="btn {{ 'btn-primary' if a.status != 'Collected' else 'btn-default' }}">
-        <i class="bi bi-{{ 'camera' if a.status == 'Assigned' else 'box-arrow-in-down' if a.status == 'Placed' else 'eye' }}"></i>
-        {{ 'Confirm placement' if a.status == 'Assigned' else 'Collect back' if a.status == 'Placed' else 'View' }}
+      <a href="/btl/umbrellas/{{ a.id }}" class="btn {{ 'btn-primary' if a.status == 'Assigned' else 'btn-default' }}">
+        <i class="bi bi-{{ 'camera' if a.status == 'Assigned' else 'eye' }}"></i>
+        {{ 'Confirm placement' if a.status == 'Assigned' else 'View' }}
       </a>
     </div>
   </div>
@@ -175,15 +149,12 @@
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 
   // BTL calendar shows open tasks only:
-  //  • "to place"  — every not-yet-placed umbrella, pinned to today until it's placed
-  //  • "to remove" — a placed umbrella on its collect-by date
-  // Once placed it leaves the "to place" group; once collected it leaves the calendar.
-  // (The real placed-at / collected-at timestamps still live on the backend + the
-  //  marketing Current assignments view — this view is deliberately task-only.)
+  //  • "to place" — every not-yet-placed umbrella, pinned to today until it's placed
+  // Once placed it leaves the calendar (the placed-at timestamp lives on the backend
+  // + the marketing Current assignments view — this view is deliberately task-only).
   function dayEvents(ds){
     return {
-      place: (ds === TODAY) ? A.filter(function(a){ return a.status === 'Assigned'; }) : [],
-      remove: A.filter(function(a){ return a.status === 'Placed' && a.collect_by === ds; })
+      place: (ds === TODAY) ? A.filter(function(a){ return a.status === 'Assigned'; }) : []
     };
   }
 
@@ -199,15 +170,13 @@
       if(day < 1 || day > dim){ h += '<div class="cal-d other"></div>'; continue; }
       var ds = ms + '-' + String(day).padStart(2,'0');
       var ev = dayEvents(ds);
-      var total = ev.place.length + ev.remove.length;
+      var total = ev.place.length;
       h += '<div class="cal-d' + (ds === todayStr ? ' today' : '') + (total ? ' has' : '') +
            '" data-date="' + ds + '"><div class="dn">' + day + '</div>';
       if(total > 3){
         if(ev.place.length) h += '<div class="cal-more place">' + ev.place.length + ' to place</div>';
-        if(ev.remove.length) h += '<div class="cal-more remove">' + ev.remove.length + ' to remove</div>';
       } else {
         ev.place.forEach(function(a){ h += '<div class="cal-e place" title="To place">' + esc(a.umbrella_name) + '</div>'; });
-        ev.remove.forEach(function(a){ h += '<div class="cal-e remove" title="To remove">' + esc(a.umbrella_name) + '</div>'; });
       }
       h += '</div>';
     }
@@ -232,7 +201,7 @@
             '<i class="bi bi-chevron-right"></i></a>';
         }).join('') + '</div>';
     }
-    var body = sect('To place', 'place', ev.place) + sect('To remove', 'remove', ev.remove);
+    var body = sect('To place', 'place', ev.place);
     document.getElementById('dayModalBody').innerHTML = body || '<div class="muted">Nothing on this day.</div>';
     new bootstrap.Modal(document.getElementById('dayModal')).show();
   }

@@ -1179,15 +1179,11 @@ def marketing_umbrella_reprint(umbrella_id):
     except ValueError:
         added = 0
     note = request.form.get("note", "").strip()
-    resolve_damaged = request.form.get("resolve_damaged") == "1"
     if added <= 0:
         flash("Enter a positive number of units", "danger")
     else:
-        db.reprint_umbrella(umbrella_id, added, note, session["user"], resolve_damaged=resolve_damaged)
-        msg = f"Added {added} unit(s)"
-        if resolve_damaged:
-            msg += " · damaged count updated"
-        flash(msg, "success")
+        db.reprint_umbrella(umbrella_id, added, note, session["user"])
+        flash(f"Added {added} unit(s)", "success")
     return redirect(url_for("marketing_umbrellas_page"))
 
 
@@ -1283,14 +1279,11 @@ def marketing_umbrella_detail(umbrella_id):
     s["replaced_by_id"] = replaced_by["id"] if replaced_by else None
     s["replaces_name"] = replaces["name"] if replaces else None
     s["replaces_id"] = replaces["id"] if replaces else None
-    s["reprints"] = db.reprint_history(umbrella_id)
+    s["reprints"] = db.umbrella_reprint_history(umbrella_id)
     s["assignments"] = [
         {
             "id": a["id"], "apartment_name": a["apartment_name"], "assigned_to": a["assigned_to"],
             "quantity": a["quantity"], "status": a["status"], "placed_at": a.get("placed_at"),
-            "collect_by": a.get("collect_by"), "collected_at": a.get("collected_at"),
-            "quantity_returned": a.get("quantity_returned"), "quantity_damaged": a.get("quantity_damaged"),
-            "quantity_missing": a.get("quantity_missing"),
         }
         for a in sorted(history, key=lambda x: x["id"], reverse=True)
     ]
@@ -1304,20 +1297,22 @@ def marketing_umbrella_assign():
     apartment_id = request.form.get("apartment_id", "").strip()
     assigned_to = request.form.get("assigned_to", "").strip()
     quantity = request.form.get("quantity", "").strip()
-    duration_days = request.form.get("duration_days", "").strip()
     valid_btl = {u["username"] for u in db.btl_users()}
-    if not all([umbrella_id, apartment_id, assigned_to, quantity, duration_days]) or assigned_to not in valid_btl:
-        flash("Umbrella, apartment, BTL coordinator, quantity and duration are all required", "danger")
+    if not all([umbrella_id, apartment_id, assigned_to, quantity]) or assigned_to not in valid_btl:
+        flash("Umbrella, apartment, BTL coordinator and quantity are all required", "danger")
         return redirect(url_for("marketing_umbrellas_page"))
     try:
-        qty, days = int(quantity), int(duration_days)
+        qty = int(quantity)
     except ValueError:
-        flash("Quantity and duration must be numbers", "danger")
+        flash("Quantity must be a number", "danger")
+        return redirect(url_for("marketing_umbrellas_page"))
+    if qty < 1:
+        flash("Quantity must be at least 1", "danger")
         return redirect(url_for("marketing_umbrellas_page"))
     loc = request.form.get("collection_location", "").strip()
     inv = _save_photos([request.files.get("invoice_photo")], "invoices", root="umbrellas")
     db.create_umbrella_assignment(
-        umbrella_id, apartment_id, assigned_to, qty, days, loc, session["user"],
+        umbrella_id, apartment_id, assigned_to, qty, loc, session["user"],
         invoice_photo=(inv[0] if inv else ""),
     )
     flash("Umbrella assigned", "success")
@@ -1336,33 +1331,8 @@ def marketing_umbrella_assignment_invoice(assignment_id):
     if not inv:
         flash("Choose a payment proof photo to upload", "danger")
         return redirect(back)
-    db.set_assignment_invoice(assignment_id, inv[0], "", session["user"])
+    db.set_umbrella_assignment_invoice(assignment_id, inv[0], "", session["user"])
     flash(f"Payment proof updated for {a['umbrella_name']} @ {a['apartment_name']}", "success")
-    return redirect(back)
-
-
-@app.route("/marketing/umbrellas/assignment/<int:assignment_id>/quantity", methods=["POST"])
-@feature_required("umbrellas", "edit")
-def marketing_umbrella_assignment_quantity(assignment_id):
-    a = db.get_umbrella_assignment(assignment_id)
-    back = url_for("marketing_umbrellas_page") + "#assign"
-    if not a:
-        flash("Assignment not found", "danger")
-        return redirect(back)
-    if a["status"] == "Collected":
-        flash("That assignment is already collected — its quantity is locked", "danger")
-        return redirect(back)
-    try:
-        qty = int(request.form.get("quantity", ""))
-    except ValueError:
-        qty = 0
-    if qty < 1:
-        flash("Quantity must be at least 1", "danger")
-    elif qty == a["quantity"]:
-        flash("Quantity unchanged", "info")
-    else:
-        db.update_assignment_quantity(assignment_id, qty)
-        flash(f"{a['umbrella_name']} @ {a['apartment_name']}: quantity {a['quantity']} → {qty}", "success")
     return redirect(back)
 
 
@@ -1374,8 +1344,8 @@ def marketing_umbrella_assignment_edit(assignment_id):
     if not a:
         flash("Assignment not found", "danger")
         return redirect(back)
-    if a["status"] == "Collected":
-        flash("That assignment is already collected — it can't be edited", "danger")
+    if a["status"] != "Assigned":
+        flash("That umbrella is already placed — it can't be edited", "danger")
         return redirect(back)
     assigned_to = request.form.get("assigned_to", "").strip()
     if assigned_to not in {u["username"] for u in db.btl_users()}:
@@ -1389,9 +1359,9 @@ def marketing_umbrella_assignment_edit(assignment_id):
         flash("Quantity must be at least 1", "danger")
         return redirect(back)
     if assigned_to != a["assigned_to"]:
-        db.update_assignment_coordinator(assignment_id, assigned_to)
+        db.update_umbrella_assignment_coordinator(assignment_id, assigned_to)
     if qty != a["quantity"]:
-        db.update_assignment_quantity(assignment_id, qty)
+        db.update_umbrella_assignment_quantity(assignment_id, qty)
     flash(f"Updated {a['umbrella_name']} @ {a['apartment_name']}", "success")
     return redirect(back)
 
@@ -1417,7 +1387,7 @@ def marketing_umbrella_assignment_detail(assignment_id):
         return {"error": "not found"}, 404
     a["photos"] = [
         {"kind": p["kind"], "url": _media_url(p["path"]), "uploaded_at": p["uploaded_at"]}
-        for p in db.photos_for(assignment_id)
+        for p in db.umbrella_photos_for(assignment_id)
     ]
     a["invoice_url"] = _media_url(a.get("invoice_photo"))
     a["umbrella_photo_url"] = _media_url(a.get("umbrella_photo"))
@@ -1440,7 +1410,6 @@ def btl_umbrellas_page():
             "all": len(assignments),
             "Assigned": len([a for a in assignments if a["status"] == "Assigned"]),
             "Placed": len([a for a in assignments if a["status"] == "Placed"]),
-            "Collected": len([a for a in assignments if a["status"] == "Collected"]),
         },
     )
 
@@ -1452,17 +1421,11 @@ def btl_umbrella_detail(assignment_id):
     if not a or a["assigned_to"] != session["user"]:
         flash("That task is not assigned to you", "danger")
         return redirect(url_for("btl_umbrellas_page"))
-    pending = [
-        x for x in db.list_umbrella_assignments_for_btl(session["user"])
-        if x["status"] == "Assigned" and x["id"] != assignment_id
-    ]
     return render_template(
         "btl/umbrella_detail.html",
         a=a,
         collection=db.get_collection(a["apartment_id"]),
-        photos=db.photos_for(assignment_id),
-        hub_names=db.hub_names(),
-        pending_assignments=pending,
+        photos=db.umbrella_photos_for(assignment_id),
     )
 
 
@@ -1479,69 +1442,8 @@ def btl_umbrella_place(assignment_id):
     if not saved:
         flash("Add at least one photo to confirm placement", "danger")
         return redirect(url_for("btl_umbrella_detail", assignment_id=assignment_id))
-    db.confirm_placement(assignment_id, session["user"], saved)
+    db.confirm_umbrella_placement(assignment_id, session["user"], saved)
     flash("Placement confirmed", "success")
-    return redirect(url_for("btl_umbrellas_page"))
-
-
-@app.route("/btl/umbrellas/<int:assignment_id>/collect", methods=["GET", "POST"])
-@role_required("btl")
-def btl_umbrella_collect(assignment_id):
-    if request.method == "GET":
-        return redirect(url_for("btl_umbrella_detail", assignment_id=assignment_id))
-    a = db.get_umbrella_assignment(assignment_id)
-    if not a or a["assigned_to"] != session["user"] or a["status"] != "Placed":
-        flash("This task can't be collected right now", "danger")
-        return redirect(url_for("btl_umbrellas_page"))
-    qty = int(a["quantity"] or 0)
-
-    def _int(name, default=0):
-        try:
-            return int(request.form.get(name, str(default)) or default)
-        except ValueError:
-            return default
-
-    # Damaged + missing are what the coordinator explicitly reported, so they win;
-    # "returned" is then whatever's left (never letting the three exceed quantity).
-    damaged = 0
-    if request.form.get("damaged_flag") == "yes":
-        damaged = min(max(1, _int("quantity_damaged", 1)), qty)
-    missing = 0
-    if request.form.get("missing_flag") == "yes":
-        missing = min(max(1, _int("quantity_missing", 1)), max(0, qty - damaged))
-    returned = max(0, min(_int("quantity_returned", qty), qty - damaged - missing))
-    note = request.form.get("damage_note", "").strip() if damaged else ""
-
-    # where it goes next: a hub, or redeployed to one of my pending assignments
-    drop_type = request.form.get("drop_type", "hub")
-    redeploy_id, dest = None, None
-    if drop_type == "assignment":
-        rid = _int("drop_assignment_id")
-        dest = db.get_umbrella_assignment(rid) if rid else None
-        if not dest or dest["assigned_to"] != session["user"] or dest["status"] != "Assigned":
-            flash("Pick a valid pending assignment to redeploy to", "danger")
-            return redirect(url_for("btl_umbrella_detail", assignment_id=assignment_id))
-        redeploy_id = rid
-        loc = f"→ {dest['umbrella_name']} @ {dest['apartment_name']}"
-    else:
-        loc = request.form.get("drop_hub", "").strip() or a["apartment_hub"]
-
-    saved = _save_photos(request.files.getlist("damage_photos"), assignment_id, root="umbrellas") if damaged else []
-    try:
-        db.collect_umbrella_assignment(
-            assignment_id, returned, damaged, note, loc, session["user"], saved,
-            quantity_missing=missing, redeployed_to=redeploy_id,
-        )
-        if redeploy_id:
-            db.confirm_placement(redeploy_id, session["user"], [])
-    except Exception:
-        app.logger.exception("umbrella collect failed (assignment %s)", assignment_id)
-        flash("Couldn't save the collection — please try again in a moment.", "danger")
-        return redirect(url_for("btl_umbrella_detail", assignment_id=assignment_id))
-    if redeploy_id:
-        flash(f"Collected · redeployed to {dest['apartment_name']} ({dest['umbrella_name']})", "success")
-    else:
-        flash("Umbrella collected", "success")
     return redirect(url_for("btl_umbrellas_page"))
 
 
